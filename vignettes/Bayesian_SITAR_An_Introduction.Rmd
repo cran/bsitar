@@ -1,0 +1,327 @@
+---
+title: "Bayesian SITAR model - An introduction"
+author: "Satpal Sandhu"
+date: '`r format(Sys.time(), "%B %d, %Y")`'
+bibliography: [Bayesian_SITAR_An_Introduction.bib, packages.bib, REFERENCES.bib]
+csl: apa-7th-edition.csl
+link-citations: yes
+colorlinks: true
+lang: en-US
+zotero: true
+header-includes:
+   - \setlength\parindent{30pt}\setlength{\parskip}{0.0pt plus 1.0pt}
+   - \pagenumbering{gobble}
+   - \setlength{\headheight}{47pt}
+   - \usepackage{float}
+   - \floatplacement{figure}{H}
+output: 
+  bookdown::html_document2:
+    #  base_format: rmarkdown::html_vignette
+      toc: yes
+      number_sections: true
+      toc_depth: 2
+      toc_float: false
+      highlight: tango
+      pandoc_args: 
+      # This --shift-heading throws error with ubuntu build on rhub
+      # - --shift-heading-level-by=-1 T
+      - --lua-filter=parse-html-links.lua
+      # css: bsitar_style.css
+      code_folding: hide
+      fig_caption: yes
+      keep_tex: yes
+linkcolor:  blue
+urlcolor: blue
+citecolor: magenta
+vignette: >
+  %\VignetteIndexEntry{Bayesian SITAR model - An introduction}
+  %\VignetteEncoding{UTF-8}
+  %\VignetteEngine{knitr::rmarkdown}
+params:
+  EVAL: !r identical(Sys.getenv("NOT_CRAN"), "true")
+linestretch: 1.5
+mainfont: "Times New Roman"
+monofont: "Monaco"
+fontsize: 12pt
+geometry:
+- top=2cm
+- left=2.5cm
+- right=2.5cm
+- bottom=3.5cm
+papersize: a4
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = NA,
+  message = FALSE,
+  warning = FALSE,
+ # eval = if (isTRUE(exists("params"))) params$EVAL else FALSE,
+  dev = "jpeg",
+  dpi = 100,
+  fig.asp = 0.8,
+  fig.width = 5,
+  out.width = "60%",
+  fig.align = "center"
+)
+```
+
+```{=tex}
+\newpage
+\pagenumbering{arabic}
+```
+```{css, echo=FALSE}
+p {
+	text-indent: 0em;
+}
+
+p + p {
+	text-indent: 2em;
+}
+```
+
+\newpage
+
+## Introduction
+
+Human physical growth is not a smooth progression through time, but is inherently dynamic in nature. Growth proceeds in a series of spurts which reflect an increase in the growth velocity [@RN5278; @RN6913; @RN7906]. The adolescent growth spurt (also known as the pubertal growth spurt) is experienced by all individuals and is the most readily recognized aspect of adolescence. A clear knowledge of the growth dynamics during adolescence is essential when planning treatment to correct skeletal discrepancies such as scoliosis in which the spine has a sideways curve [@RN2761; @RN7982]. Similarly, the timing of the peak growth velocity spurt is an important factor to be considered when initiating growth modification procedures to correct skeletal malocclusion characterized by discrepancies in the jaw size [@RN7058; @RN6934; @RN7058a]
+
+As the notion of change is central in studying growth, a correct view of the growth dynamics and the relationship between different growth phases can only be obtained from longitudinal growth data [@RN6071; @RN5278a]. Analysis of longitudinal growth data using an appropriate statistical method allows description of growth trajectories (distance and derivatives) and estimation of the timing and intensity of the adolescent growth spurt. Unlike in early years when linear growth curve model (GCMs) based on conventional polynomials were extensively used for studying human growth [@RN6217], the nonlinear nonlinear mixed effect are now gaining popularity in modelling longitudinal skeletal growth data such as height [@RN6217; @RN6071a].
+
+## SITAR growth curve model - an overview
+
+The super imposition by translation and rotation (SITAR) model [@Cole2010] is a shape-invariant nonlinear mixed effect growth curve model that fits a population average (i.e., mean average) curve to the data and aligns each individual's growth trajectory to the population average curve by a set of three random effects [@Cole2010]: the size relative to the mean growth curve (vertical shift), the timing of the adolescent growth spurt relative to the mean age at peak growth velocity (horizontal shift), and the intensity of the growth velocity, i.e., the relative rate at which individuals grow during the adolescent growth spurt in comparison to the mean growth intensity (horizontal stretch). The concept of shape invariant model (SIM) was first described by [@Lindstrom1995] and later used by [@Beath2007] [@Beath2007] for modelling infant growth data (birth to 2 years). The current version of the SITAR model that we describe below is developed by [@Cole2010].
+
+The SITAR is particularly useful in modelling human physical growth during adolescence. Recent studies have used SITAR for analyzing height and weight data [@nembidzaneUsingSITARMethod2020; @mansukoskiLifeCourseAssociations2019; @coleFiftyYearsChild2018; @riddellClassifyingGestationalWeight2017]and also to study jaw growth during adolescence [@Sandhu2020]. All these previous studies estimated SITAR model within the frequentist framework as implemented in the R package, the *sitar* package [@R-sitar].
+
+Consider a dataset comprised of $j$ individuals $(j = 1, . . ,j)$ where individual $j$ provides $n_j$ measurements ($i = 1, . . , n_j$) of height ($y_{ij}$) recorded at age, $x_{ij}$.
+
+```{=tex}
+\begin{equation}
+y_{ij}=\alpha_{0\ }+\alpha_{j\ }+\sum_{r=1}^{p-1}{\beta_r\mathbf{Spl}\left(\frac{x_{ij}-\bar{x_{ij}}-\left(\zeta_0+\zeta_j\right)}{e^{-\ \left(\left.\ \gamma_0+\ \gamma_j\right)\right.}}\right)}+e_{ij}
+(\#eq:1)
+\end{equation}
+```
+Where **Spl(.)** is the natural cubic spline function that generates the spline design matrix and $\beta_1,.,\beta_{p-1}$ are spline regression coefficient for the mean curve with $\alpha_0$, $\zeta_0$, $\gamma_0$ as the population average size, timing, and intensity parameters. By default, the predictor, age ($x_{ij}$) is mean centered by subtracting the mean age ($\bar{x}$) from it where $\bar{x} = \frac{1}{n} \sum_{i=1}^{n}x_{i.}$. The individual-specific random effects for size $(\alpha_j)$, timing $(\zeta_j)$ and intensity $(\gamma_j)$ describe how an individual's growth trajectory differs from the mean growth curve. The residuals $e_{ij}$ are also assumed to be normally distributed with zero mean and residual variance parameter $\sigma^2$ and are independent from the random effects. The random effects are assumed to be multivariate normally distributed with zero means and variance-covariance matrix $\Omega_2$. The $\Omega_2$ is unstructured (i.e., distinct variances and covariances between random effects) as follows:
+
+```{=tex}
+\begin{equation}
+\begin{matrix}&\\&\\\left(\begin{matrix}\begin{matrix}\alpha_j\\\zeta_j\\\gamma_j\\\end{matrix}\\\end{matrix}\right)&\sim M V N\left(\left(\begin{matrix}\begin{matrix}0\\0\\0\\\end{matrix}\\\end{matrix}\right),\left(\begin{matrix}\sigma_{\alpha_j}^2&\rho_{\alpha_j\zeta_j}&\rho_{\alpha_j\gamma_j}\\\rho_{\zeta_j\alpha_j}&\sigma_{\zeta_j}^2&\rho_{\zeta_j\gamma_j}\\\rho_{\gamma_j\alpha_j}&\rho_{\gamma_j\zeta_j}&\sigma_{\gamma_j}^2\\\end{matrix}\right)\right)\mathrm{,\ for\ individual\ j\ =\ 1,} \ldots\mathrm{,J} \\\end{matrix}
+(\#eq:2)
+\end{equation}
+```
+<br/>
+
+## Model estimation - frequentist vs. Bayesian
+
+There are two competing philosophies of model estimation [@bland1998; @Schoot2014]: the Bayesian (based on Bayes' theorem) and the frequentist (e.g., maximum likelihood estimation) approaches. While the frequentist approach was predominant in the earlier years, the advent of powerful computers has given a new impetus to the Bayesian analysis [@bland1998; @Schoot2014; @hamra2013]. As a result, Bayesian statistical methods are becoming ever more popular in applied and fundamental research. The key difference between Bayesian statistical inference and frequentest statistical methods concerns the nature of the unknown parameters. In the frequentist framework, a parameter of interest is assumed to be unknown, but fixed. That is, it is assumed that in the population there is only one true population parameter, for example, one true mean or one true regression coefficient. In the Bayesian view of subjective probability, all unknown parameters are treated as uncertain and therefore should be described by a probability distribution [@Schoot2014]. A particular attractive feature of Bayesian modelling is its ability to handle otherwise complex model specifications such as hierarchical model (i.e,., multilevel/mixed-effects models) that involve nested data structures (e.g., repeated height measurements in individuals) [@hamra2013]. Bayesian statistical methods are becoming popular in applied and clinical research [@Schoot2014]. 
+
+There are three essential components underlying Bayesian statistics ([@bayes1763lii; @stigler1986laplace]): the *prior distribution,* the *likelihood function,* and the *posterior distribution*. The *prior distribution* refers to all knowledge available *before* seeing the data whereas the *likelihood function* expresses the information in the data given the parameters defined in the model. The third component (i.e., *posterior distribution*) is based on combining the first two components via Bayes' theorem and the results are summarized by the so-called *posterior inference*. The *posterior distribution*, therefore, reflects one's updated knowledge, balancing prior knowledge with observed data.
+
+The task of combining these components together can yield a complex model in which the exact distribution of one or more variables is unknown and estimators that rely on assumptions of normality may perform poorly. This limitation is often mitigated by estimating the Bayesian models using Markov Chain Monte Carlo (MCMC). Unlike deterministic maximum-likelihood algorithms, MCMC is a stochastic procedure that repeatedly generates random samples that characterize the distribution of parameters of interest [@hamra2013]. The popular software platform for Bayesian estimation is the BUGS family including 
+WinBUGS [@lunn2000], OpenBUGS [@spiegelhalter2007openbugs], JAGS [@Plummer2003JAGSAP]. More recently, the software Stan has been developed to achieve higher computational and algorithmic efficiency by using the No-U-Turn Sampler (NUTS), which is an adaptive variant of Hamiltonian Monte Carlo (HMC) [@Hoffman2011; @neal2011; @gelman2015].
+
+## Bayesian SITAR model
+
+<!-- https://github.com/ASKurz/Statistical_Rethinking_with_brms_ggplot2_and_the_tidyverse_2_ed/blob/master/14.Rmd -->
+
+<!-- ### Conventional multilevel growth model. -->
+
+### Two-level SITAR model
+
+#### Univariate model specification
+
+Here we outline the Bayesian specification for a two-level SITAR model described earlier (See section [SITAR growth curve model - an overview]). 
+To get a better understanding of the data generative mechanism and for the ease of showing prior specification for each individual parameter, we re express the above model \@ref(eq:1) as as follows:
+
+<!-- color{#A65141} -->
+
+
+\begin{equation}
+\begin{aligned}
+\text{y}_{ij} & \sim \operatorname{Normal}(\mu_{ij}, \sigma) \\
+\\
+\mu_{ij} & = \alpha_0+ \alpha_j+\sum_{r=1}^{p-1}{\beta_r\mathbf{Spl}\left(\frac{x_{ij}-\bar{x_{ij}}-\left(\zeta_0+\zeta_j\right)}{e^{-\ \left(\left.\ \gamma_0+\gamma_j\right)\right.}}\right)} \\
+\sigma & = \sigma_\epsilon \\
+\\
+\begin{bmatrix} \alpha_{j} \\ \zeta_{j} \\ \gamma_{j} \end{bmatrix} & \sim {\operatorname{MVNormal}\begin{pmatrix} \begin{bmatrix} 0 \\ 0 \\ 0 \end{bmatrix},\ \mathbf S \mathbf R \mathbf S \end{pmatrix}} \\
+\\
+\mathbf S & = \begin{bmatrix} \sigma_{\alpha_j} & 0 & 0 \\ 0 &\sigma_{\zeta_j} & 0 \\ 0 &  0 & \sigma_{\gamma_j} \end{bmatrix} \\
+\\
+\mathbf R & = \begin{bmatrix} 1  & \rho_{\alpha_j\zeta_j} & \rho_{\alpha_j\gamma_j} \\\rho_{\zeta_j\alpha_j} & 1 & \rho_{\zeta_j\gamma_j} \\\rho_{\gamma_j\alpha_j} & \rho_{\gamma_j\zeta_j} & 1 \end{bmatrix} \\
+\\
+\alpha_0   & \sim \operatorname{Normal}(y_{mean},\  {y_{sd}}) \\
+\zeta_0   & \sim \operatorname{Normal}(0, 2) \\
+\gamma_0  & \sim \operatorname{Normal}(0, 1) \\
+\beta_1 \text{,..,} \beta_r & \sim \operatorname{Normal}(0, \ \mathbf {X_{scaled}}) \\
+\alpha_j   & \sim \operatorname{HalfNormal}({0},\  {y_{sd}}) \\
+\zeta_j   & \sim \operatorname{HalfNormal}({0},\  {2}) \\
+\gamma_j   & \sim \operatorname{HalfNormal}({0},\  {0.5}) \\
+\sigma_\epsilon & \sim \operatorname{HalfNormal}({0},\  y_{sd}) \\
+\mathbf R & \sim \operatorname{LKJ}(1),
+\end{aligned}
+(\#eq:4)
+\end{equation}
+
+
+The first line in the above equation is the probability of the outcome
+(likelihood) which states that the outcome is distributed with mean *mu* and
+standard deviation, *sigma*. The *mu* is the function of growth curve parameters
+as described earlier \@ref(eq:1). The residuals are assumed to be independent
+and normally distributed with 0 mean and a $n_j \times n_j$ dimensional identity
+covariance matrix with a diagonal constant variance parameter, $\sigma_\epsilon$
+i.e, $I\sigma_\epsilon$ where $I$ is the identity matrix (diagonal matrix
+of 1s), and $\sigma_\epsilon$ is the residual standard deviation. The assumption
+of homoscedasticity of residuals (constant level 1 variance) can be relaxed.
+
+
+We follow the recommendations made in the popular packages
+[rstanrm](https://rdrr.io/cran/rstanarm/man/priors.html)
+and [brms](https://rdrr.io/cran/brms/man/set_prior.html) for prior
+specification. Technically, the prior used in *rstanrm* and *brms* packages are
+data-dependent and, hence *weakly informative*. This is because the the scaling
+is based on the scales of the predictors and the outcome. However, the amount of
+information used is weak and mainly takes into account the order of magnitude of
+the variables. An important feature of such priors is that defaults priors are
+reasonable for many models fit using the *rstanrm* and *brms*. The *weakly
+informative* priors provide moderate regularization and help stabilize
+computation.
+
+For specifying priors, the `bsitar` function has arguments for each of the
+parameter. For example, to set prior for population parameter `a`, the
+corresponding argument is `a_prior_beta` and to specify the prior for the
+standard deviation of the parameter, the argument is `a_prior_sd.` To
+specify these arguments the user provides a call to one of the various available
+functions such as `normal(mean, sd)`. The documentation for these functions can
+be found at
+[rstanrm]https://rdrr.io/cran/rstanarm/man/priors.html)
+and [brms](https://rdrr.io/cran/brms/man/set_prior.html). To use the default
+priors we just leave those arguments at their defaults.
+
+For scale, we follow a mix of default priors suggested by the authors of
+[rstanrm](https://rdrr.io/cran/rstanarm/man/priors.html)
+and [brms](https://rdrr.io/cran/brms/man/set_prior.html) packages. For example,
+while
+*rstanrm* earlier (before 2020) automatically re scaled priors by a factor $2.5$, 
+it has now set the auto scale option to `FALSE`. The *brms*, on the other hand,
+select scaling factor depending on the the Median Absolute Deviation (MAD) of
+the outcome. If MAD is less than $2.5$, it scales the prior by a factor of $2.5$
+otherwise the scale factor is 1 (i.e., no auto rescaling). The *bsitar* allows
+user to set scale via an option `autoscale`  which can be set to TRUE (default
+is FALSE) to scale priors by a factor 2.5 automatically of else a real positive
+values can be specified as scaling factor via the same `autoscale` option (e.g.,
+`autoscale = 1.5`). This option is available for all the location scale based
+distibutions such as `normal`, `student_t`, `cauchy` distributions. Below we
+briefly describe the approach used to scale the *weakly informative* priors for
+intercept parameter (coefficients `a` i.e, size), standard deviation of the
+random effects for parameter `a`, and the residual standard deviation parameter,
+`sigma`.
+
+By default the population parameter `a` is assigned normal priors centered at
+$y_{mean}$ (i.e., mean of the outcome) with scale $y_{sd}$ which is the standard
+deviation of the outcome (`normal(0, ysd)`). The `autoscale` option can be used
+to scale the prior (i.e, multiply the standard deviation by the scale factor).
+The default prior for the sd deviation of the random effect parameter `a` is
+normal with 0 mean and sd of outcome as scale i.e, `normal(0, ysd)`. Note that
+while *rstanrm*  uses the normal priors for population and random effect
+intercepts, the *brms* uses the student_t distribution for these parameters. We
+follow *rstanrm*  and put normal priors for the population and random effect
+intercepts (i.e., size parameter, `a`).
+
+
+For population timing parameter `b`, the default priors are normal with mean 0 and scale 2 i.e, `normal(0, 2)`. Since the predictor `age` is by default mean centered, these priors imply that 95% mass of the normal distribution would cover between 11 and 17 years when mean age is 13 years. Depending on the mean age and whether data analysed is for males or females, the scale of priors can be adjusted accordingly.Prior for the sd parameter (i.e., the random effect parameter `b`) is again normal but with 0 mean and sd 1.5 (`normal(0, 1.5)`) which indicates that 95% mass of the normal distribution for individual variation in the timing will cover $\pm 3$ years.
+
+The default prior for the population intensity parameter `c` are normal with mean 0 and scale 1 i.e, `normal(0, 1)`. Since the intensity parameter is on  `exp` scale, these priors imply that 95% mass of the normal distribution would cover intensity between  `exp(-2)` and `exp(2)` i.e., 0.14 and 7.39 mm/year. Prior for the sd parameter for intensity (i.e., the random effect parameter `c`) is again normal with 0 mean and sd 1 (`normal(0, 0.5)`) which indicates that 95% mass of the normal distribution for individual variation in the timing will cover $\pm exp(0.5)$ i.e, 0.37 and 2.72 mm/year. 
+
+
+#### Multivariate model specification
+
+A two level Bayesian SITAR model described earlier (See [Univariate model specification]) can be easily extended to analyze two or more outcome simultaneously. 
+
+To get a better understanding of the data generative mechanism and for the ease of showing prior specification for each individual parameter, we re express the above model \@ref(eq:4) as as follows:
+
+
+
+
+\begin{equation}
+\begin{aligned}
+\begin{bmatrix} \text{NA}_{ij} \\ \text{PA}_{ij} \end{bmatrix} & \sim \operatorname{MVNormal}\begin{pmatrix} \begin{bmatrix} 
+\mu_{ij}^\text{NA} \\ \mu_{ij}^\text{PA} \end{bmatrix}, \mathbf {\Sigma_{Residual}} \end{pmatrix} \\
+\\
+\mu_{ij}^{\text{NA}} & = \alpha_0^\text{NA}+ \alpha_j^\text{NA}+\sum_{r^\text{NA}=1}^{p^\text{NA}-1}{\beta_r^\text{NA}\mathbf{Spl}^\text{NA}\left(\frac{x_{ij}-\bar{x_{ij}}-\left(\zeta_0^\text{NA}+\zeta_j^\text{NA}\right)}{e^{-\ \left(\left.\ \gamma_0^\text{NA}+\gamma_j^\text{NA}\right)\right.}}\right)} \\
+\\
+\mu_{ij}^{\text{PA}} & = \alpha_0^\text{PA}+ \alpha_j^\text{PA}+\sum_{r^\text{PA}=1}^{p^\text{PA}-1}{\beta_r^\text{PA}\mathbf{Spl}^\text{PA}\left(\frac{x_{ij}-\bar{x_{ij}}-\left(\zeta_0^\text{PA}+\zeta_j^\text{PA}\right)}{e^{-\ \left(\left.\ \gamma_0^\text{PA}+\gamma_j^\text{PA}\right)\right.}}\right)} \\
+\\
+\mathbf {\Sigma_{Residual}} & = \mathbf S_W \mathbf R_W \mathbf S_W \\
+\\
+\mathbf S_W & = \begin{bmatrix}
+\sigma_{ij}^\text{NA} & 0 \\ 
+0 & \sigma_{ij}^\text{PA} \\
+\end{bmatrix} \\
+\\
+\mathbf R_W & = \begin{bmatrix}
+1 & \rho_{\sigma_{ij}^\text{NA}\sigma_{ij}^\text{PA}} \\
+\rho_{\sigma_{Ij}^\text{PA}\sigma_{Ij}^\text{NA}}  & 1 
+\end{bmatrix} \\
+\\
+\begin{bmatrix} \alpha_{j}^\text{NA} \\ \zeta_{j}^\text{NA} \\ \gamma_{j}^\text{NA} \\ \alpha_{j}^\text{PA} \\ \zeta_{j}^\text{PA} \\ \gamma_{j}^\text{PA} \end{bmatrix} & \sim {\operatorname{MVNormal}\begin{pmatrix} \begin{bmatrix} 0 \\ 0 \\ 0 \\ 0 \\ 0 \\ 0 \end{bmatrix},\ \mathbf {\Sigma_{ID}} \end{pmatrix}} \\
+\\
+\\
+\mathbf {\Sigma_{ID}} & = \mathbf S_{ID} \mathbf R_{ID} \mathbf S_{ID} \\
+\\
+\mathbf S_{ID} & = \begin{bmatrix} 
+\alpha_{j}^\text{NA} & 0 & 0 & 0 & 0 & 0 \\ 
+0 & \zeta_{j}^\text{NA} &  0 & 0 & 0 & 0 \\ 
+0 & 0 & \gamma_{j}^\text{NA} & 0 & 0 & 0 \\ 
+0 & 0 & 0 & \alpha_{j}^\text{PA} & 0 & 0 \\ 
+0 & 0 & 0 & 0 & \zeta_{j}^\text{PA}  & 0 \\ 
+0 & 0 & 0 & 0 & 0 & \gamma_{j}^\text{PA} \\ 
+\end{bmatrix} \\
+\\
+\mathbf R_{ID} & = \begin{bmatrix}
+1 & \rho_{\alpha_{j}^\text{NA}\zeta_{j}^\text{NA}} & \rho_{\alpha_{j}^\text{NA}\gamma_{j}^\text{NA}} & \rho_{\alpha_{j}^\text{NA}\alpha_{j}^\text{PA}} & \rho_{\alpha_{j}^\text{NA}\zeta_{j}^\text{PA}} & \rho_{\alpha_{j}^\text{NA}\gamma_{j}^\text{PA}} \\
+\rho_{\zeta_{j}^\text{NA}\alpha_{j}^\text{NA}} & 1 & \rho_{\zeta_{j}^\text{NA}\gamma_{j}^\text{NA}}  & \rho_{\zeta_{j}^\text{NA}\alpha_{j}^\text{PA}} & \rho_{\zeta_{j}^\text{NA}\zeta_{j}^\text{PA}} & \rho_{\zeta_{j}^\text{NA}\gamma_{j}^\text{PA}} \\
+\rho_{\gamma_{j}^\text{NA}\alpha_{j}^\text{NA}} & \rho_{\gamma_{j}^\text{NA}\zeta_{j}^\text{NA}}  & 1 & \rho_{\gamma_{j}^\text{NA}\alpha_{j}^\text{PA}} & \rho_{\gamma_{j}^\text{NA}\zeta_{j}^\text{PA}} & \rho_{\gamma_{j}^\text{NA}\gamma_{j}^\text{PA}} \\
+\rho_{\alpha_{j}^\text{NA}\alpha_{j}^\text{PA}} & \rho_{\zeta_{j}^\text{NA}\alpha_{j}^\text{PA}} & \rho_{\gamma_{j}^\text{NA}\alpha_{j}^\text{PA}} & 1 & \rho_{\alpha_{j}^\text{PA}\zeta_{j}^\text{PA}} & \rho_{\alpha_{j}^\text{PA}\gamma_{j}^\text{PA}} \\
+\rho_{\alpha_{j}^\text{NA}\zeta_{j}^\text{PA}} & \rho_{\zeta_{j}^\text{NA}\zeta_{j}^\text{PA}} & \rho_{\gamma_{j}^\text{NA}\zeta_{j}^\text{PA}} & \rho_{\zeta_{j}^\text{PA}\alpha_{j}^\text{PA}} & 1 & \rho_{\zeta_{j}^\text{PA}\gamma_{j}^\text{PA}} \\
+\rho_{\alpha_{j}^\text{NA}\gamma_{j}^\text{PA}} & \rho_{\zeta_{j}^\text{NA}\gamma_{j}^\text{PA}} & \rho_{\gamma_{j}^\text{NA}\gamma_{j}^\text{PA}} & \rho_{\gamma_{j}^\text{PA}\alpha_{j}^\text{PA}} & \rho_{\gamma_{j}^\text{PA}\zeta_{j}^\text{PA}}  & 1 
+\end{bmatrix} \\
+\\
+\alpha_0^\text{NA}   & \sim \operatorname{Normal}(y^\text{NA}_{mean},\  {y^\text{NA}_{sd}}) \\
+\alpha_0^\text{PA}   & \sim \operatorname{Normal}(y^\text{PA}_{mean},\  {y^\text{PA}_{sd}}) \\
+\zeta_0^\text{NA}   & \sim \operatorname{Normal}(0, 2) \\
+\zeta_0^\text{PA}   & \sim \operatorname{Normal}(0, 2) \\
+\gamma_0^\text{NA}   & \sim \operatorname{Normal}(0, 1) \\
+\gamma_0^\text{PA}   & \sim \operatorname{Normal}(0, 1) \\
+\beta_1^\text{NA} \text{,..,} \beta_r^\text{NA} & \sim \operatorname{Normal}(0, \ \mathbf {X^\text{NA}_{scaled}}) \\
+\beta_1^\text{PA} \text{,..,} \beta_r^\text{PA} & \sim \operatorname{Normal}(0, \ \mathbf {X^\text{PA}_{scaled}}) \\
+\alpha_j^\text{NA}   & \sim \operatorname{HalfNormal}({0},\  {y^\text{NA}_{sd}}) \\
+\zeta_j^\text{NA}   & \sim \operatorname{HalfNormal}({0},\  {2}) \\
+\gamma_j^\text{NA}   & \sim \operatorname{HalfNormal}({0},\  {0.5}) \\
+\sigma_{ij}^\text{NA} & \sim \operatorname{HalfNormal}({0},\  y^\text{NA}_{sd}) \\
+\sigma_{ij}^\text{PA} & \sim \operatorname{HalfNormal}({0},\  y^\text{PA}_{sd}) \\
+\mathbf R_W & \sim \operatorname{LKJ}(1) \\
+\mathbf R_{ID} & \sim \operatorname{LKJ}(1),
+\end{aligned}
+(\#eq:5)
+\end{equation}
+
+
+
+
+where $\text{NA}$ and $\text{PA}$ superscripts indicate which variable is
+connected with which parameter. This is a straight multivariate generalization
+from the previous model, \@ref(eq:4). At individual level, we have six
+parameters varying across individuals, resulting in an $6 \times 6$ $\mathbf
+S_{ID}$ matrix and an $6 \times 6$ $\mathbf R_{ID}$ matrix. The within
+individual variability is captured by the residual parameters which include $2
+\times 2$ $\mathbf S_{W}$ matrix and an $2 \times 2$ $\mathbf R_{W}$ matrix.
+
+
+
+
+#### References
