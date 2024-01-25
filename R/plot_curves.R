@@ -166,7 +166,17 @@
 #'@param returndata A logical (default \code{FALSE}) indicating whether to plot
 #'  the data or return the data. If \code{TRUE}, the data is returned as a
 #'  \code{data.frame}.
-#'
+#'  
+#' @param returndata_add_parms A logical (default \code{FALSE}) indicating
+#'   whether add growth parameters to the \code{returndata}. The
+#'   \code{returndata_add_parms} is ignored when \code{returndata = FALSE}. If
+#'   \code{TRUE}, the growth parameters such as \code{APGV} and \code{PGV} are
+#'   added to the returned \code{data.frame}. Note that growth parameters are
+#'   estimated only when \code{'opt'} argument include either \code{'v'} or
+#'   \code{'V'} option and the argument \code{'apv'} is set to \code{TRUE}. If
+#'   any of these conditions are missing, then \code{returndata_add_parms} will
+#'   ignored ignored.
+#' 
 #'@param aux_variables An optional argument to specify the variables to be
 #'  passed to the \code{ipts} argument. This is useful when fitting location
 #'  scale models and the measurement error models.
@@ -192,9 +202,10 @@
 #' 
 #' # Fit Bayesian SITAR model 
 #' 
-#' # To avoid fitting the model which takes time, the model  
-#' # fit has already been saved as 'berkeley_mfit.rda' file.
-#' # See examples section of the main function for details on the model fit.
+#' # To avoid mode estimation which takes time, a model fitted to the 
+#' # 'berkeley_mdata' has already been saved as 'berkeley_mfit'. 
+#' # Details on 'berkeley_mdata' and 'berkeley_mfit' are provided in the 
+#' # 'bsitar' function.
 #' 
 #' model <- berkeley_mfit
 #' 
@@ -257,6 +268,7 @@ plot_curves.bgmfit <- function(model,
                                levels_id = NULL,
                                avg_reffects = NULL,
                                ipts = 10,
+                               deriv_model = TRUE,
                                xrange = NULL,
                                xrange_search = NULL,
                                takeoff = FALSE,
@@ -293,11 +305,15 @@ plot_curves.bgmfit <- function(model,
                                show_vel_peak = FALSE,
                                show_vel_cessation = FALSE,
                                returndata = FALSE,
+                               returndata_add_parms = FALSE,
                                parms_eval = FALSE,
-                               idata_method = 'm1',
+                               idata_method = NULL,
                                parms_method = 'getPeak',
+                               verbose = FALSE,
+                               fullframe = NULL,
+                               dummy_to_factor = NULL,
                                usesavedfuns = FALSE,
-                               clearenvfuns = FALSE,
+                               clearenvfuns = NULL,
                                envir = NULL,
                                ...) {
   
@@ -305,14 +321,11 @@ plot_curves.bgmfit <- function(model,
     envir <- parent.frame()
   }
   
+  
+  # Move down NULL where setting the arguments
   if(system.file(package='ggplot2') == "") {
     stop("Please install 'ggplot2' package before calling the 'plot_curves'")
   }
-  
-  if (is.null(ndraws))
-    ndraws  <- brms::ndraws(model)
-  else
-    ndraws <- ndraws
   
 
   # Initiate non formalArgs()
@@ -346,15 +359,10 @@ plot_curves.bgmfit <- function(model,
   ':=' <- NULL;
   . <- NULL;
   
-  
-  
-  xcall = match.call()
-  
-  
+  xcall <- match.call()
   match.call.list.in <- as.list(match.call())[-1]
   
-  
-  # set alias argument for apv and peak
+  # Set alias argument for apv and pv
   dots <- list(...)
   if ("peak" %in% names(dots)) {
     if (missing(apv)) {
@@ -375,7 +383,6 @@ plot_curves.bgmfit <- function(model,
   
   
   xcall <- strsplit(deparse(sys.calls()[[1]]), "\\(")[[1]][1]
-  
   scall <- sys.calls()
   
   get_xcall <- function(xcall, scall) {
@@ -392,17 +399,33 @@ plot_curves.bgmfit <- function(model,
   }
   
   xcall <- get_xcall(xcall, scall)
-  
   model$xcall <- xcall
   
   arguments <- get_args_(match.call.list.in, xcall)
-  
   arguments$model <- model
   
-  # Remove argument deriv if user specified it by mistake. 
-  # The deriv argument is set internally based on the the 'opt' argument
-  arguments$deriv <- NULL
   
+  if(is.null(envir)) {
+    arguments$envir <- envir <- parent.frame()
+  }
+  
+  if(is.null(ndraws)) {
+    arguments$ndraws <- ndraws <- brms::ndraws(model)
+  }
+  
+  if(is.null(deriv_model)) {
+    arguments$deriv_model <- deriv_model <- TRUE
+  }
+  
+  if (is.null(idata_method)) {
+    arguments$idata_method <- idata_method <- 'm2'
+  }
+  
+  
+  
+  # Remove argument 'deriv' if user specified it by mistake. 
+  # The 'deriv' argument is set internally based on the the 'opt' argument
+  arguments$deriv <- NULL
   
   probs <- c((1 - conf) / 2, 1 - (1 - conf) / 2)
   probtitles <- probs[order(probs)] * 100
@@ -413,8 +436,6 @@ plot_curves.bgmfit <- function(model,
   get.cores_ <- get.cores(arguments$cores)
   arguments$cores <- cores <-  get.cores_[['max.cores']] 
   .cores_ps <- get.cores_[['.cores_ps']]
-  
-  
   
   if (future) {
     if(is.null(cores)) stop("Please set the number of cores for 'future' by  
@@ -433,7 +454,8 @@ plot_curves.bgmfit <- function(model,
                          levels_id = levels_id,
                          ipts = ipts,
                          xrange = xrange,
-                         idata_method = idata_method)
+                         idata_method = idata_method,
+                         verbose = verbose)
   
   list_c <- attr(newdata, 'list_c')
   for (list_ci in names(list_c)) {
@@ -542,17 +564,28 @@ plot_curves.bgmfit <- function(model,
   if (grepl("a", opt, ignore.case = F) |
       grepl("u", opt, ignore.case = F)) {
     
+    ipts <- NULL
+    
+    if(verbose) {
+      message("The ipts has been set to NULL i.e., ipts = NULL",
+              "\n ",
+              "This because it does't a make sense to interploate data when",
+           "\n ",
+           " estimating adjusted/unadjusted curves")
+    }
+    
     testdata1 <- model$data %>% dplyr::select(dplyr::all_of(IDvar)) %>% 
       droplevels() %>% 
-      dplyr::mutate(groupbytest = 
-                      interaction(dplyr::across(dplyr::all_of(IDvar)))) %>% 
-      dplyr::select(groupbytest) %>% dplyr::ungroup()
+      dplyr::mutate(
+        groupbytest = interaction(dplyr::across(dplyr::all_of(IDvar)))
+        ) %>% 
+      dplyr::select(dplyr::all_of(groupbytest)) %>% dplyr::ungroup()
     
     testdata2 <- newdata %>% dplyr::select(dplyr::all_of(IDvar)) %>% 
       droplevels() %>% 
       dplyr::mutate(groupbytest = 
                       interaction(dplyr::across(dplyr::all_of(IDvar)))) %>% 
-      dplyr::select(groupbytest) %>% dplyr::ungroup()
+      dplyr::select(dplyr::all_of(groupbytest)) %>% dplyr::ungroup()
     
     
     if (!identical(testdata1, testdata2)) {
@@ -643,8 +676,10 @@ plot_curves.bgmfit <- function(model,
   if(show_vel_peak)      name.hline <- c(name.hline, name.pv)
   if(show_vel_cessation) name.hline <- c(name.hline, name.cv)
   
-  # dont let hline - i.e, velovity - need to work out fwd rev intercepts
+  
   name.hline <- c()
+  
+  # Don't let hline - i.e, velocity - need to work out fwd rev intercepts
   # name.vline <- c(name.vline, name.atv, name.apv, name.acv)
 
   x_minimum <- min(newdata[[Xx]])
@@ -653,8 +688,6 @@ plot_curves.bgmfit <- function(model,
   x_maximum <- floor(x_maximum)
   
   single_plot_pair_color_dv_au <- c('black', 'red')
-  
-  
   
   if (nchar(opt) > 2) {
     layout <- 'facet'
@@ -686,8 +719,6 @@ plot_curves.bgmfit <- function(model,
   if (is.null(label.x)) {
     label.x <- paste0(firstup(Xx), "")
   }
-  
-  
   
   
   if (is.null(legendpos)) {
@@ -851,6 +882,7 @@ plot_curves.bgmfit <- function(model,
       } else if (level == 1) {
         re_formula <- NULL
       }
+      print(estimation_method)
       if (estimation_method == 'fitted') {
         extra$ey <-
           fitted_draws(
@@ -897,12 +929,7 @@ plot_curves.bgmfit <- function(model,
       newdata
     }
   
-
-  
-  
-  
-  
-  # adapted from https://github.com/statist7/sitar/blob/master/R/xyadj.R
+  # Adapted from https://github.com/statist7/sitar/blob/master/R/xyadj.R
   # v.adj also calculated but not returned 
   
   xyadj_ <-
@@ -951,7 +978,8 @@ plot_curves.bgmfit <- function(model,
                                levels_id = levels_id,
                                ipts = ipts,
                                xrange = xrange,
-                               idata_method = idata_method)
+                               idata_method = idata_method,
+                               verbose = verbose)
         
         
      
@@ -1026,8 +1054,10 @@ plot_curves.bgmfit <- function(model,
       
       
       if(!is.null(ipts)) {
-        add_outcome <- model$data %>% dplyr::select(Yy, IDvar)
-        newdata <- newdata %>% dplyr::left_join(., add_outcome, by = c(IDvar))
+        add_outcome <- model$data %>%
+          dplyr::select(dplyr::all_of(c(Yy, IDvar)))
+        newdata <- newdata %>% 
+          dplyr::left_join(., add_outcome, by = c(IDvar))
         x <- newdata[[Xx]]
         y <- newdata[[Yy]]
         id <- newdata[[IDvar]][1]
@@ -1085,8 +1115,6 @@ plot_curves.bgmfit <- function(model,
       } else {
         null_a <- matrix(0, nrowdatadims, 1)
         naaa_a <- matrix(0, nrowdatadims, 1)
-        # null_a <- matrix(0, ndraws, nrowdatadims) 
-        # naaa_a <- matrix(0, ndraws, nrowdatadims) 
       }
       
       if(b_r) {
@@ -1099,8 +1127,6 @@ plot_curves.bgmfit <- function(model,
       } else {
         null_b <- matrix(0, nrowdatadims, 1)
         naaa_b <- matrix(0, nrowdatadims, 1)
-        # null_b <- matrix(0, ndraws, nrowdatadims) 
-        # naaa_b <- matrix(0, ndraws, nrowdatadims) 
       }
       
       if(c_r) {
@@ -1113,8 +1139,6 @@ plot_curves.bgmfit <- function(model,
       } else {
         null_c <- matrix(0, nrowdatadims, 1)
         naaa_c <- matrix(0, nrowdatadims, 1)
-        # null_c <- matrix(0, ndraws, nrowdatadims) 
-        # naaa_c <- matrix(0, ndraws, nrowdatadims) 
       }
       
       if(d_r) {
@@ -1127,8 +1151,6 @@ plot_curves.bgmfit <- function(model,
       } else {
         null_d <- matrix(0, nrowdatadims, 1)
         naaa_d <- matrix(0, nrowdatadims, 1)
-        # null_d <- matrix(0, ndraws, nrowdatadims)
-        # naaa_d <- matrix(0, ndraws, nrowdatadims)
       }
       
       
@@ -1244,14 +1266,15 @@ plot_curves.bgmfit <- function(model,
           y.adj <- yadj_tmf
           v.adj <- vadj_tmf
         }
-        # This was good
+        
+        # This was good but not required
         # out <- cbind(x.adj[, 1], y.adj)
         # setadnamex <- paste0("adj", "_", Xx)
         # setadnamey <- colnames(y.adj)
         # colnames(out) <- c(setadnamex, setadnamey)
         # out <- cbind(newdata, out)
         
-        # but for trimline, we need the following order 
+        # But for trimline, we need the following order 
         out <- newdata
         out[[Xx]] <- x.adj[, 1]
         out[[Yy]] <- y.adj[, 1]
@@ -1333,10 +1356,7 @@ plot_curves.bgmfit <- function(model,
           y.adj <- yadj_tmf
           v.adj <- vadj_tmf
         }
-        # out <- as.data.frame(as.factor(newdata[[IDvar]]))
-        # out <- cbind(x.adj, y.adj, out)
-        # colnames(out) <- c(Xx, Yy, IDvar)
-        
+       
         # This was good
         out <- cbind(x.adj, y.adj)
         setadnamex <- paste0("adj", "_", Xx)
@@ -1344,35 +1364,14 @@ plot_curves.bgmfit <- function(model,
         colnames(out) <- c(setadnamex, setadnamey)
         out <- cbind(newdata, out)
         
-        # but for trimline, we need folowing order 
+        # But for trimline, we need folowing order 
         out <- newdata
         out[[Xx]] <- x.adj
         out[[Yy]] <- y.adj
-        out <- out %>% dplyr::relocate(c(Xx, Yy, IDvar))
+        out <- out %>% dplyr::relocate(dplyr::all_of(c(Xx, Yy, IDvar)))
       } # if(summary) {
-      
-      # if(!is.na(uvarby)) {
-      #   tempotnames <- c(IDvar, Xx, Yy)
-      #   tempot <- newdata %>%  dplyr::select(-dplyr::all_of(tempotnames))
-      #   out <- cbind(out, tempot) %>% data.frame()
-      # }
-      
       out
     }
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
   
   
   
@@ -1391,7 +1390,8 @@ plot_curves.bgmfit <- function(model,
                                envir = envir,
                                deriv = '')
       
-      newdata <- get.newdata(model, newdata = newdata, resp = resp)
+      newdata <- get.newdata(model, newdata = newdata, resp = resp, 
+                             verbose = verbose)
       
       if(!is.na(uvarby)) {
         newdata <- newdata %>%
@@ -1413,11 +1413,6 @@ plot_curves.bgmfit <- function(model,
       }
       out
     }
-  
-  
-  
-  
-  
   
   
   set_lines_colors <- function(plot, ngroups, 
@@ -1653,12 +1648,7 @@ plot_curves.bgmfit <- function(model,
   
   
   
-  # Not using options() to restore warn
-  
-  # defaultW <- getOption("warn")
-  # oldopts <- options(warn = -1)
-  # on.exit(options(oldopts))
-  
+  # Not using options() 
   if (grepl("d", opt, ignore.case = T) |
       grepl("v", opt, ignore.case = T)) {
     curves <- unique(d.$curve)
@@ -1678,14 +1668,18 @@ plot_curves.bgmfit <- function(model,
       if (grepl("^[[:upper:]]+$", dist..)) {
         d. <-
           d. %>% 
-          dplyr::mutate(groupby = interaction(dplyr::across(groupby_str_d)))
+          dplyr::mutate(
+            groupby = interaction(dplyr::across(dplyr::all_of(groupby_str_d)))
+            )
       } else if (!grepl("^[[:upper:]]+$", dist..)) {
         if (is.null(groupby_str_d))
           d. <- d. %>% dplyr::mutate(groupby = NA)
         if (!is.null(groupby_str_d))
           d. <-
-            d. %>% dplyr::mutate(groupby =
-                                   interaction(dplyr::across(groupby_str_d)))
+            d. %>% 
+            dplyr::mutate(
+              groupby = interaction(dplyr::across(dplyr::all_of(groupby_str_d)))
+              )
       }
       
       
@@ -1727,8 +1721,6 @@ plot_curves.bgmfit <- function(model,
       
       
       if (grepl("d", bands, ignore.case = T)) {
-        # plot.o.dx <<- d.
-      
         plot.o.d <- plot.o.d +
           ggplot2::geom_ribbon(
             data = d. %>% dplyr::filter(curve == curve.d),
@@ -1751,7 +1743,7 @@ plot_curves.bgmfit <- function(model,
       
       d. <- d.o
       if ('curve' %in% names(d.)) {
-        d.out <- d. %>% dplyr::select(-curve)
+        d.out <- d. %>% dplyr::select(-dplyr::all_of('curve')) # curve to 'curve'
       } else {
         d.out <- d.
       }
@@ -1760,7 +1752,6 @@ plot_curves.bgmfit <- function(model,
       plot.o.d <- NULL
     }
     
-    
     if (grepl("v", opt, ignore.case = T)) {
       d.o <- d.
       index_opt <- gregexpr("v", opt, ignore.case = T)[[1]]
@@ -1768,14 +1759,17 @@ plot_curves.bgmfit <- function(model,
       if (grepl("^[[:upper:]]+$", velc..)) {
         d. <-
           d. %>% 
-          dplyr::mutate(groupby = interaction(dplyr::across(groupby_str_v)))
+          dplyr::mutate(
+            groupby = interaction(dplyr::across(dplyr::all_of(groupby_str_v)))
+            )
       } else if (!grepl("^[[:upper:]]+$", velc..)) {
         if (is.null(groupby_str_v))
           d. <- d. %>% dplyr::mutate(groupby = NA)
         if (!is.null(groupby_str_v))
           d. <-
-            d. %>% dplyr::mutate(groupby =
-                                   interaction(dplyr::across(groupby_str_v)))
+            d. %>% dplyr::mutate(
+              groupby = interaction(dplyr::across(dplyr::all_of(groupby_str_v)))
+              )
       }
       
       
@@ -1908,7 +1902,7 @@ plot_curves.bgmfit <- function(model,
       
       d. <- d.o
       if ('curve' %in% names(d.)) {
-        d.out <- d. %>% dplyr::select(-curve)
+        d.out <- d. %>% dplyr::select(-dplyr::all_of('curve'))
       } else {
         d.out <- d.
       }
@@ -1961,20 +1955,27 @@ plot_curves.bgmfit <- function(model,
         if (grepl("^[[:upper:]]+$", dist..)) {
           data_dv <-
             data_dv %>%
-            dplyr::mutate(groupby = 
-                            interaction(dplyr::across(groupby_str_d))) %>%
-            dplyr::mutate(groupby.x = 
-                            interaction(dplyr::across(groupby_str_d)))
+            dplyr::mutate(
+              groupby = interaction(dplyr::across(dplyr::all_of(groupby_str_d)))
+              ) %>%
+            dplyr::mutate(
+              groupby.x = 
+                interaction(dplyr::across(dplyr::all_of(groupby_str_d)))
+              )
         } else if (!grepl("^[[:upper:]]+$", dist..)) {
           if (is.null(groupby_str_d)) {
             data_dv <- data_dv %>% dplyr::mutate(groupby = NA) %>%
               dplyr::mutate(groupby.x = NA)
           } else if (!is.null(groupby_str_d)) {
             data_dv <- data_dv %>%
-              dplyr::mutate(groupby =
-                              interaction(dplyr::across(groupby_str_d))) %>%
-              dplyr::mutate(groupby.x = 
-                              interaction(dplyr::across(groupby_str_d)))
+              dplyr::mutate(
+                groupby = 
+                  interaction(dplyr::across(dplyr::all_of(groupby_str_d)))
+                ) %>%
+              dplyr::mutate(
+                groupby.x = 
+                  interaction(dplyr::across(dplyr::all_of(groupby_str_d)))
+                )
           }
         }
       }
@@ -1985,8 +1986,9 @@ plot_curves.bgmfit <- function(model,
         if (grepl("^[[:upper:]]+$", velc..)) {
           data_dv <-
             data_dv %>%
-            dplyr::mutate(groupby = 
-                            interaction(dplyr::across(groupby_str_v))) %>%
+            dplyr::mutate(
+              groupby = interaction(dplyr::across(dplyr::all_of(groupby_str_v)))
+              ) %>%
             dplyr::mutate(groupby.y = groupby)
         } else if (!grepl("^[[:upper:]]+$", velc..)) {
           if (is.null(groupby_str_v)) {
@@ -1994,10 +1996,14 @@ plot_curves.bgmfit <- function(model,
               dplyr::mutate(groupby.y = NA)
           } else if (!is.null(groupby_str_v)) {
             data_dv <- data_dv %>%
-              dplyr::mutate(groupby =
-                              interaction(dplyr::across(groupby_str_v))) %>%
-              dplyr::mutate(groupby.y = 
-                              interaction(dplyr::across(groupby_str_v)))
+              dplyr::mutate(
+                groupby = 
+                  interaction(dplyr::across(dplyr::all_of(groupby_str_v)))
+                ) %>%
+              dplyr::mutate(
+                groupby.y = 
+                  interaction(dplyr::across(dplyr::all_of(groupby_str_v)))
+                )
           }
         }
       }
@@ -2007,14 +2013,18 @@ plot_curves.bgmfit <- function(model,
         if (is.null(groupby_str_v)) {
           data_dv <-
             data_dv %>%
-            dplyr::mutate(groupby.x = interaction(dplyr::across(groupby_str_d)),
-                          groupby.y = NA)
+            dplyr::mutate(
+              groupby.x = 
+                interaction(dplyr::across(dplyr::all_of(groupby_str_d))),
+              groupby.y = NA)
         } else if (!is.null(groupby_str_v)) {
           data_dv <-
             data_dv %>%
-            dplyr::mutate(groupby.x = interaction(dplyr::across(groupby_str_d)),
-                          groupby.y =
-                            interaction(dplyr::across(groupby_str_v)))
+            dplyr::mutate(
+              groupby.x = 
+                interaction(dplyr::across(dplyr::all_of(groupby_str_d))),
+              groupby.y =
+                interaction(dplyr::across(dplyr::all_of(groupby_str_v))))
         }
       }
       
@@ -2022,15 +2032,18 @@ plot_curves.bgmfit <- function(model,
           grepl("^[[:upper:]]+$", velc..)) {
         if (is.null(groupby_str_d)) {
           data_dv <-
-            data_dv %>% dplyr::mutate(groupby.x = NA,
-                                      groupby.y =
-                                      interaction(dplyr::across(groupby_str_v)))
+            data_dv %>% dplyr::mutate(
+              groupby.x = NA,
+              groupby.y =
+                interaction(dplyr::across(dplyr::all_of(groupby_str_v))))
         } else if (!is.null(groupby_str_d)) {
           data_dv <-
             data_dv %>%
-            dplyr::mutate(groupby.x = interaction(dplyr::across(groupby_str_d)),
-                          groupby.y =
-                            interaction(dplyr::across(groupby_str_v)))
+            dplyr::mutate(
+              groupby.x = 
+                interaction(dplyr::across(dplyr::all_of(groupby_str_d))),
+              groupby.y =
+                interaction(dplyr::across(dplyr::all_of(groupby_str_v))))
         }
       }
       
@@ -2056,7 +2069,6 @@ plot_curves.bgmfit <- function(model,
           legendlabs_mult_mult <- unique(data_dv[['groupby.x']])
         }
       }
-      
       
       if(!is.na(uvarby)) {
         if(is.null(cov_factor_vars)) {
@@ -2122,6 +2134,13 @@ plot_curves.bgmfit <- function(model,
       if(length(get_color_) != ngrpanels) get_color_ <- 
         rep(get_color_, ngrpanels)
       
+      # Added on 27 12 2023 - but error from somewhere else 
+      
+      if(!exists('legendlabs_mult_line')) legendlabs_mult_line <- 'solid'
+      if(!exists('legendlabs_mult_color')) legendlabs_mult_color <- 'black'
+      if(!exists('legendlabs_mult_singel')) legendlabs_mult_singel <- 'solid'
+      
+      
       # These will be carried forward for ribbon also (below)
       if(ngrpanels > 1) {
         get_line_ <- get_line_
@@ -2175,7 +2194,6 @@ plot_curves.bgmfit <- function(model,
       
       # Match band color with the line color 
       # Needed because opt might be 'dv' and band 'd' or 'v'
-      
       if((grepl("d", bands, ignore.case = T) & 
           !grepl("v", bands, ignore.case = T)) |
          !grepl("d", bands, ignore.case = T) & 
@@ -2284,7 +2302,7 @@ plot_curves.bgmfit <- function(model,
       
       data_dv <- data_dv.o
       if ('curve' %in% names(data_dv)) {
-        d.out <- data_dv %>% dplyr::select(-curve)
+        d.out <- data_dv %>% dplyr::select(-dplyr::all_of('curve'))
       } else {
         d.out <- data_dv
       }
@@ -2320,7 +2338,9 @@ plot_curves.bgmfit <- function(model,
                             newdata = xyadj_ed, trim = trim)
       out_a_ <-
         out_a_ %>%
-        dplyr::mutate(groupby = interaction(dplyr::across(groupby_str_au)))
+        dplyr::mutate(
+          groupby = interaction(dplyr::across(dplyr::all_of(groupby_str_au)))
+          )
       
       # x_minimum_a_ <- floor(min(out_a_[[Xx]]))
       # x_maximum_a_ <- ceiling(max(out_a_[[Xx]]))
@@ -2379,9 +2399,9 @@ plot_curves.bgmfit <- function(model,
         ggplot2::geom_line(
           ggplot2::aes(
             y = !!as.name(Yy),
-            group = groupby.x,
+            group = groupby.x # ,
             # linetype = groupby_line.x,
-            colour = groupby_color.x
+           # colour = groupby_color.x # this was causing issues in 'dvau
           ),
           linewidth = linewidth.main
         ) +
@@ -2466,7 +2486,9 @@ plot_curves.bgmfit <- function(model,
                             newdata = xyadj_ed, trim = trim)
       out_u_ <-
         out_u_ %>%
-        dplyr::mutate(groupby = interaction(dplyr::across(groupby_str_au)))
+        dplyr::mutate(
+          groupby = interaction(dplyr::across(dplyr::all_of(groupby_str_au)))
+          )
       
       out_u_ <- out_u_ %>% dplyr::mutate(groupby.x = groupby, 
                                          groupby.y = groupby.x)
@@ -2515,10 +2537,10 @@ plot_curves.bgmfit <- function(model,
         ggplot2::geom_line(
           ggplot2::aes(
             y = !!as.name(Yy),
-            group = groupby,
-            group = groupby.y,
+           # group = groupby, # this was causing duplicate aesthetic
+            group = groupby.y # ,
             # linetype = groupby_line.y,
-            colour = groupby_color.y
+           # colour = groupby_color.y # this was causing pallette issues in 'dvau
           ),
           linewidth = linewidth.main
         ) +
@@ -2787,8 +2809,10 @@ plot_curves.bgmfit <- function(model,
         Xgap = 0.08,
         Ygap = 0.04
       )
+    
     plot.o <-
       plot.o +  patchwork::plot_layout(guides = "collect")
+    
   }
  
   if (!returndata) {
@@ -2797,14 +2821,29 @@ plot_curves.bgmfit <- function(model,
         grepl("v", opt, ignore.case = F)) {
       if(apv | takeoff | trough | acgv)  print(p.)
     }
-    # options(warn = defaultW)
-    plot.o[['growthparameters']] <- p.as.d.out_attr
+    if(!is.null(p.as.d.out_attr)) {
+      plot.o[['growthparameters']] <- p.as.d.out_attr
+    }
     return(plot.o)
   } else if (returndata) {
     attr(d.out, 'growthparameters') <- p.as.d.out_attr
+    if(returndata_add_parms) {
+      if(!is.null(p.as.d.out_attr)) {
+        print(groupby_str_v)
+        # Note gpdata can be NULL because we have added attribute above
+        d.out <- add_parms_to_curve_data(d.out, 
+                                         gpdata = NULL,
+                                         Parametername = "Parameter",
+                                         parmcols = set_names_,
+                                         nonparmcols = groupby_str_v,
+                                         byjoincols = groupby_str_v)
+      } # if(!is.null(p.as.d.out_attr)) {
+    } # else if (returndata) {
     return(d.out)
   }
 }
+
+
 
 #' @rdname plot_curves.bgmfit
 #' @export

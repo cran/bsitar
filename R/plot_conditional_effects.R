@@ -15,32 +15,10 @@
 #'   ([brms::conditional_effects] and \strong{plot_conditional_effects()} work
 #'   in the same manner. In other words, user can specify all the arguments
 #'   which are available in the [brms::conditional_effects()].
-#'   
-#' @param model An object of class \code{bgmfit}. function.
-#'
-#' @param resp A character string to specify response variable when processing
-#'   posterior draws for the univariate-by-subgroup and multivariate models (see
-#'   [bsitar::bsitar()] for details on fitting univariate-by-subgroup and
-#'   multivariate models). For univariate model, \code{resp = NULL} (default).
-#'   Note that argument \code{resp} must be specified for the
-#'   univariate-by-subgroup and multivariate models otherwise it will result in
-#'   an error. On the other hand, argument \code{resp} must be \code{NULL} for
-#'   the univariate model. The default setting is \code{resp = NULL} assuming a
-#'   univariate model.
-#'
-#' @param deriv An integer to indicate whether to estimate distance curve or
-#'   derivatives (velocity and acceleration curves). Default \code{deriv = 0} is
-#'   for the distance curve, \code{deriv = 1} for velocity curve, and
-#'   \code{deriv = 2} for the acceleration curve.
-#'
-#' @param deriv_model A logical (default \code{TRUE}) to indicate whether to
-#'   estimate model based derivatives or from the differentiation of the
-#'   distance curve. When model is fit with \code{decomp = 'QR'}, the only
-#'   approach available to estimate derivatives by the  differentiation of the
-#'   distance curve.
 #' 
-#' @inherit brms::conditional_effects description
+#' @inherit brms::conditional_effects params description
 #' @inherit growthparameters.bgmfit params
+#' @inherit plot_curves.bgmfit params
 #' @inherit fitted_draws.bgmfit params
 #'
 #' @param ... Additional arguments passed to the [brms::conditional_effects()]
@@ -62,9 +40,10 @@
 #' 
 #' # Fit Bayesian SITAR model 
 #' 
-#' # To avoid fitting the model which takes time, the model  
-#' # fit has already been saved as 'berkeley_mfit.rda' file.
-#' # See examples section of the main function for details on the model fit.
+#' # To avoid mode estimation which takes time, a model fitted to the 
+#' # 'berkeley_mdata' has already been saved as 'berkeley_mfit'. 
+#' # Details on 'berkeley_mdata' and 'berkeley_mfit' are provided in the 
+#' # 'bsitar' function.
 #' 
 #' model <- berkeley_mfit
 #' 
@@ -84,11 +63,32 @@
 #' 
 plot_conditional_effects.bgmfit <-
   function(model,
+           effects = NULL,
+           conditions = NULL,
+           int_conditions = NULL,
+           re_formula = NA,
+           spaghetti = FALSE,
+           surface = FALSE,
+           categorical = FALSE,
+           ordinal = FALSE,
+           transform = NULL,
+           resolution = 100,
+           select_points = 0,
+           too_far = 0,
+           prob = 0.95,
+           robust = TRUE,
+           newdata = NULL,
+           ndraws = NULL,
+           levels_id = NULL,
            resp = NULL,
+           ipts = 10,
            deriv = 0,
-           deriv_model = TRUE,
+           deriv_model = NULL,
+           idata_method = NULL,
+           verbose = FALSE,
+           dummy_to_factor = NULL, 
            usesavedfuns = FALSE,
-           clearenvfuns = FALSE,
+           clearenvfuns = NULL,
            envir = NULL,
            ...) {
     
@@ -96,78 +96,121 @@ plot_conditional_effects.bgmfit <-
       envir <- parent.frame()
     }
     
-    o <-
-      post_processing_checks(model = model,
-                             xcall = match.call(),
-                             resp = resp,
-                             envir = envir,
-                             deriv = deriv,
-                             all = FALSE)
-    
-    if(deriv == 0) {
-      getfunx <- model$model_info[['exefuns']][[o[[2]]]]
-      assign(o[[1]], model$model_info[['exefuns']][[o[[2]]]], envir = envir)
+    if(is.null(ndraws)) {
+      ndraws <- brms::ndraws(model)
     }
     
-    if(!deriv_model) {
-      if(deriv == 1 | deriv == 2) {
-        summary <- FALSE
-        getfunx <- model$model_info[['exefuns']][[o[[1]]]]
-        assign(o[[1]], model$model_info[['exefuns']][[o[[1]]]], envir = envir)
+    if(is.null(deriv_model)) {
+      deriv_model <- TRUE
+    }
+    
+    if (is.null(idata_method)) {
+      idata_method <- 'm2'
+    }
+    
+    
+    
+    full.args <- evaluate_call_args(cargs = as.list(match.call())[-1], 
+                                    fargs = formals(), 
+                                    dargs = list(...), 
+                                    verbose = verbose)
+    
+    full.args$model <- model
+    full.args$deriv_model <- deriv_model
+
+    
+    if(!is.null(model$xcall)) {
+      arguments <- get_args_(as.list(match.call())[-1], model$xcall)
+      newdata <- newdata
+    } else {
+      newdata <- do.call(get.newdata, full.args)
+    }
+    full.args$newdata <- newdata
+    
+    if(!is.null(model$model_info$decomp)) {
+      if(model$model_info$decomp == "QR") deriv_model<- FALSE
+    }
+    
+    expose_method_set <- model$model_info[['expose_method']]
+    
+    model$model_info[['expose_method']] <- 'NA' # Over ride method 'R'
+    
+    o <- post_processing_checks(model = model,
+                                xcall = match.call(),
+                                resp = resp,
+                                envir = envir,
+                                deriv = deriv, 
+                                all = FALSE,
+                                verbose = verbose)
+    
+    oall <- post_processing_checks(model = model,
+                                   xcall = match.call(),
+                                   resp = resp,
+                                   envir = envir,
+                                   deriv = deriv, 
+                                   all = TRUE,
+                                   verbose = FALSE)
+    
+    
+    test <- setupfuns(model = model, resp = resp,
+                      o = o, oall = oall, 
+                      usesavedfuns = usesavedfuns, 
+                      deriv = deriv, envir = envir, 
+                      deriv_model = deriv_model, 
+                      ...)
+    
+    if(is.null(test)) return(invisible(NULL))
+    
+    misc <- c("verbose", "usesavedfuns", "clearenvfuns", 
+              "envir", "fullframe")
+    
+    calling.args <- post_processing_args_sanitize(model = model,
+                                                  xcall = match.call(),
+                                                  resp = resp,
+                                                  envir = envir,
+                                                  deriv = deriv, 
+                                                  dots = list(...),
+                                                  misc = misc,
+                                                  verbose = verbose)
+    
+    
+    calling.args$object <- full.args$model
+    
+    if(!eval(full.args$deriv_model)) {
+      if (is.null(resp)) {
+        resp_rev_ <- resp
+      } else if (!is.null(resp)) {
+        resp_rev_ <- paste0("_", resp)
       }
-    }
-    
-    if(deriv_model) {
-      if(deriv == 1 | deriv == 2) {
-        getfunx <- model$model_info[['exefuns']][[o[[2]]]]
-        assign(o[[1]], model$model_info[['exefuns']][[o[[2]]]], envir = envir)
-      }
-    }
-    
-    
-    if(!usesavedfuns) {
-      if(is.null(check_if_functions_exists(model, o, model$xcall))) {
-        return(invisible(NULL))
-      }
-    }
-    
-    
-    if(usesavedfuns) {
-      if(is.null(check_if_functions_exists(model, o, model$xcall))) {
-        oall <-
-          post_processing_checks(model = model,
-                                 xcall = match.call(),
-                                 resp = resp,
-                                 envir = envir,
-                                 deriv = deriv,
-                                 all = TRUE)
-        tempgenv <- envir
-        oalli_c <- c()
-        oalli_c <- c(oalli_c, paste0(o[[1]], "0"))
-        for (oalli in names(oall)) {
-          if(!grepl(o[[1]], oalli)) {
-            oalli_c <- c(oalli_c, oalli)
-          }
+      xvar_ <- paste0('xvar', resp_rev_)
+      yvar_ <- paste0('yvar', resp_rev_)
+      groupvar_ <- paste0('groupvar', resp_rev_)
+      xvar <- model$model_info[[xvar_]]
+      yvar <- model$model_info[[yvar_]]
+      hierarchical_ <- paste0('hierarchical', resp_rev_)
+      if (is.null(levels_id)) {
+        IDvar <- model$model_info[[groupvar_]]
+        if (!is.null(model$model_info[[hierarchical_]])) {
+          IDvar <- model$model_info[[hierarchical_]]
         }
-        for (oalli in oalli_c) {
-          assign(oalli, oall[[oalli]], envir = tempgenv)
-        }
-        assign(o[[1]], getfunx, envir = tempgenv)
+      } else if (!is.null(levels_id)) {
+        IDvar <- levels_id
       }
-    }
-    
-    
-    
-    if(!deriv_model) {
-      xvar  <- model$model_info$xvar
-      idvar <- model$model_info$groupvar
+      xvar  <- xvar
+      idvar <- IDvar
       if(length(idvar) > 1) idvar <- idvar[1]
       yvar  <- 'yvar'
-      out_    <- brms::conditional_effects(model, resp = resp, ...)
+      calling.args_ce <- calling.args_cefd <- calling.args
+      calling.args_ce$newdata <- NULL
+      calling.args_ce$x <- calling.args_ce$object
+      calling.args_ce$object <- NULL
+      out_    <- do.call(brms::conditional_effects, calling.args_ce)
       datace <- out_[[1]] %>% dplyr::select(dplyr::all_of(names(model$data)))
       datace[[idvar]] <- unique(levels(model$data[[idvar]]))[1]
-      outx <- fitted_draws(model, resp = resp, newdata = datace,
-                           deriv = deriv, ...)
+      calling.args_cefd$newdata <- datace
+      calling.args_cefd$model <- model
+      calling.args_cefd$object <- NULL
+      outx <-  do.call(fitted_draws, calling.args_cefd)
       out_[[1]][['estimate__']] <- outx[, 1]
       out_[[1]][['se__']] <- outx[, 2]
       out_[[1]][['lower__']] <- outx[, 3]
@@ -175,20 +218,35 @@ plot_conditional_effects.bgmfit <-
       . <- out_
     }
     
-    if(deriv_model) {
-     . <- brms::conditional_effects(model, resp = resp, ...)
+    if(eval(full.args$deriv_model)) {
+      calling.args_ce <- calling.args
+      calling.args_ce$newdata <- NULL
+      calling.args_ce$x <- calling.args_ce$object
+      calling.args_ce$object <- NULL
+      .   <- do.call(brms::conditional_effects, calling.args_ce)
     }
     
+    
+    # Restore function(s)
     assign(o[[1]], model$model_info[['exefuns']][[o[[1]]]], envir = envir)
     
-    if(!is.null(clearenvfuns)) {
-      if(!is.logical(clearenvfuns)) {
+    if(!is.null(eval(full.args$clearenvfuns))) {
+      if(!is.logical(eval(full.args$clearenvfuns))) {
         stop('clearenvfuns must be NULL or a logical')
       } else {
-        setcleanup <- clearenvfuns
+        setcleanup <- eval(full.args$clearenvfuns)
       }
     }
     
+    if(is.null(eval(full.args$clearenvfuns))) {
+      if(eval(full.args$usesavedfuns)) {
+        setcleanup <- TRUE 
+      } else {
+        setcleanup <- FALSE
+      }
+    }
+    
+    # Cleanup environment if requested
     if(setcleanup) {
       tempgenv <- envir
       for (oalli in names(oall)) {
@@ -196,8 +254,13 @@ plot_conditional_effects.bgmfit <-
           remove(list=oalli, envir = tempgenv)
         }
       }
-    }
-    
+      tempgenv <- test
+      for (oalli in names(oall)) {
+        if(exists(oalli, envir = tempgenv )) {
+          remove(list=oalli, envir = tempgenv)
+        }
+      }
+    } # if(setcleanup) {
     .
   }
 

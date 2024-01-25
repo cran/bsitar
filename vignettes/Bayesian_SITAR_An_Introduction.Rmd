@@ -23,8 +23,7 @@ output:
       toc_float: false
       highlight: tango
       pandoc_args: 
-      # This --shift-heading throws error with ubuntu build on rhub
-      # - --shift-heading-level-by=-1 T
+      - --shift-heading-level-by=-1
       - --lua-filter=parse-html-links.lua
       # css: bsitar_style.css
       code_folding: hide
@@ -54,21 +53,31 @@ editor_options:
     wrap: 72
 ---
 
+
 ```{r setup, include=FALSE}
+NOT_CRAN <- identical(tolower(Sys.getenv("NOT_CRAN")), "true")
+knitr::knit_hooks$set(purl = knitr::hook_purl)
+options(width = 90)
+# fig.width = 6, fig.height=4, fig.asp = 1.0,
 knitr::opts_chunk$set(
+  echo = FALSE,
   collapse = TRUE,
-  comment = NA,
+  comment = "#>",
   message = FALSE,
   warning = FALSE,
- # eval = if (isTRUE(exists("params"))) params$EVAL else FALSE,
+  eval = if (isTRUE(exists("params"))) params$EVAL else FALSE,
+  purl = NOT_CRAN,
+  eval = NOT_CRAN,
   dev = "jpeg",
-  dpi = 100,
+  dpi = 30,
+  fig.cap = "",
   fig.asp = 0.8,
   fig.width = 5,
   out.width = "60%",
   fig.align = "center"
 )
 ```
+
 
 ```{=tex}
 \newpage
@@ -84,21 +93,33 @@ p + p {
 }
 ```
 
+
 \newpage
 
 ## Introduction
-
 Human physical growth is not a smooth progression through time, but is inherently dynamic in nature. Growth proceeds in a series of spurts which reflect an increase in the growth velocity [@RN5278; @RN6913; @RN7906]. The adolescent growth spurt (also known as the pubertal growth spurt) is experienced by all individuals and is the most readily recognized aspect of adolescence. A clear knowledge of the growth dynamics during adolescence is essential when planning treatment to correct skeletal discrepancies such as scoliosis in which the spine has a sideways curve [@RN2761; @RN7982]. Similarly, the timing of the peak growth velocity spurt is an important factor to be considered when initiating growth modification procedures to correct skeletal malocclusion characterized by discrepancies in the jaw size [@RN7058; @RN6934; @RN7058a]
 
 As the notion of change is central in studying growth, a correct view of the growth dynamics and the relationship between different growth phases can only be obtained from longitudinal growth data [@RN6071; @RN5278a]. Analysis of longitudinal growth data using an appropriate statistical method allows description of growth trajectories (distance and derivatives) and estimation of the timing and intensity of the adolescent growth spurt. Unlike in early years when linear growth curve model (GCMs) based on conventional polynomials were extensively used for studying human growth [@RN6217], the nonlinear nonlinear mixed effect are now gaining popularity in modelling longitudinal skeletal growth data such as height [@RN6217; @RN6071a].
 
 ## SITAR growth curve model - an overview
+The super imposition by translation and rotation (*SITAR*) model [@Cole2010] is
+a shape-invariant nonlinear mixed effect growth curve model that fits a
+population average (i.e., mean average) curve to the data and aligns each
+individual's growth trajectory to the population average curve by a set of three
+random effects [@Cole2010]: the size relative to the mean growth curve (vertical
+shift), the timing of the adolescent growth spurt relative to the mean age at
+peak growth velocity (horizontal shift), and the intensity of the growth
+velocity, i.e., the relative rate at which individuals grow during the
+adolescent growth spurt in comparison to the mean growth intensity (horizontal
+stretch). The concept of shape invariant model (SIM) was first described by
+@Lindstrom1995 and later used by @Beath2007 for modelling infant
+growth data (birth to 2 years). The current version of the *SITAR* model that we
+describe below is developed by @Cole2010.
 
-The super imposition by translation and rotation (SITAR) model [@Cole2010] is a shape-invariant nonlinear mixed effect growth curve model that fits a population average (i.e., mean average) curve to the data and aligns each individual's growth trajectory to the population average curve by a set of three random effects [@Cole2010]: the size relative to the mean growth curve (vertical shift), the timing of the adolescent growth spurt relative to the mean age at peak growth velocity (horizontal shift), and the intensity of the growth velocity, i.e., the relative rate at which individuals grow during the adolescent growth spurt in comparison to the mean growth intensity (horizontal stretch). The concept of shape invariant model (SIM) was first described by [@Lindstrom1995] and later used by [@Beath2007] [@Beath2007] for modelling infant growth data (birth to 2 years). The current version of the SITAR model that we describe below is developed by [@Cole2010].
+The *SITAR* is particularly useful in modelling human physical growth during adolescence. Recent studies have used *SITAR* for analyzing height and weight data [@nembidzaneUsingSITARMethod2020; @mansukoskiLifeCourseAssociations2019; @coleFiftyYearsChild2018; @riddellClassifyingGestationalWeight2017] and also to study jaw growth during adolescence [@Sandhu2020]. All these previous studies estimated *SITAR* model within the frequentist framework as implemented in the R package, 'sitar' package [@R-sitar].
 
-The SITAR is particularly useful in modelling human physical growth during adolescence. Recent studies have used SITAR for analyzing height and weight data [@nembidzaneUsingSITARMethod2020; @mansukoskiLifeCourseAssociations2019; @coleFiftyYearsChild2018; @riddellClassifyingGestationalWeight2017]and also to study jaw growth during adolescence [@Sandhu2020]. All these previous studies estimated SITAR model within the frequentist framework as implemented in the R package, the *sitar* package [@R-sitar].
-
-Consider a dataset comprised of $j$ individuals $(j = 1, . . ,j)$ where individual $j$ provides $n_j$ measurements ($i = 1, . . , n_j$) of height ($y_{ij}$) recorded at age, $x_{ij}$.
+## SITAR growth curve model - description
+Consider a dataset comprised of $j$ individuals $(j = 1,..,j)$ where individual $j$ provides $n_j$ measurements ($i = 1,.., n_j$) of height ($y_{ij}$) recorded at age, $x_{ij}$.
 
 ```{=tex}
 \begin{equation}
@@ -117,7 +138,6 @@ Where **Spl(.)** is the natural cubic spline function that generates the spline 
 <br/>
 
 ## Model estimation - frequentist vs. Bayesian
-
 There are two competing philosophies of model estimation [@bland1998; @Schoot2014]: the Bayesian (based on Bayes' theorem) and the frequentist (e.g., maximum likelihood estimation) approaches. While the frequentist approach was predominant in the earlier years, the advent of powerful computers has given a new impetus to the Bayesian analysis [@bland1998; @Schoot2014; @hamra2013]. As a result, Bayesian statistical methods are becoming ever more popular in applied and fundamental research. The key difference between Bayesian statistical inference and frequentest statistical methods concerns the nature of the unknown parameters. In the frequentist framework, a parameter of interest is assumed to be unknown, but fixed. That is, it is assumed that in the population there is only one true population parameter, for example, one true mean or one true regression coefficient. In the Bayesian view of subjective probability, all unknown parameters are treated as uncertain and therefore should be described by a probability distribution [@Schoot2014]. A particular attractive feature of Bayesian modelling is its ability to handle otherwise complex model specifications such as hierarchical model (i.e,., multilevel/mixed-effects models) that involve nested data structures (e.g., repeated height measurements in individuals) [@hamra2013]. Bayesian statistical methods are becoming popular in applied and clinical research [@Schoot2014]. 
 
 There are three essential components underlying Bayesian statistics ([@bayes1763lii; @stigler1986laplace]): the *prior distribution,* the *likelihood function,* and the *posterior distribution*. The *prior distribution* refers to all knowledge available *before* seeing the data whereas the *likelihood function* expresses the information in the data given the parameters defined in the model. The third component (i.e., *posterior distribution*) is based on combining the first two components via Bayes' theorem and the results are summarized by the so-called *posterior inference*. The *posterior distribution*, therefore, reflects one's updated knowledge, balancing prior knowledge with observed data.
@@ -132,10 +152,10 @@ WinBUGS [@lunn2000], OpenBUGS [@spiegelhalter2007openbugs], JAGS [@Plummer2003JA
 <!-- ### Conventional multilevel growth model. -->
 
 ### Two-level SITAR model
+#### Univariate model
+Here we outline the Bayesian specification for a two-level *SITAR* model described [earlier][SITAR growth curve model - an overview].
 
-#### Univariate model specification
-
-Here we outline the Bayesian specification for a two-level SITAR model described earlier (See section [SITAR growth curve model - an overview]). 
+##### Model specification
 To get a better understanding of the data generative mechanism and for the ease of showing prior specification for each individual parameter, we re express the above model \@ref(eq:1) as as follows:
 
 <!-- color{#A65141} -->
@@ -154,97 +174,118 @@ To get a better understanding of the data generative mechanism and for the ease 
 \\
 \mathbf R & = \begin{bmatrix} 1  & \rho_{\alpha_j\zeta_j} & \rho_{\alpha_j\gamma_j} \\\rho_{\zeta_j\alpha_j} & 1 & \rho_{\zeta_j\gamma_j} \\\rho_{\gamma_j\alpha_j} & \rho_{\gamma_j\zeta_j} & 1 \end{bmatrix} \\
 \\
-\alpha_0   & \sim \operatorname{Normal}(y_{mean},\  {y_{sd}}) \\
-\zeta_0   & \sim \operatorname{Normal}(0, 2) \\
-\gamma_0  & \sim \operatorname{Normal}(0, 1) \\
-\beta_1 \text{,..,} \beta_r & \sim \operatorname{Normal}(0, \ \mathbf {X_{scaled}}) \\
-\alpha_j   & \sim \operatorname{HalfNormal}({0},\  {y_{sd}}) \\
-\zeta_j   & \sim \operatorname{HalfNormal}({0},\  {2}) \\
-\gamma_j   & \sim \operatorname{HalfNormal}({0},\  {0.5}) \\
-\sigma_\epsilon & \sim \operatorname{HalfNormal}({0},\  y_{sd}) \\
+\alpha_0   & \sim \operatorname{student\_t}(3,\ y_{mean},\  {y_{sd}},\ autoscale= TRUE) \\
+\zeta_0   & \sim \operatorname{student\_t}(3,\ 0,\ 3.5, \ autoscale= FALSE) \\
+\gamma_0  & \sim \operatorname{student\_t}(3,\ 0,\ 1.5, \ autoscale= FALSE) \\
+\beta_1 \text{,..,} \beta_r & \sim \operatorname{student\_t}(3,\ 0, \ \mathbf {X_{scaled}},\ autoscale= TRUE) \\
+\alpha_j   & \sim \operatorname{student\_t_{Half}}(3,\ {0},\  {y_{sd}}, \ autoscale= TRUE) \\
+\zeta_j   & \sim \operatorname{student\_t_{Half}}(3,\ {0},\  {2}, \ autoscale= FALSE) \\
+\gamma_j   & \sim \operatorname{student\_t_{Half}}(3,\ {0},\  {0.5}, \ autoscale= FALSE) \\
+\sigma_\epsilon & \sim \operatorname{exponential}(y_{sd}, \ autoscale= TRUE) \\
 \mathbf R & \sim \operatorname{LKJ}(1),
 \end{aligned}
 (\#eq:4)
 \end{equation}
 
 
-The first line in the above equation is the probability of the outcome
-(likelihood) which states that the outcome is distributed with mean *mu* and
-standard deviation, *sigma*. The *mu* is the function of growth curve parameters
-as described earlier \@ref(eq:1). The residuals are assumed to be independent
-and normally distributed with 0 mean and a $n_j \times n_j$ dimensional identity
-covariance matrix with a diagonal constant variance parameter, $\sigma_\epsilon$
-i.e, $I\sigma_\epsilon$ where $I$ is the identity matrix (diagonal matrix
-of 1s), and $\sigma_\epsilon$ is the residual standard deviation. The assumption
-of homoscedasticity of residuals (constant level 1 variance) can be relaxed.
+The first line in the above equation is the likelihood which states that outcome
+is distributed with mean *mu* and standard deviation, *sigma*. The *mu* is the
+function of growth curve parameters as described earlier \@ref(eq:1). The
+residuals are assumed to be independent and normally distributed with 0 mean and
+a $n_j \times n_j$ dimensional identity covariance matrix with a diagonal
+constant variance parameter, $\sigma_\epsilon$ i.e, $I\sigma_\epsilon$ where $I$
+is the identity matrix (diagonal matrix of 1s), and $\sigma_\epsilon$ is the
+residual standard deviation. The assumption of homoscedasticity of residuals
+(constant level 1 variance) can be relaxed.
 
-
+##### Priors
 We follow the recommendations made in the popular packages
-[rstanrm](https://rdrr.io/cran/rstanarm/man/priors.html)
-and [brms](https://rdrr.io/cran/brms/man/set_prior.html) for prior
-specification. Technically, the prior used in *rstanrm* and *brms* packages are
-data-dependent and, hence *weakly informative*. This is because the the scaling
-is based on the scales of the predictors and the outcome. However, the amount of
-information used is weak and mainly takes into account the order of magnitude of
-the variables. An important feature of such priors is that defaults priors are
-reasonable for many models fit using the *rstanrm* and *brms*. The *weakly
-informative* priors provide moderate regularization and help stabilize
-computation.
+[rstanrm](https://rdrr.io/cran/rstanarm/man/priors.html) and
+[brms](https://rdrr.io/cran/brms/man/set_prior.html) for prior specification.
+Technically, the prior used in 'rstanrm' and 'brms' packages are data-dependent
+and, hence 'weakly informative'. This is because priors are scaled based on the
+distribution (i.e., standard deviation) of the outcome and the predictor(s).
+However, the amount of information used is weak and mainly regulatory in nature
+that helps in stabilizing the computation. An important feature of such priors is that defaults priors are reasonable for many models.
 
-For specifying priors, the `bsitar` function has arguments for each of the
-parameter. For example, to set prior for population parameter `a`, the
-corresponding argument is `a_prior_beta` and to specify the prior for the
-standard deviation of the parameter, the argument is `a_prior_sd.` To
-specify these arguments the user provides a call to one of the various available
-functions such as `normal(mean, sd)`. The documentation for these functions can
-be found at
-[rstanrm]https://rdrr.io/cran/rstanarm/man/priors.html)
-and [brms](https://rdrr.io/cran/brms/man/set_prior.html). To use the default
-priors we just leave those arguments at their defaults.
+The 'bsitar' package allows setting prior for each parameter individually. For
+example, to set prior for the population average regression coefficient and the
+standard deviation of the group level random effects for size parameter  `a`,
+the arguments used are `a_prior_beta` and `a_prior_sd.` Like 'brms' and
+'rstanrm', the 'bsitar' package offers a full flexibility in setting a wide
+range of priors that encourage the users to specify priors that actually reflect
+their prior knowledge about the human growth processes. We follow a carefully
+crafted approach that is based on the recommendations made in the
+[brms](https://rdrr.io/cran/brms/man/set_prior.html) and
+[rstanrm](https://rdrr.io/cran/rstanarm/man/priors.html) packages. For example,
+while we follow the 'brms' package in using the 'student_t' distribution for the
+regression coefficients as well as the standard deviation for group level random
+effects (with default 3 degree of freedom), we set 'exponential' distribution
+for the residual standard deviation parameter as suggested in the 'rstanarm'
+package. Note that 'rstanrm' recommends `normal` distribution for population and
+random effect intercepts whereas the 'brms' uses the 'student_t' distribution
+for these parameters.
 
-For scale, we follow a mix of default priors suggested by the authors of
-[rstanrm](https://rdrr.io/cran/rstanarm/man/priors.html)
-and [brms](https://rdrr.io/cran/brms/man/set_prior.html) packages. For example,
-while
-*rstanrm* earlier (before 2020) automatically re scaled priors by a factor $2.5$, 
-it has now set the auto scale option to `FALSE`. The *brms*, on the other hand,
-select scaling factor depending on the the Median Absolute Deviation (MAD) of
-the outcome. If MAD is less than $2.5$, it scales the prior by a factor of $2.5$
-otherwise the scale factor is 1 (i.e., no auto rescaling). The *bsitar* allows
-user to set scale via an option `autoscale`  which can be set to TRUE (default
-is FALSE) to scale priors by a factor 2.5 automatically of else a real positive
-values can be specified as scaling factor via the same `autoscale` option (e.g.,
-`autoscale = 1.5`). This option is available for all the location scale based
-distibutions such as `normal`, `student_t`, `cauchy` distributions. Below we
-briefly describe the approach used to scale the *weakly informative* priors for
-intercept parameter (coefficients `a` i.e, size), standard deviation of the
-random effects for parameter `a`, and the residual standard deviation parameter,
-`sigma`.
-
-By default the population parameter `a` is assigned normal priors centered at
-$y_{mean}$ (i.e., mean of the outcome) with scale $y_{sd}$ which is the standard
-deviation of the outcome (`normal(0, ysd)`). The `autoscale` option can be used
-to scale the prior (i.e, multiply the standard deviation by the scale factor).
-The default prior for the sd deviation of the random effect parameter `a` is
-normal with 0 mean and sd of outcome as scale i.e, `normal(0, ysd)`. Note that
-while *rstanrm*  uses the normal priors for population and random effect
-intercepts, the *brms* uses the student_t distribution for these parameters. We
-follow *rstanrm*  and put normal priors for the population and random effect
-intercepts (i.e., size parameter, `a`).
+Similar to the 'brms' and 'rstanarm' packages, the 'bsitar' package
+allows user to control the the scale parameter for the location-scale based
+distributions such as 'normal' and 'student_t' via an auto scaling option. Here
+again we adopt an amalgamation of the strategies offered by the 'brms' and
+'rstanarm' packages. While 'rstanarm' earlier used to set autoscale as `TRUE`
+which scaled distribution by multiplying it with a fixed value $2.5$ (recently
+authors changed this behavior to FALSE), the 'brms' package sets scale factor as
+$1.0$ or $2.5$ depending on the the Median Absolute Deviation (MAD) of the
+outcome. If MAD is less than $2.5$, it scales prior by a factor of $2.5$
+otherwise the scale factor is $1.0$ (i.e., no auto scaling). The 'bsitar'
+package, on the other hand, offers full flexibility in choosing the scale factor
+via a built in option `autoscale`. For example, scaling factor can be set as any
+real number such as $1.5$ (e.g., autoscale = 1.5) or setting the  `autoscale` as
+`TRUE` (autoscale = TRUE) which sets in default scaling factor as  $2.5$.  The
+`autoscale` option is available for all location-scale based distibutions such
+as `normal`, `student_t`, `cauchy` etc. We strongly recommend to go through the
+documentation on priors included in the
+[brms](https://rdrr.io/cran/brms/man/set_prior.html) and
+[rstanrm](https://rdrr.io/cran/rstanarm/man/priors.html) packages.
 
 
-For population timing parameter `b`, the default priors are normal with mean 0 and scale 2 i.e, `normal(0, 2)`. Since the predictor `age` is by default mean centered, these priors imply that 95% mass of the normal distribution would cover between 11 and 17 years when mean age is 13 years. Depending on the mean age and whether data analysed is for males or females, the scale of priors can be adjusted accordingly.Prior for the sd parameter (i.e., the random effect parameter `b`) is again normal but with 0 mean and sd 1.5 (`normal(0, 1.5)`) which indicates that 95% mass of the normal distribution for individual variation in the timing will cover $\pm 3$ years.
+Below we briefly describe the default approach used in setting the 'weakly
+informative' priors for the regression coefficients as well as the standard
+deviation of random effects for `a` (size), `b` (timing) and `c` (intensity)
+parameters and their correlations.
 
-The default prior for the population intensity parameter `c` are normal with mean 0 and scale 1 i.e, `normal(0, 1)`. Since the intensity parameter is on  `exp` scale, these priors imply that 95% mass of the normal distribution would cover intensity between  `exp(-2)` and `exp(2)` i.e., 0.14 and 7.39 mm/year. Prior for the sd parameter for intensity (i.e., the random effect parameter `c`) is again normal with 0 mean and sd 1 (`normal(0, 0.5)`) which indicates that 95% mass of the normal distribution for individual variation in the timing will cover $\pm exp(0.5)$ i.e, 0.37 and 2.72 mm/year. 
+* The population regression parameter `a` (size) is assigned 'student_t' prior centered at $y_{mean}$ (i.e., mean of the outcome) with scale defined as the standard deviation of the outcome $y_{sd}$ multiplied by the default scaling factor $2.5$ i.e., `student_t(3, ymean, ysd, autoscale = TRUE)`. The prior on the standard  deviation of the random effect parameter `a` is identical to the
+'student_t'  with mean `0` and scale identical to the regression parameter with
+the exception that it is centered at mean `0` i.e, `i.e., `student_t(3, 0, ysd,
+autoscale = TRUE)`.
 
+* For population regression parameter `b` (timing), the default prior is 'student_t' with mean `0` and scale $3.5$ i.e, `'student_t'(3, 0, 3.5, autoscale = FALSE)`. Note that unlike parameter `a`, autoscale option is set as `FALSE`. Since predictor `age` is typically mean centered when fitting the *SITAR* model, the prior implies that 95% mass of the distribution (assuming distribution approaches normal curve) would cover between 6 and 20 years when mean age is `13` years. Depending on the mean age and whether data are for males or females, the scale factor can be adjusted
+accordingly. Prior for the sd parameter is 'student_t' but with mean `0` and sd
+2.0 (`student_t(3, 0, 2.0, autoscale = FALSE)`) implying that 95% mass of the
+distribution will cover $\pm 4.0$ years for the individual variation in the
+timing parameter `b`.
+
+* The default prior for the population average intensity regression parameter `c` is
+'student_t' with mean `0` and scale `1.5` i.e, `student_t(3, 0, 1.5, autoscale =
+FALSE)`. Since intensity parameter is estimated on  `exp` scale, the above prior
+implies that 95% mass of the distribution would cover intensity between
+`exp(-3)` and `exp(3)` i.e., `0.05` and `20.0` unit/year. Prior for the sd
+parameter (i.e., the random effect parameter `c`) is again 'student_t' with mean
+`0` and sd `1.25` (`student_t(3, 0, 1.25, autoscale = FALSE)`) indicating that
+95% mass of the distribution for individual variation in the timing will cover
+$\pm exp(1.25)$ i.e, `0.28` and `3.50` unit/year.
+
+* The prior for the correlations between random effect parameters follow
+Lewandowski-Kurowicka-Joe (LKJ) distribution. The 'LKJ' prior is specified via a
+single parameter 'eta'. If `eta = 1` (the default) all correlations matrices are
+equally likely `a priori`. If `eta > 1`, extreme correlations become less
+likely, whereas `0 < eta < 1` results in higher probabilities for extreme
+correlations. See [brms](https://rdrr.io/cran/brms/man/set_prior.html) for more
+details.
 
 #### Multivariate model specification
 
-A two level Bayesian SITAR model described earlier (See [Univariate model specification]) can be easily extended to analyze two or more outcome simultaneously. 
-
-To get a better understanding of the data generative mechanism and for the ease of showing prior specification for each individual parameter, we re express the above model \@ref(eq:4) as as follows:
-
-
+A two level Bayesian *SITAR* model described [earlier][Univariate model] can be
+easily extended to analyze two or more outcome simultaneously. Consider two outcomes (NA and PA) measured repeatedly on $j$ individuals $(j = 1,..,j)$ where individual $j$ provides $n_j$ measurements ($i = 1,.., n_j$) of $y_{ij}^\text{NA}$ (outcome NA) and $y_{ij}^\text{PA}$ (outcome NA) recorded at age, $x_{ij}$. A 
+multivariate model is then written as follows \@ref(eq:5):
 
 
 \begin{equation}
@@ -291,25 +332,27 @@ To get a better understanding of the data generative mechanism and for the ease 
 \rho_{\alpha_{j}^\text{NA}\gamma_{j}^\text{PA}} & \rho_{\zeta_{j}^\text{NA}\gamma_{j}^\text{PA}} & \rho_{\gamma_{j}^\text{NA}\gamma_{j}^\text{PA}} & \rho_{\gamma_{j}^\text{PA}\alpha_{j}^\text{PA}} & \rho_{\gamma_{j}^\text{PA}\zeta_{j}^\text{PA}}  & 1 
 \end{bmatrix} \\
 \\
-\alpha_0^\text{NA}   & \sim \operatorname{Normal}(y^\text{NA}_{mean},\  {y^\text{NA}_{sd}}) \\
-\alpha_0^\text{PA}   & \sim \operatorname{Normal}(y^\text{PA}_{mean},\  {y^\text{PA}_{sd}}) \\
-\zeta_0^\text{NA}   & \sim \operatorname{Normal}(0, 2) \\
-\zeta_0^\text{PA}   & \sim \operatorname{Normal}(0, 2) \\
-\gamma_0^\text{NA}   & \sim \operatorname{Normal}(0, 1) \\
-\gamma_0^\text{PA}   & \sim \operatorname{Normal}(0, 1) \\
-\beta_1^\text{NA} \text{,..,} \beta_r^\text{NA} & \sim \operatorname{Normal}(0, \ \mathbf {X^\text{NA}_{scaled}}) \\
-\beta_1^\text{PA} \text{,..,} \beta_r^\text{PA} & \sim \operatorname{Normal}(0, \ \mathbf {X^\text{PA}_{scaled}}) \\
-\alpha_j^\text{NA}   & \sim \operatorname{HalfNormal}({0},\  {y^\text{NA}_{sd}}) \\
-\zeta_j^\text{NA}   & \sim \operatorname{HalfNormal}({0},\  {2}) \\
-\gamma_j^\text{NA}   & \sim \operatorname{HalfNormal}({0},\  {0.5}) \\
-\sigma_{ij}^\text{NA} & \sim \operatorname{HalfNormal}({0},\  y^\text{NA}_{sd}) \\
-\sigma_{ij}^\text{PA} & \sim \operatorname{HalfNormal}({0},\  y^\text{PA}_{sd}) \\
+\alpha_0^\text{NA}   & \sim \operatorname{student\_t}(3,\ y^\text{NA}_{mean},\  {y^\text{NA}_{sd}},\ autoscale= TRUE) \\
+\alpha_0^\text{PA}   & \sim \operatorname{student\_t}(3,\ y^\text{PA}_{mean},\  {y^\text{PA}_{sd}},\ autoscale= TRUE) \\
+\zeta_0^\text{NA} & \sim \operatorname{student\_t}(3,\ 0, 3.5,\ autoscale= FALSE) \\
+\zeta_0^\text{PA} & \sim \operatorname{student\_t}(3,\ 0, 3.5,\ autoscale= FALSE) \\
+\gamma_0^\text{NA} & \sim \operatorname{student\_t}(3,\ 0, 1.5,\ autoscale= FALSE) \\
+\gamma_0^\text{PA} & \sim \operatorname{student\_t}(3,\ 0, 1.5,\ autoscale= FALSE) \\
+\beta_1^\text{NA} \text{,..,} \beta_r^\text{NA} & \sim \operatorname{student\_t}(3,\ 0, \ \mathbf {X^\text{NA}_{scaled}},\ autoscale= TRUE) \\
+\beta_1^\text{PA} \text{,..,} \beta_r^\text{PA} & \sim \operatorname{student\_t}(3,\ 0, \ \mathbf {X^\text{PA}_{scaled}},\ autoscale= TRUE) \\
+\alpha_j^\text{NA}   & \sim \operatorname{student\_t_{Half}}(3,\ {0},\  {y^\text{NA}_{sd}},\ autoscale= TRUE) \\
+\alpha_j^\text{PA}   & \sim \operatorname{student\_t_{Half}}(3,\ {0},\  {y^\text{PA}_{sd}},\ autoscale= TRUE) \\
+\zeta_j^\text{NA}  & \sim \operatorname{student\_t_{Half}}(3,\ {0},\ {2},\ autoscale= FALSE) \\
+\zeta_j^\text{PA} & \sim \operatorname{student\_t_{Half}}(3,\ {0},\ {2},\ autoscale= FALSE) \\
+\gamma_j^\text{NA} & \sim \operatorname{student\_t_{Half}}(3,\ {0},\ {0.5},\ autoscale= FALSE) \\
+\gamma_j^\text{PA} & \sim \operatorname{student\_t_{Half}}(3,\ {0},\ {0.5},\ autoscale= FALSE) \\
+\sigma_{ij}^\text{NA} & \sim \operatorname{exponential}({y^\text{NA}_{sd}}, \ autoscale = TRUE) \\
+\sigma_{ij}^\text{PA} & \sim \operatorname{exponential}({y^\text{PA}_{sd}}, \ autoscale = TRUE) \\
 \mathbf R_W & \sim \operatorname{LKJ}(1) \\
 \mathbf R_{ID} & \sim \operatorname{LKJ}(1),
 \end{aligned}
 (\#eq:5)
 \end{equation}
-
 
 
 
@@ -319,9 +362,10 @@ from the previous model, \@ref(eq:4). At individual level, we have six
 parameters varying across individuals, resulting in an $6 \times 6$ $\mathbf
 S_{ID}$ matrix and an $6 \times 6$ $\mathbf R_{ID}$ matrix. The within
 individual variability is captured by the residual parameters which include $2
-\times 2$ $\mathbf S_{W}$ matrix and an $2 \times 2$ $\mathbf R_{W}$ matrix.
-
-
+\times 2$ $\mathbf S_{W}$ matrix and an $2 \times 2$ $\mathbf R_{W}$ matrix. The
+priors described above for the [Univariate model specification]) are applied to
+each outcome. The prior on residual correlation between outcomes is 'lkj' prior
+as described earlier (see [Univariate model specification]).
 
 
 #### References

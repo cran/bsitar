@@ -1,13 +1,13 @@
 
 
-#' Berkeley Child Guidance Study Data for males
+#' @title Berkeley Child Guidance Study Data for males
 #'
 #' @description A subset of the [bsitar::berkeley] data that contains
 #'   longitudinal growth data for 20 randomly selected males (6 to 20 
 #'   years of age).
 #'
-#' @details A detailed description of the full data including the frequency of
-#'   measurements per year is provided in the [bsitar::berkeley] data.
+#' @details A detailed description of the full data is provided in the
+#'   [bsitar::berkeley] data.
 #'   
 #' @name berkeley_mdata
 #' @docType data
@@ -17,8 +17,6 @@
 #' \item{age}{years, numeric vector}
 #' \item{height}{cm, numeric vector}
 #' }
-#' @references
-#'  \insertAllCited{}
 #'  
 #' @keywords datasets
 #' 

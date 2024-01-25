@@ -24,11 +24,8 @@ longitudinal growth data for 20 randomly selected males (6 to 20
 years of age).
 }
 \details{
-A detailed description of the full data including the frequency of
-measurements per year is provided in the \link{berkeley} data.
-}
-\references{
-\insertAllCited{}
+A detailed description of the full data is provided in the
+\link{berkeley} data.
 }
 \author{
 Satpal Sandhu  \email{satpal.sandhu@bristol.ac.uk}

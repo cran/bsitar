@@ -1,28 +1,28 @@
 
 
 
-#' Expose user defined Stan function for post-processing of posterior samples
+#' Expose user defined Stan function for post-processing
 #' 
-#' @description The \strong{expose_model_functions()} is a wrapper around
-#'   the [rstan::expose_stan_functions()] function which is used to expose the
-#'   use defined \code{Stan} functions. These exposed functions are required
-#'   during the post-processing. See [rstan::expose_stan_functions()] for
-#'   details.
+#' @description The \strong{expose_model_functions()} is a wrapper around the
+#'   [rstan::expose_stan_functions()] to expose user defined
+#'   \code{Stan} function(s). These exposed functions are needed during the
+#'   post-processing of the posterior draws.
 #' 
 #' @param model An object of class \code{bgmfit}.
 #' 
-#' @param scode An option argument specifying the code with the user-defined 
-#' Stan function.
+#' @param scode A character string (\code{Stan code}) containing the
+#'   user-defined Stan function(s). If \code{NULL} (default), the \code{scode}
+#'   is retrieved from the \code{model}.
 #' 
 #' @param expose A logical (default \code{TRUE}) to indicate whether to expose
-#' functions and add to the global environment. 
+#' functions and add them to the \code{model} as an attribute.
 #' 
-#' @param select_model A string (default \code{NULL}) to indicate the model. For
-#' internal use only.
+#' @param select_model A character string (default \code{NULL}) to indicate the
+#'   model name. This is for internal use only.
 #' 
 #' @param returnobj A logical (default \code{TRUE}) to indicate whether to
-#'   return the model object. When \code{expose=TRUE}, then it is advisable to
-#'  set \code{returnobj=TRUE} also.
+#'   return the model object. When \code{expose = TRUE}, then it is advisable to
+#'  set \code{returnobj = TRUE} too.
 #' 
 #' @inherit growthparameters.bgmfit params
 #' 
@@ -43,9 +43,10 @@
 #' 
 #' # Fit Bayesian SITAR model 
 #' 
-#' # To avoid fitting the model which takes time, the model  
-#' # fit has already been saved as 'berkeley_mfit.rda' file.
-#' # See examples section of the main function for details on the model fit.
+#' # To avoid mode estimation which takes time, a model fitted to the 
+#' # 'berkeley_mdata' has already been saved as 'berkeley_mfit'. 
+#' # Details on 'berkeley_mdata' and 'berkeley_mfit' are provided in the 
+#' # 'bsitar' function.
 #' 
 #' model <- berkeley_mfit
 #' 
@@ -58,6 +59,7 @@ expose_model_functions.bgmfit <- function(model,
                                  expose = TRUE, 
                                  select_model = NULL, 
                                  returnobj = TRUE,
+                                 verbose = FALSE,
                                  envir = NULL,
                                  ...) {
   
@@ -99,8 +101,17 @@ expose_model_functions.bgmfit <- function(model,
                      paste0(SplineFun_name, "_", 
                             c("d0", 
                               "d1",
-                              "d2"))
-                     )
+                              "d2")))
+  
+  
+  if(expose) {
+    additionlsfuns <- c('getX')
+    if(model$model_info[['select_model']] == 'sitar' |
+       model$model_info[['select_model']] == 'rcs') {
+      additionlsfuns <- c(additionlsfuns, 'getKnots')
+    }
+    spfun_collect <- c(spfun_collect, additionlsfuns)
+  }
   
   
   if(expose_r_from_stan) {
@@ -135,7 +146,6 @@ expose_model_functions.bgmfit <- function(model,
       spfun_collecti_name <- gsub("_d2", "2", spfun_collecti_name)
       getfun_ <- spfun_collecti
       getfun_ <- eval(parse(text = getfun_), envir = envir)
-      # This below to change _d0 to 0 within the d2 d2 functions 
       assign(spfun_collecti_name, getfun_, envir = envir)
       Spl_funs[[paste0(spfun_collecti_name, "")]] <- getfun_
       if(grepl("_d", spfun_collecti_name_org)) {
@@ -158,7 +168,6 @@ expose_model_functions.bgmfit <- function(model,
       spfun_collecti_name <- gsub("_d1", "1", spfun_collecti_name)
       spfun_collecti_name <- gsub("_d2", "2", spfun_collecti_name)
       getfun_ <- spfun_collecti
-      # This below to change _d0 to 0 within the d2 d2 functions 
       getfun__ <- deparse(ept(getfun_))
       gsub_it <- '_d0'
       gsub_by <- "0"
@@ -176,6 +185,8 @@ expose_model_functions.bgmfit <- function(model,
   
   model$model_info[['namesexefuns']] <- SplineFun_name
   model$model_info[['exefuns']]      <- Spl_funs
+ 
+  
   scode_include <- brms::stancode(model)
   model$bmodel <- scode_include
   if (nys == 1 | nys > 1) {
@@ -215,7 +226,7 @@ expose_model_functions.bgmfit <- function(model,
   
   if(returnobj) {
     model$model <- model$bmodel
-    return(model)
+    return(invisible(model))
   } else {
     return(invisible(NULL))
   }

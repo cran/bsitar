@@ -3,7 +3,7 @@
 \name{expose_model_functions.bgmfit}
 \alias{expose_model_functions.bgmfit}
 \alias{expose_model_functions}
-\title{Expose user defined Stan function for post-processing of posterior samples}
+\title{Expose user defined Stan function for post-processing}
 \usage{
 \method{expose_model_functions}{bgmfit}(
   model,
@@ -11,6 +11,7 @@
   expose = TRUE,
   select_model = NULL,
   returnobj = TRUE,
+  verbose = FALSE,
   envir = NULL,
   ...
 )
@@ -20,25 +21,31 @@ expose_model_functions(model, ...)
 \arguments{
 \item{model}{An object of class \code{bgmfit}.}
 
-\item{scode}{An option argument specifying the code with the user-defined
-Stan function.}
+\item{scode}{A character string (\code{Stan code}) containing the
+user-defined Stan function(s). If \code{NULL} (default), the \code{scode}
+is retrieved from the \code{model}.}
 
 \item{expose}{A logical (default \code{TRUE}) to indicate whether to expose
-functions and add to the global environment.}
+functions and add them to the \code{model} as an attribute.}
 
-\item{select_model}{A string (default \code{NULL}) to indicate the model. For
-internal use only.}
+\item{select_model}{A character string (default \code{NULL}) to indicate the
+model name. This is for internal use only.}
 
 \item{returnobj}{A logical (default \code{TRUE}) to indicate whether to
-return the model object. When \code{expose=TRUE}, then it is advisable to
-set \code{returnobj=TRUE} also.}
+return the model object. When \code{expose = TRUE}, then it is advisable to
+set \code{returnobj = TRUE} too.}
 
-\item{envir}{Environment of function evaluation. The default is \code{NULL}
-which will set \code{parent.frame()} as default environment. Note that
-since most of post processing functions are based on \pkg{brms}, it is
-strongly advised to set \code{globalenv()} (or \code{.GlobalEnv}) as
-environment. This is particularly true for derivatives such as velocity
-curve.}
+\item{verbose}{An optional argument (logical, default \code{FALSE}) to
+indicate whether to print information collected during setting up the
+object(s).}
+
+\item{envir}{Environment used for function evaluation. The default is
+\code{NULL} which will set \code{parent.frame()} as default environment.
+Note that since most of post processing functions are based on \pkg{brms},
+the functions needed for evaluation should be in the \code{.GlobalEnv}.
+Therefore, it is strongly recommended to set \code{ envir = globalenv()}
+(or \code{envir = .GlobalEnv}). This is particularly true for the
+derivatives such as velocity curve.}
 
 \item{...}{Additional arguments passed to the
 \code{\link[rstan:expose_stan_functions]{rstan::expose_stan_functions()}} function.}
@@ -48,19 +55,19 @@ An object of class \code{bgmfit} if \code{returnobj=TRUE}, otherwise
 invisible \code{NULL}.
 }
 \description{
-The \strong{expose_model_functions()} is a wrapper around
-the \code{\link[rstan:expose_stan_functions]{rstan::expose_stan_functions()}} function which is used to expose the
-use defined \code{Stan} functions. These exposed functions are required
-during the post-processing. See \code{\link[rstan:expose_stan_functions]{rstan::expose_stan_functions()}} for
-details.
+The \strong{expose_model_functions()} is a wrapper around the
+\code{\link[rstan:expose_stan_functions]{rstan::expose_stan_functions()}} to expose user defined
+\code{Stan} function(s). These exposed functions are needed during the
+post-processing of the posterior draws.
 }
 \examples{
 
 # Fit Bayesian SITAR model 
 
-# To avoid fitting the model which takes time, the model  
-# fit has already been saved as 'berkeley_mfit.rda' file.
-# See examples section of the main function for details on the model fit.
+# To avoid mode estimation which takes time, a model fitted to the 
+# 'berkeley_mdata' has already been saved as 'berkeley_mfit'. 
+# Details on 'berkeley_mdata' and 'berkeley_mfit' are provided in the 
+# 'bsitar' function.
 
 model <- berkeley_mfit
 

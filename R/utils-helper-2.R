@@ -14,6 +14,7 @@
 #'   \emph{method 2} (\code{'m2'}) is adapted from the the \pkg{JMbayes} and is
 #'   documented here
 #'   <https://github.com/drizopoulos/JMbayes/blob/master/R/dynPred_lme.R>.
+#'   If \code{NULL} (default), method \code{'m1'} is automatically set. 
 #' 
 #' @keywords internal
 #' 
@@ -25,20 +26,29 @@
 #' @noRd
 #'
 get.newdata <- function(model,
-                        newdata,
-                        resp,
+                        newdata = NULL,
+                        resp = NULL,
                         numeric_cov_at = NULL,
-                        aux_variables = aux_variables,
+                        aux_variables = NULL,
                         levels_id = NULL,
                         ipts = NULL,
                         xrange = NULL,
-                        idata_method = 'm1') {
+                        idata_method = NULL,
+                        dummy_to_factor = NULL,
+                        verbose = FALSE,
+                        ...) {
   
   if (is.null(resp)) {
     resp_rev_ <- resp
   } else if (!is.null(resp)) {
     resp_rev_ <- paste0("_", resp)
   }
+  
+
+  if (is.null(idata_method)) {
+    idata_method <- 'm2'
+  }
+  
   
   # Initiate non formalArgs()
   `:=` <- NULL
@@ -77,9 +87,42 @@ get.newdata <- function(model,
   
   
   if (is.null(newdata)) {
-    newdata <- model$model_info$bgmfit.data
+    if(idata_method == 'm1') newdata <- model$model_info$bgmfit.data
+    if(idata_method == 'm2') newdata <- model$data
   } else {
     newdata <- newdata
+  }
+  
+  
+  if(!is.null(dummy_to_factor)) {
+      if(!is.list(dummy_to_factor)) {
+        stop("dummy_to_factor must be a named list as follows:",
+             "\n ",
+             "dummy_to_factor = list(factor.dummy = , factor.name = )",
+             "\n ",
+             "where factor.dummy is a vector of character strings that will" ,
+             "\n ",
+             "be converted to a factor variable, and ",
+             "\n ",
+             "factor.name is a single character string that is used to name the",
+             "\n ",
+             "newly created factor variable"
+        )
+      }
+    factor.dummy <- dummy_to_factor[['factor.dummy']]
+    factor.level <- dummy_to_factor[['factor.level']]
+    if(is.null(dummy_to_factor[['factor.name']])) {
+      factor.name <- 'factor.dummy'
+    } else {
+      factor.name <- dummy_to_factor[['factor.name']]
+    }
+    newdata <- convert_dummy_to_factor(df = newdata, 
+                                       factor.dummy = factor.dummy,
+                                       factor.level = factor.level,
+                                       factor.name = NULL)
+    
+    colnames(newdata) <- gsub('factor.var', factor.name, names(newdata))
+    newdata[[factor.name]] <- as.factor(newdata[[factor.name]])
   }
   
   
@@ -112,34 +155,39 @@ get.newdata <- function(model,
     setorgy <- model$model_info$ys
   }
  
-  newdata <- prepare_data(
-    data = newdata,
-    x = model$model_info$xs,
-    y = setorgy,
-    id = model$model_info$ids,
-    uvarby = model$model_info$univariate_by,
-    mvar = model$model_info$multivariate,
-    xfuns = model$model_info$xfuns,
-    yfuns = model$model_info$yfuns,
-    outliers = model$model_info$outliers
-  )
+  
+  if (idata_method == 'm1') {
+    newdata <- prepare_data(
+      data = newdata,
+      x = model$model_info$xs,
+      y = setorgy,
+      id = model$model_info$ids,
+      uvarby = model$model_info$univariate_by,
+      mvar = model$model_info$multivariate,
+      xfuns = model$model_info$xfuns,
+      yfuns = model$model_info$yfuns,
+      outliers = model$model_info$outliers)
+  }
+  
   
  
   newdata <- newdata[,!duplicated(colnames(newdata))]
   
   if (!is.na(model$model_info$univariate_by)) {
-    sortbylayer <- NA
-    newdata <- newdata %>%
-      dplyr::mutate(sortbylayer =
-                      forcats::fct_relevel(!!as.name(uvarby),
-                                           (levels(
-                                             !!as.name(uvarby)
-                                           )))) %>%
-      dplyr::arrange(sortbylayer) %>%
-      dplyr::mutate(!!as.name(IDvar) := factor(!!as.name(IDvar),
-                                               levels =
-                                                 unique(!!as.name(IDvar)))) %>%
-      dplyr::select(-sortbylayer)
+    if(idata_method == 'm1') {
+      sortbylayer <- NA
+      newdata <- newdata %>%
+        dplyr::mutate(sortbylayer =
+                        forcats::fct_relevel(!!as.name(uvarby),
+                                             (levels(
+                                               !!as.name(uvarby)
+                                             )))) %>%
+        dplyr::arrange(sortbylayer) %>%
+        dplyr::mutate(!!as.name(IDvar) := factor(!!as.name(IDvar),
+                                                 levels =
+                                                   unique(!!as.name(IDvar)))) %>%
+        dplyr::select(-sortbylayer)
+    } # if(idata_method == 'm1') {
     
     subindicatorsi <- model$model_info$subindicators[grep(resp,
                                                           model$model_info$ys)]
@@ -157,15 +205,56 @@ get.newdata <- function(model,
     str
   }
   
-  factor_vars <- names(newdata[sapply(newdata, is.factor)])
-  numeric_vars <- names(newdata[sapply(newdata, is.numeric)])
+  
   cov_vars <-  model$model_info[[cov_]]
   cov_sigma_vars <-  model$model_info[[cov_sigma_]]
-  if (!is.null(cov_vars))
-    cov_vars <- covars_extrcation(cov_vars)
+
   
-  if (!is.null(cov_sigma_vars))
+  if (!is.null(cov_vars)) {
+    cov_vars <- covars_extrcation(cov_vars)
+  }
+  if (!is.null(cov_sigma_vars)) {
     cov_sigma_vars <- covars_extrcation(cov_sigma_vars)
+  }
+  
+  
+  if(is.null(cov_vars) & is.null(cov_sigma_vars)) {
+    if(!is.null(dummy_to_factor)) {
+      warning("There are no covariate(s) but have specified dummy_to_factor",
+           "\n ", 
+           "Please check if this is an error")
+    }
+  }
+  
+  
+  if(!is.null(dummy_to_factor)) {
+    cov_vars <- c(cov_vars, factor.name)
+  }
+  
+  
+  # check if cov is charcater but not factor 
+  checks_for_chr_fact <- c(cov_vars, cov_sigma_vars)
+  checks_for_chr_fact <- unique(checks_for_chr_fact)
+  for (cov_varsi in checks_for_chr_fact) {
+    if(is.character(newdata[[cov_varsi]])) {
+      if(!is.factor(newdata[[cov_varsi]])) {
+        if(verbose) {
+          message("\nVariable '", cov_varsi, "' used as a covariate in the model ",
+                  "\n ",
+                  " is a character but not factor. Converting it to factor.")
+        }
+        newdata[[cov_varsi]] <- as.factor(newdata[[cov_varsi]])
+        factor_vars <- names(newdata[sapply(newdata, is.factor)])
+      }
+    }
+  }
+    
+  factor_vars <- names(newdata[sapply(newdata, is.factor)])
+  numeric_vars <- names(newdata[sapply(newdata, is.numeric)])
+  
+  # if (!is.null(cov_sigma_vars))
+  #   cov_sigma_vars <- covars_extrcation(cov_sigma_vars)
+  
   
   
   cov_factor_vars <- intersect(cov_vars, factor_vars)
@@ -186,7 +275,6 @@ get.newdata <- function(model,
   if (identical(cov_sigma_numeric_vars, character(0)))
     cov_sigma_numeric_vars <- NULL
   
-  
   # Merge here a b c covariate with sigma co variate
   # IMP: Note that groupby_fstr and groupby_fistr are stil  a b c covariate
   # This way, plot_curves and gparameters will not produce sigam cov specific
@@ -196,12 +284,11 @@ get.newdata <- function(model,
   cov_numeric_vars <- c(cov_numeric_vars, cov_sigma_numeric_vars)
   
   if (!is.na(model$model_info$univariate_by)) {
-    groupby_fstr <- c(uvarby, groupby_fstr)
-    groupby_fistr <- c(uvarby, groupby_fistr)
+    if(idata_method == 'm1') groupby_fstr <- c(uvarby, groupby_fstr)
+    if(idata_method == 'm1') groupby_fistr <- c(uvarby, groupby_fistr)
   }
   
 
-  
   set_numeric_cov_at <- function(x, numeric_cov_at) {
     name_ <- deparse(substitute(x))
     if (is.null((numeric_cov_at[[name_]]))) {
@@ -237,7 +324,8 @@ get.newdata <- function(model,
     if (is.null(IDvar))
       relocate_vars <- c(xvar)
     if (!is.na(uvarby))
-      relocate_vars <- c(relocate_vars, uvarby)
+      if(idata_method == 'm1') relocate_vars <- c(relocate_vars, uvarby)
+      if(idata_method == 'm2') relocate_vars <- c(relocate_vars)
     if (!is.null(cov_numeric_vars)) {
       cov_numeric_vars__ <- cov_numeric_vars
       if (identical(cov_numeric_vars__, character(0)))
@@ -279,13 +367,14 @@ get.newdata <- function(model,
       }
     }
     
-    
+     
     if (!is.null(yvar)) {
       if (yvar %in% colnames(data)) {
         relocate_vars <- c(yvar, relocate_vars)
       }
     }
     data %>% dplyr::relocate(dplyr::all_of(relocate_vars)) %>% data.frame()
+    
   }
   
   ########
@@ -400,6 +489,8 @@ get.newdata <- function(model,
             aux_var = aux_var
           )
           
+          out <- out %>% dplyr::rename(!!IDvar := 'id') %>% data.frame()
+          
           if(inidnull) out <- out %>% dplyr::select(-dplyr::all_of(IDvar))
           
           idxx <- NULL
@@ -417,6 +508,7 @@ get.newdata <- function(model,
                                               by = c(IDvar, 'idxx')) %>%
               dplyr::select(-idxx) %>% data.frame()
           }
+          
           out 
         } # end idatafunction -> m1
         
@@ -531,7 +623,12 @@ get.newdata <- function(model,
             IDvar_ <- IDvar[1]
             higher_ <- IDvar[2:length(IDvar)]
             arrange_by <- c(IDvar_, xvar)
-            cov_factor_vars_by <- c(higher_, cov_factor_vars)
+            # cov_factor_vars_by <- c(higher_, cov_factor_vars)
+            if(length(IDvar) > 1) {
+              cov_factor_vars_by <- c(higher_, cov_factor_vars)
+            } else {
+              cov_factor_vars_by <- c(cov_factor_vars)
+            }
             newdata <-
               newdata %>% dplyr::arrange(!!as.symbol(arrange_by)) %>%
               dplyr::group_by(
@@ -607,37 +704,40 @@ get.newdata <- function(model,
           setorgy <- model$model_info$ys
         }
         
+        if (idata_method == 'm1') {
+          newdata <- prepare_data(
+            data = newdata,
+            x = model$model_info$xs,
+            y = setorgy,
+            id = model$model_info$ids,
+            uvarby = model$model_info$univariate_by,
+            mvar = model$model_info$multivariate,
+            xfuns = model$model_info$xfuns,
+            yfuns = model$model_info$yfuns,
+            outliers = NULL) # model$model_info$outliers
+        } # if (idata_method == 'm1') {
         
-        newdata <- prepare_data(
-          data = newdata,
-          x = model$model_info$xs,
-          y = setorgy,
-          id = model$model_info$ids,
-          uvarby = model$model_info$univariate_by,
-          mvar = model$model_info$multivariate,
-          xfuns = model$model_info$xfuns,
-          yfuns = model$model_info$yfuns,
-          outliers = NULL
-        ) # model$model_info$outliers
       }
       
       
       if (!is.na(model$model_info$univariate_by)) {
-        # !is.null(ipts) &
-        sortbylayer <- NA
-        newdata <- newdata %>%
-          dplyr::mutate(sortbylayer =
-                          forcats::fct_relevel(!!as.name(uvarby),
-                                               (levels(
-                                                 !!as.name(uvarby)
-                                               )))) %>%
-          dplyr::arrange(sortbylayer) %>%
-          dplyr::mutate(!!as.name(IDvar) :=
-                          factor(!!as.name(IDvar),
-                                 levels =
-                                   unique(!!as.name(IDvar)))) %>%
-          dplyr::select(-sortbylayer)
-        
+        if(idata_method == 'm1') {
+          sortbylayer <- NA
+          unique_names <- unique(names(newdata))
+          newdata <- newdata %>% dplyr::select(dplyr::all_of(unique_names))
+          newdata <- newdata %>%
+            dplyr::mutate(sortbylayer =
+                            forcats::fct_relevel(!!as.name(uvarby),
+                                                 (levels(
+                                                   !!as.name(uvarby)
+                                                 )))) %>%
+            dplyr::arrange(sortbylayer) %>%
+            dplyr::mutate(!!as.name(IDvar) :=
+                            factor(!!as.name(IDvar),
+                                   levels =
+                                     unique(!!as.name(IDvar)))) %>%
+            dplyr::select(-sortbylayer)
+        } # if(idata_method == 'm1') {
       }
       
       newdata.oo <- get.data.grid(
@@ -1330,6 +1430,167 @@ outliers <-
 
 
 
+#' An internal function to set default initials for model specific parameters
+#'
+#' @param cargs A character string specifying the model fitted. 
+#' 
+#' @param fargs A character string specifying the initials. 
+#' 
+#' @param dargs A character string specifying the parameter class. Options
+#' are \code{'b'}, \code{'sd'} and \code{'cor'}. Default \code{NULL} indicates 
+#' that class name in infered automatically. 
+#' 
+#' @param verbose A logical (default \code{FALSE}) to indicate whetehr to print
+#'  \code{warnings} and \code{messages} during the function evaluation.
+#'
+#' @return A list.
+#' 
+#' @author Satpal Sandhu  \email{satpal.sandhu@bristol.ac.uk}
+#' 
+#' @keywords internal
+#' @noRd
+#' 
+evaluate_call_args <- function(cargs = NULL,
+                            fargs = NULL,
+                            dargs = NULL,
+                            verbose = FALSE) {
+  for (fargsi in names(dargs)) {
+    if(is.null(cargs[[fargsi]])) cargs[[fargsi]] <- fargs[[fargsi]]
+  }
+  for (fargsi in names(fargs)) {
+    if(is.null(cargs[[fargsi]])) cargs[[fargsi]] <- fargs[[fargsi]]
+  }
+  cargs$... <- NULL
+  cargs
+}
+
+
+
+#' An internal function to perform checks when calling post-processing functions
+#'
+#' @description The \code{post_processing_args_sanitize} perform essential 
+#'   checks for the arguments passed on to the \code{brms} post-processing
+#'   functions.
+#'
+#' @param model An object of class \code{bgmfit}.
+#'
+#' @param xcall The \code{match.call()} from the post-processing function.
+#'
+#' @param resp Response variable (default \code{NULL}) specified as a character
+#'   string. This is needed when processing \code{univariate_by} and
+#'   \code{multivariate} models (see \code{bgmfit} function for details).
+#'
+#' @param deriv An integer value to specify whether to estimate distance curve
+#'   (i.e., model estimated curve(s)) or the velocity curve (first derivative of
+#'   the model estimated curve(s)). A value \code{0} (default) is for distance
+#'   curve and  \code{1} for the velocity curve.
+#'   
+#' @param dots A list passing the \code{...} arguments. Default \code{NULL}.
+#' 
+#' @param misc A vector of character strings specifying the miscellanous
+#'   arguments to be checked. Default \code{NULL}.
+#'
+#' @param envir Indicator to set the environment of function evaluation. The
+#'   default is \code{parent.frame}.
+#'   
+#' @param verbose A logical (default \code{FALSE}) to indicate whetehr to print
+#'  \code{warnings} and \code{messages} during the function evaluation.
+#'
+#' @return A list with the filtered necessary arguments required for the 
+#'   successgull execition of the post-processing function
+#'   
+#' @author Satpal Sandhu  \email{satpal.sandhu@bristol.ac.uk}
+#'
+#' @keywords internal
+#' @noRd
+#'
+post_processing_args_sanitize <- function(model, 
+                                          xcall, 
+                                          resp = NULL, 
+                                          deriv = NULL,
+                                          dots = NULL,
+                                          misc = NULL,
+                                          envir = NULL, 
+                                          verbose = FALSE) {
+  
+  if(is.null(envir)) envir <- parent.frame()
+  if(is.null(deriv)) deriv <- 0
+  
+  if(!'bgmfit' %in% class(model)) {
+    stop("The class of model object should be 'bgmfit' ")
+  }
+  
+  allargs <- c(as.list(xcall), dots)
+  
+  excall_ <- c("plot_ppc", "loo_validation")
+  excall_ <- c(excall_, paste0(excall_, ".", "bgmfit"))
+  
+  checkwhat_all <- c()
+  if (strsplit(deparse((xcall[1])), "\\.")[[1]][1] %in% excall_) {
+    # Check deriv
+    checkwhat <- ""
+    checkwhat <- 'deriv'
+    if(!is.null(allargs[[checkwhat]])) {
+      checkwhat_all <- c(checkwhat_all, checkwhat)
+      if(verbose) {
+        message(
+          "\nargument 'deriv' is not allowed for the ",
+          " post-processing function",  " '",
+          strsplit(deparse((xcall[1])), "\\.")[[1]][1], "'",
+          "\n ",
+          "Therefore, it is set to i.e., deriv = NULL"
+        )
+      }
+    } # if(!is.null(allargs$idata_method)) {
+    
+    # Check idata_method
+    checkwhat <- ""
+    checkwhat <- 'idata_method'
+    if(!is.null(allargs[[checkwhat]])) {
+      checkwhat_all <- c(checkwhat_all, checkwhat)
+      if(verbose) {
+        message(
+          "\nargument 'idata_method' is not allowed for the ",
+          " post-processing function",  " '",
+          strsplit(deparse((xcall[1])), "\\.")[[1]][1], "'",
+          "\n ",
+          "Therefore, it is set to i.e., idata_method = NULL"
+        )
+      }
+    } # if(!is.null(allargs$idata_method)) {
+    
+    # Check re_formula
+    checkwhat <- ""
+    checkwhat <- 're_formula'
+    if(!is.null(allargs[[checkwhat]])) {
+      checkwhat_all <- c(checkwhat_all, checkwhat)
+      if(verbose) {
+        message(
+          "\nargument 'idata_method' is not allowed for the ",
+          " post-processing function",  " '",
+          strsplit(deparse((xcall[1])), "\\.")[[1]][1], "'",
+          "\n ",
+          "Therefore, it is set to i.e., idata_method = NULL"
+        )
+      }
+    } # if(!is.null(allargs$idata_method)) {
+    
+    
+  } # if (strsplit(deparse((xcall[1])), "\\.")[[1]][1] %in% excall_) {
+  
+  
+  if(length(checkwhat_all) == 0) checkwhat_all <- NULL
+  checkwhat_all <- c(checkwhat_all, misc)
+  
+  if(!is.null(checkwhat_all)) {
+    allargs[which(names(allargs)%in%checkwhat_all)] <- NULL
+  }
+  
+  allargs <- allargs[-1]
+  names(allargs) <- gsub("model", "object", names(allargs))
+ 
+  return(allargs)
+}
 
 
 
@@ -1344,16 +1605,22 @@ outliers <-
 #' @param xcall The \code{match.call()} from the post-processing function.
 #'
 #' @param resp Response variable (default \code{NULL}) specified as a character
-#'   string. This is needed when processing univariate-by-subgroup and
-#'   multivariate model (see \code{bgmfit} function for details).
+#'   string. This is needed when processing \code{univariate_by} and
+#'   \code{multivariate} models (see \code{bgmfit} function for details).
 #'
 #' @param deriv An integer value to specify whether to estimate distance curve
 #'   (i.e., model estimated curve(s)) or the velocity curve (first derivative of
 #'   the model estimated curve(s)). A value \code{0} (default) is for distance
 #'   curve and  \code{1} for the velocity curve.
+#'   
+#' @param all A logical (default \code{NULL}) to specify whether to return all
+#'   the exposed functions.
 #'
 #' @param envir Indicator to set the environment of function evaluation. The
 #'   default is \code{parent.frame}.
+#'   
+#' @param verbose A logical (default \code{FALSE}) to indicate whetehr to print
+#'  \code{warnings} and \code{messages} during the function evaluation.
 #'
 #' @return A string with the error captured or else a list with necessary
 #'   information needed when executing the post-processing function
@@ -1366,31 +1633,34 @@ outliers <-
 post_processing_checks <- function(model, 
                                    xcall, 
                                    resp = NULL, 
-                                   envir = NULL, 
                                    deriv = NULL,
-                                   all = FALSE) {
+                                   all = FALSE,
+                                   envir = NULL, 
+                                   verbose = FALSE) {
   
-  # if(is.null(envir)) envir <- globalenv()
   if(is.null(envir)) envir <- parent.frame()
   if(is.null(deriv)) deriv <- 0
- 
+  
   if(!'bgmfit' %in% class(model)) {
     stop("The class of model object should be 'bgmfit' ")
   }
   excall_ <- c("plot_ppc", "loo_validation")
   if (strsplit(deparse((xcall[1])), "\\.")[[1]][1] %in% excall_) {
+    if(is.null(as.list(xcall)[['deriv']])) deriv <- ''
     if (!is.null(as.list(xcall)[['deriv']])) {
-      stop(
-        "argument deriv is not allowed for the ",
-        "\n ",
-        " post-processing function",
-        " '",
-        strsplit(deparse((xcall[1])), "\\.")[[1]][1],
-        "'"
-      )
-    }
-    deriv <- ''
+      deriv <- ''
+      if(verbose) {
+        message(
+          "\nargument 'deriv' is not allowed for the ",
+          " post-processing function",  " '",
+          strsplit(deparse((xcall[1])), "\\.")[[1]][1], "'",
+          "\n ",
+          "Therefore, it is set to missing i.e., deriv = ''"
+        )
+      }
+    } # if(!is.null(chcallls$idata_method)) {
   }
+  
   if (model$model_info$nys == 1 & !is.null(resp)) {
     stop(
       "You have fit a univariate model",
@@ -1406,10 +1676,10 @@ post_processing_checks <- function(model,
   if (model$model_info$nys > 1 & is.null(resp)) {
     if (!is.na(model$model_info$univariate_by)) {
       stop(
-        "You have fit a univariate-by-subset model for ",
+        "You have fit a univariate_by model for ",
         model$model_info$univariate_by,
         "\n ",
-        " but dit not set the the resp options correctly",
+        " but did not correctly specified the 'resp' option",
         " (which is NULL at present).",
         "\n ",
         " The response options are: ",
@@ -1455,8 +1725,7 @@ post_processing_checks <- function(model,
              envir = envir)
     }
   }
-  
-  
+ 
   if(!all) {
     out <-
       list(

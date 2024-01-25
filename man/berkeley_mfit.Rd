@@ -15,8 +15,7 @@ An object of class \code{bgmfit} with posterior draws.
 }
 \description{
 Bayesian SITAR model fit to the \link{berkeley_mdata}
-data that contains longitudinal growth measurements for 66 males (6
-to 20 years of age).
+data (20 males, 6 to 20 years of age).
 }
 \details{
 Data details are provided in the \link{berkeley_mdata}.
