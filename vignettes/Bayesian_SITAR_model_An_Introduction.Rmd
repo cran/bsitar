@@ -1,81 +1,43 @@
+
+
 ---
 title: "Bayesian SITAR model - An introduction"
 author: "Satpal Sandhu"
 date: '`r format(Sys.time(), "%B %d, %Y")`'
-bibliography: [Bayesian_SITAR_An_Introduction.bib, packages.bib, REFERENCES.bib]
+bibliography: [bibliography.bib]
 csl: apa-7th-edition.csl
 link-citations: yes
 colorlinks: true
 lang: en-US
 zotero: true
-header-includes:
-   - \setlength\parindent{30pt}\setlength{\parskip}{0.0pt plus 1.0pt}
-   - \pagenumbering{gobble}
-   - \setlength{\headheight}{47pt}
-   - \usepackage{float}
-   - \floatplacement{figure}{H}
-output: 
-  bookdown::html_document2:
-    #  base_format: rmarkdown::html_vignette
-      toc: yes
-      number_sections: true
-      toc_depth: 2
-      toc_float: false
-      highlight: tango
-      pandoc_args: 
-      - --shift-heading-level-by=-1
-      - --lua-filter=parse-html-links.lua
-      # css: bsitar_style.css
-      code_folding: hide
-      fig_caption: yes
-      keep_tex: yes
-linkcolor:  blue
-urlcolor: blue
-citecolor: magenta
+output:
+  rmarkdown::html_vignette:
+    toc: yes
 vignette: >
-  %\VignetteIndexEntry{Bayesian SITAR model - An introduction}
-  %\VignetteEncoding{UTF-8}
+ %\VignetteIndexEntry{Bayesian SITAR model - An introduction}
   %\VignetteEngine{knitr::rmarkdown}
-params:
-  EVAL: !r identical(Sys.getenv("NOT_CRAN"), "true")
-linestretch: 1.5
-mainfont: "Times New Roman"
-monofont: "Monaco"
-fontsize: 12pt
-geometry:
-- top=2cm
-- left=2.5cm
-- right=2.5cm
-- bottom=3.5cm
-papersize: a4
-editor_options: 
-  markdown: 
-    wrap: 72
+  \usepackage[utf8]{inputenc}
+<!-- params: -->
+<!--   EVAL: !r identical(Sys.getenv("NOT_CRAN"), "true") -->
 ---
 
-
-```{r setup, include=FALSE}
-NOT_CRAN <- identical(tolower(Sys.getenv("NOT_CRAN")), "true")
-knitr::knit_hooks$set(purl = knitr::hook_purl)
+```{r, SETTINGS-knitr, include=FALSE}
+stopifnot(require(knitr))
 options(width = 90)
-# fig.width = 6, fig.height=4, fig.asp = 1.0,
-knitr::opts_chunk$set(
-  echo = FALSE,
-  collapse = TRUE,
-  comment = "#>",
+opts_chunk$set(
+  comment = NA,
   message = FALSE,
   warning = FALSE,
-  eval = if (isTRUE(exists("params"))) params$EVAL else FALSE,
-  purl = NOT_CRAN,
-  eval = NOT_CRAN,
+  # eval = if (isTRUE(exists("params"))) params$EVAL else FALSE,
   dev = "jpeg",
-  dpi = 30,
-  fig.cap = "",
+  dpi = 100,
   fig.asp = 0.8,
   fig.width = 5,
   out.width = "60%",
   fig.align = "center"
 )
+library(brms)
+ggplot2::theme_set(theme_default())
 ```
 
 
@@ -153,7 +115,9 @@ WinBUGS [@lunn2000], OpenBUGS [@spiegelhalter2007openbugs], JAGS [@Plummer2003JA
 
 ### Two-level SITAR model
 #### Univariate model
-Here we outline the Bayesian specification for a two-level *SITAR* model described [earlier][SITAR growth curve model - an overview].
+Below we describe Bayesian model specification for a two-level *SITAR* model
+([see also overview section][SITAR growth curve model - an overview])
+and the default priors.
 
 ##### Model specification
 To get a better understanding of the data generative mechanism and for the ease of showing prior specification for each individual parameter, we re express the above model \@ref(eq:1) as as follows:
@@ -366,6 +330,7 @@ individual variability is captured by the residual parameters which include $2
 priors described above for the [Univariate model specification]) are applied to
 each outcome. The prior on residual correlation between outcomes is 'lkj' prior
 as described earlier (see [Univariate model specification]).
+
 
 
 #### References

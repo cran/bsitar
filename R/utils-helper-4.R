@@ -99,6 +99,7 @@ prepare_formula <- function(x,
   autocor_formi <- NULL;
   unusedsi <- NULL;
   familysi <- NULL;
+  # custom_family <- NULL;
   mat_s <- NULL;
   ancov_gr_str <- NULL;
   bncov_gr_str <- NULL;
@@ -393,6 +394,15 @@ prepare_formula <- function(x,
   } else {
     group_arg$verbose <- FALSE
   }
+  
+  
+  # 28 01 2024
+  # if (!is.null(group_arg$groupvar)) {
+  #   group_arg$groupvar <- group_arg$groupvar
+  # } else {
+  #   group_arg$groupvar <- id
+  # }
+  
   
   if (!(is.na(univariate_by$by) | univariate_by$by == "NA")) {
     if (!is.null(univariate_by$cor)) {
@@ -711,9 +721,10 @@ prepare_formula <- function(x,
                                   fixed = T)[[1]][2], 1, 1),
                   substr(strsplit(sigma_formula_grsi, "~", 
                                   fixed = T)[[1]][2], 1, 1))) {
-      stop("Formulae for sigma_formula and sigma_formula_gr should be same",
-           "\n ", 
-           " in terms of Intercept i.e, both should be either ~ 0 or ~ 1")
+      # commented out on 07 03 2024
+      # stop("Formulae for sigma_formula and sigma_formula_gr should be same",
+      #      "\n ", 
+      #      " in terms of Intercept i.e, both should be either ~ 0 or ~ 1")
     }
   }
   
@@ -1389,7 +1400,9 @@ prepare_formula <- function(x,
     gr_varss    <- NULL
   }
   
-  
+  # 28 01 2024
+  gr_varss <- id
+ 
   
   if (!is.null(randomsi)) {
     # these two arguments are set automaticaly if missing
@@ -2148,11 +2161,19 @@ prepare_formula <- function(x,
   }
   
   
-  if (!is.null(familysi)) {
-    setbformula <- paste0(setbformula, "+", familysi)
+  # If no custom_family, then only add family to the call
+  if(is.null(custom_family)) {
+    if (!is.null(familysi)) {
+      setbformula <- paste0(setbformula, "+", familysi)
+    }
   }
   
   
+  # if (!is.null(familysi)) {
+  #   setbformula <- paste0(setbformula, "+", familysi)
+  # }
+  
+ 
   
   group_arg_groupvar <- gr_varss
   multivariate_rescor <-  multivariate$rescor
@@ -3053,6 +3074,7 @@ prepare_formula <- function(x,
     lme_sd_a = lme_sd_a,
     lme_rsd = lme_rsd
   )
+  
   
   attr(setbformula, "list_out") <- as.list(list_out)
   

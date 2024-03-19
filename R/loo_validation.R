@@ -52,12 +52,14 @@
 #' 
 #' # Fit Bayesian SITAR model 
 #' 
-#' # To avoid mode estimation which takes time, a model fitted to the 
-#' # 'berkeley_mdata' has already been saved as 'berkeley_mfit'. 
-#' # Details on 'berkeley_mdata' and 'berkeley_mfit' are provided in the 
-#' # 'bsitar' function.
+#' # To avoid mode estimation which takes time, the Bayesian SITAR model fit to 
+#' # the 'berkeley_exdata' has been saved as an example fit ('berkeley_exfit').
+#' # See 'bsitar' function for details on 'berkeley_exdata' and 'berkeley_exfit'.
 #' 
-#' model <- berkeley_mfit
+#' # Check and confirm whether model fit object 'berkeley_exfit' exists
+#'  berkeley_exfit <- getNsObject(berkeley_exfit)
+#' 
+#' model <- berkeley_exfit
 #' 
 #' \donttest{
 #' loo_validation(model, cores = 1)
@@ -77,18 +79,48 @@ loo_validation.bgmfit <-
            reloo_args = list(),
            model_names = NULL,
            ndraws = NULL,
+           draw_ids = NULL,
            cores = 1,
            deriv_model = NULL,
            verbose = FALSE,
            dummy_to_factor = NULL, 
-           usesavedfuns = FALSE,
+           expose_function = FALSE,
+           usesavedfuns = NULL,
            clearenvfuns = NULL,
            envir = NULL,
            ...) {
     
     if(is.null(envir)) {
+      envir <- model$model_info$envir
+    } else {
       envir <- parent.frame()
     }
+    
+
+    if(is.null(usesavedfuns)) {
+      if(!is.null(model$model_info$exefuns[[1]])) {
+        usesavedfuns <- TRUE
+      } else if(is.null(model$model_info$exefuns[[1]])) {
+        if(expose_function) {
+          model <- expose_model_functions(model, envir = envir)
+          usesavedfuns <- TRUE
+        } else if(!expose_function) {
+          usesavedfuns <- FALSE
+        }
+      }
+    } else {
+      if(!usesavedfuns) {
+        if(expose_function) {
+          model <- expose_model_functions(model, envir = envir)
+          usesavedfuns <- TRUE
+        }
+      } else if(usesavedfuns) {
+        check_if_functions_exists(model, checks = TRUE, 
+                                  usesavedfuns = usesavedfuns)
+      }
+    }
+    
+    check_if_package_installed(model, xcall = NULL)
     
     if(!is.null(ndraws)) {
       if(ndraws == 1) stop("ndraws must be greater than 1")
@@ -154,6 +186,20 @@ loo_validation.bgmfit <-
     
     if(is.null(test)) return(invisible(NULL))
     
+    
+    if(!isTRUE(
+      check_pkg_version_exists('brms', 
+                               minversion = get_package_minversion('brms'),
+                               prompt = FALSE,
+                               stop = FALSE,
+                               verbose = FALSE))) {
+      if(is.null(check_if_functions_exists(model, o, model$xcall,
+                                           usesavedfuns = usesavedfuns))) {
+        return(invisible(NULL))
+      }
+    }
+    
+    
     misc <- c("verbose", "usesavedfuns", "clearenvfuns", 
               "envir", "fullframe", "dummy_to_factor")
     
@@ -172,6 +218,10 @@ loo_validation.bgmfit <-
     calling.args$object <- NULL
     calling.args$model <- NULL
   
+    if(is.null(calling.args$newdata)) {
+      if(!is.null(newdata)) calling.args$newdata <- newdata
+    }
+    
     
     . <- brms::loo(model,
                    compare = compare,
@@ -201,6 +251,9 @@ loo_validation.bgmfit <-
     }
     
     if(is.null(eval(full.args$clearenvfuns))) {
+      if(is.null(eval(full.args$usesavedfuns))) {
+        full.args$usesavedfuns <- usesavedfuns
+      }
       if(eval(full.args$usesavedfuns)) {
         setcleanup <- TRUE 
       } else {
@@ -210,20 +263,21 @@ loo_validation.bgmfit <-
     
     # Cleanup environment if requested
     if(setcleanup) {
-      tempgenv <- envir
-      for (oalli in names(oall)) {
-        if(exists(oalli, envir = tempgenv )) {
-          remove(list=oalli, envir = tempgenv)
+      suppressWarnings({
+        tempgenv <- envir
+        for (oalli in names(oall)) {
+          if(exists(oalli, envir = tempgenv )) {
+            remove(list=oalli, envir = tempgenv)
+          }
         }
-      }
-      tempgenv <- test
-      for (oalli in names(oall)) {
-        if(exists(oalli, envir = tempgenv )) {
-          remove(list=oalli, envir = tempgenv)
+        tempgenv <- test
+        for (oalli in names(oall)) {
+          if(exists(oalli, envir = tempgenv )) {
+            remove(list=oalli, envir = tempgenv)
+          }
         }
-      }
+      })
     } # if(setcleanup) {
-    
     .
   }
 

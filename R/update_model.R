@@ -22,6 +22,12 @@
 #'   figure out internally whether recompilation is required or not. Setting
 #'   \code{recompile} to \code{FALSE} will ignore Stan code changing arguments.
 #'   
+#' @param check_newargs A logical (default \code{FALSE}) to check whether
+#'   arguments in the original \code{model} fit and the \code{update_model} are
+#'   same. When \code{check_newargs = TRUE} and arguments are same, it implies 
+#'   that update is not needed and hence the original \code{model} object is 
+#'   returned along with the message if \code{verbose = TRUE}.
+#' 
 #' @inherit growthparameters.bgmfit params
 #'
 #' @param ... Other arguments passed to \code{\link{brms}}.
@@ -39,17 +45,25 @@
 #' 
 #' # Fit Bayesian SITAR model 
 #' 
-#' # To avoid mode estimation which takes time, a model fitted to the 
-#' # 'berkeley_mdata' has already been saved as 'berkeley_mfit'. 
-#' # Details on 'berkeley_mdata' and 'berkeley_mfit' are provided in the 
-#' # 'bsitar' function.
+#' # To avoid mode estimation which takes time, the Bayesian SITAR model fit to 
+#' # the 'berkeley_exdata' has been saved as an example fit ('berkeley_exfit').
+#' # See 'bsitar' function for details on 'berkeley_exdata' and 'berkeley_exfit'.
 #' 
-#' model <- berkeley_mfit
+#' # Check and confirm whether model fit object 'berkeley_exfit' exists
+#'  berkeley_exfit <- getNsObject(berkeley_exfit)
 #' 
-#' # Update model for degree of freedom. For illustration purpose, and to save 
-#' # time, the below example is run with sample_prior only. 
+#' model <- berkeley_exfit
 #' 
-#' model2 <- update_model(model, df = 5, sample_prior = 'only')
+#' # Update model
+#' # Note that in case all arguments supplied to the update_model() call are 
+#' # same as the original model fit (checked via check_newargs = TRUE), then  
+#' # original model object is returned.   
+#' # To explicitly get this information whether model is being updated or not, 
+#' # user can set verbose = TRUE. The verbose = TRUE also useful in getting the
+#' # information regarding what all arguments have been changed as compared to
+#' # the original model.
+#' 
+#' model2 <- update_model(model, df = 5, check_newargs = TRUE, verbose = TRUE)
 #' 
 #' }
 #'
@@ -57,8 +71,95 @@ update_model.bgmfit <-
   function(model,
            newdata = NULL,
            recompile = NULL,
+           expose_function = FALSE,
            verbose = FALSE,
+           check_newargs = FALSE,
+           envir = NULL,
            ...) {
+    
+    if(is.null(envir)) {
+      envir <- model$model_info$envir
+    } else {
+      envir <- parent.frame()
+    }
+    
+
+    if(check_newargs) {
+      call_o <- match.call()
+      call_o_args <- as.list(call_o)[-1]
+      
+      args_o <- as.list(model$model_info$call.full.bgmfit)[-1]
+      
+      args_o_dots_ <- list(...)
+      if (length(args_o_dots_) > 0) {
+        for (i in names(args_o_dots_)) {
+          args_o[[i]] <- args_o_dots_[[i]]
+        }
+      }
+      
+      # This to evaluate T/F to TRUE/FALSE
+      for (i in names(args_o)) {
+        if (is.symbol(args_o[[i]])) {
+          if (args_o[[i]] == "T")
+            args_o[[i]] <- eval(args_o[[i]])
+          if (args_o[[i]] == "F")
+            args_o[[i]] <- eval(args_o[[i]])
+        }
+      }
+      
+      args_o_new <- args_o_dots_
+      args_o_new[['expose_function']] <- expose_function
+      
+      calling    <- model$model_info$call.full.bgmfit
+      calling[['verbose']] <- NULL
+      
+      args_o_org <- calling
+      args_o_new$data <- NULL
+      args_o_org$data <- NULL
+      
+      # This to evaluate T/F to TRUE/FALSE
+      for (i in names(args_o_org)) {
+        if (is.symbol(args_o_org[[i]])) {
+          if (args_o_org[[i]] == "T")
+            args_o_org[[i]] <- eval(args_o_org[[i]])
+          if (args_o_org[[i]] == "F")
+            args_o_org[[i]] <- eval(args_o_org[[i]])
+        }
+      }
+      
+      all_same_args_c <- all_same_args <- c()
+      # args_o_org_updated <- list()
+      for (args_oi in names(args_o_new)) {
+        all_same_args_c <- c(all_same_args_c, identical(args_o_org[[args_oi]],
+                                                        args_o_new[[args_oi]]) 
+        )
+      }
+      
+      all_same_args_c_diffs <- args_o_new[!all_same_args_c]
+      if(length(all_same_args_c_diffs) > 0) {
+        all_same_args <- FALSE 
+      } else {
+        all_same_args <- TRUE
+      }
+      
+      if(all_same_args) {
+        if(verbose) {
+          cat("\n")
+          message("Arguemnets supplied for 'update_model()' call are same as ",
+              "the original model fit.", 
+              "\n ",
+              "Therefore, returning the original model object")
+          cat("\n")
+        }
+      }
+      return(model)
+    } # if(check_newargs) {
+    
+    
+    
+    
+    check_if_package_installed(model, xcall = NULL)
+    
     formula. <- NULL
     args <- formalArgs(bsitar)
     args <- args[!args == "..."]
@@ -175,9 +276,9 @@ update_model.bgmfit <-
     }
     silent <- dots$silent
     model <- brms::restructure(model)
-    if (isTRUE(model$version$brms < "2.0.0")) {
-      warning2("Updating models fitted with older versions of brms may fail.")
-    }
+    # if (isTRUE(model$version$brms < "2.0.0")) {
+    #   warning2("Updating models fitted with older versions of brms may fail.")
+    # }
     model$file <- NULL
     
     if ("data" %in% names(dots)) {
@@ -391,6 +492,7 @@ update_model.bgmfit <-
         } # if(new_init_arg) {
       } # if (!testmode) {
     }
+    if(expose_function) model <- expose_model_functions(model, envir = envir)
     attr(model$data, "data_name") <- data_name
     model
   }

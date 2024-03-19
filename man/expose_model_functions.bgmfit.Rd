@@ -11,6 +11,7 @@
   expose = TRUE,
   select_model = NULL,
   returnobj = TRUE,
+  vectorize = FALSE,
   verbose = FALSE,
   envir = NULL,
   ...
@@ -34,6 +35,11 @@ model name. This is for internal use only.}
 \item{returnobj}{A logical (default \code{TRUE}) to indicate whether to
 return the model object. When \code{expose = TRUE}, then it is advisable to
 set \code{returnobj = TRUE} too.}
+
+\item{vectorize}{A logical (default \code{FALSE}) to indicate whether the
+exposed functions should be vectorized via \code{\link[base:Vectorize]{base::Vectorize()}}. Note that
+currently \code{vectorize} should be set to \code{FALSE} because setting it
+\code{TRUE} may not work as expected.}
 
 \item{verbose}{An optional argument (logical, default \code{FALSE}) to
 indicate whether to print information collected during setting up the
@@ -62,17 +68,22 @@ post-processing of the posterior draws.
 }
 \examples{
 
+\donttest{
 # Fit Bayesian SITAR model 
 
-# To avoid mode estimation which takes time, a model fitted to the 
-# 'berkeley_mdata' has already been saved as 'berkeley_mfit'. 
-# Details on 'berkeley_mdata' and 'berkeley_mfit' are provided in the 
-# 'bsitar' function.
+# To avoid mode estimation which takes time, the Bayesian SITAR model fit to 
+# the 'berkeley_exdata' has been saved as an example fit ('berkeley_exfit').
+# See 'bsitar' function for details on 'berkeley_exdata' and 'berkeley_exfit'.
 
-model <- berkeley_mfit
+# Check and confirm whether model fit object 'berkeley_exfit' exists
+ berkeley_exfit <- getNsObject(berkeley_exfit)
 
-\donttest{
-expose_model_functions(model)
+model <- berkeley_exfit
+
+# To save time, argument expose is set as FALSE which runs a dummy test 
+# and avoid model compilation which often takes time
+
+expose_model_functions(model, expose = FALSE)
 }
 
 }

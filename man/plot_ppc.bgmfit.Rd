@@ -15,10 +15,28 @@
   x = NULL,
   newdata = NULL,
   resp = NULL,
+  size = 0.25,
+  alpha = 0.7,
+  trim = FALSE,
+  bw = "nrd0",
+  adjust = 1,
+  kernel = "gaussian",
+  n_dens = 1024,
+  pad = TRUE,
+  discrete = FALSE,
+  binwidth = NULL,
+  bins = NULL,
+  breaks = NULL,
+  freq = TRUE,
+  y_draw = c("violin", "points", "both"),
+  y_size = 1,
+  y_alpha = 1,
+  y_jitter = 0.1,
   verbose = FALSE,
   deriv_model = NULL,
   dummy_to_factor = NULL,
-  usesavedfuns = FALSE,
+  expose_function = FALSE,
+  usesavedfuns = NULL,
   clearenvfuns = NULL,
   envir = NULL,
   ...
@@ -63,6 +81,46 @@ variable when processing posterior draws for the \code{univariate_by} and
 \code{multivariate} models. See \code{\link[=bsitar]{bsitar()}} for details on
 \code{univariate_by} and \code{multivariate} models}
 
+\item{size, alpha}{Passed to the appropriate geom to control the appearance of
+the predictive distributions.}
+
+\item{trim}{A logical scalar passed to \code{\link[ggplot2:geom_density]{ggplot2::geom_density()}}.}
+
+\item{bw, adjust, kernel, n_dens}{Optional arguments passed to
+\code{\link[stats:density]{stats::density()}} to override default kernel density estimation
+parameters. \code{n_dens} defaults to \code{1024}.}
+
+\item{pad}{A logical scalar passed to \code{\link[ggplot2:stat_ecdf]{ggplot2::stat_ecdf()}}.}
+
+\item{discrete}{For \code{ppc_ecdf_overlay()}, should the data be treated as
+discrete? The default is \code{FALSE}, in which case \code{geom="line"} is
+passed to \code{\link[ggplot2:stat_ecdf]{ggplot2::stat_ecdf()}}. If \code{discrete} is set to
+\code{TRUE} then \code{geom="step"} is used.}
+
+\item{binwidth}{Passed to \code{\link[ggplot2:geom_histogram]{ggplot2::geom_histogram()}} to override
+the default binwidth.}
+
+\item{bins}{Passed to \code{\link[ggplot2:geom_histogram]{ggplot2::geom_histogram()}} to override
+the default binwidth.}
+
+\item{breaks}{Passed to \code{\link[ggplot2:geom_histogram]{ggplot2::geom_histogram()}} as an
+alternative to \code{binwidth}.}
+
+\item{freq}{For histograms, \code{freq=TRUE} (the default) puts count on the
+y-axis. Setting \code{freq=FALSE} puts density on the y-axis. (For many
+plots the y-axis text is off by default. To view the count or density
+labels on the y-axis see the \code{\link[bayesplot:yaxis_text]{yaxis_text()}} convenience
+function.)}
+
+\item{y_draw}{For \code{ppc_violin_grouped()}, a string specifying how to draw
+\code{y}: \code{"violin"} (default), \code{"points"} (jittered points), or \code{"both"}.}
+
+\item{y_jitter, y_size, y_alpha}{For \code{ppc_violin_grouped()}, if \code{y_draw} is
+\code{"points"} or \code{"both"} then \code{y_size}, \code{y_alpha}, and \code{y_jitter} are passed
+to to the \code{size}, \code{alpha}, and \code{width} arguments of \code{\link[ggplot2:geom_jitter]{ggplot2::geom_jitter()}}
+to control the appearance of \code{y} points. The default of \code{y_jitter=NULL}
+will let \strong{ggplot2} determine the amount of jitter.}
+
 \item{verbose}{An optional argument (logical, default \code{FALSE}) to
 indicate whether to print information collected during setting up the
 object(s).}
@@ -89,11 +147,31 @@ factor levels are assigned same name as \code{factor.dummy}. Note that when
 \code{factor.level} is not \code{NULL}, its length must be same as the
 length of the \code{factor.dummy}.}
 
-\item{usesavedfuns}{A logical (default \code{FALSE}) to indicate whether to
-use the already exposed and saved \code{Stan} functions. This is for
-internal purposes only and mainly used during the testing of the functions
-and therefore should not be used by users as it might lead to unreliable
-estimates.}
+\item{expose_function}{An optional logical argument to indicate whether to
+expose Stan functions (default \code{FALSE}). Note that if user has already
+exposed Stan functions during model fit by setting \code{expose_function =
+  TRUE} in the \code{\link[=bsitar]{bsitar()}}, then those exposed functions are saved and can be
+used during post processing of the posterior draws and therefore
+\code{expose_function} is by default set as \code{FALSE} in all post
+processing functions except \code{\link[=optimize_model]{optimize_model()}}. For \code{\link[=optimize_model]{optimize_model()}}, the
+default setting is \code{expose_function = NULL}. The reason is that each
+optimized model has different Stan function and therefore it need to be re
+exposed and saved. The \code{expose_function = NULL} implies that the
+setting for \code{expose_function} is taken from the original \code{model}
+fit. Note that \code{expose_function} must be set to \code{TRUE} when
+adding \code{fit criteria} and/or \code{bayes_R2} during model
+optimization.}
+
+\item{usesavedfuns}{A logical (default \code{NULL}) to indicate whether to
+use the already exposed and saved \code{Stan} functions. Depending on
+whether the user have exposed Stan functions within the \code{\link[=bsitar]{bsitar()}} call via
+\code{expose_functions} argument in the \code{\link[=bsitar]{bsitar()}}, the \code{usesavedfuns}
+is automatically set to \code{TRUE} (if \code{expose_functions = TRUE}) or
+\code{FALSE} (if \code{expose_functions = FALSE}). Therefore, manual
+setting of \code{usesavedfuns} as \code{TRUE}/\code{FALSE} is rarely
+needed. This is for internal purposes only and mainly used during the
+testing of the functions and therefore should not be used by users as it
+might lead to unreliable estimates.}
 
 \item{clearenvfuns}{A logical to indicate whether to clear the exposed
 function from the environment (\code{TRUE}) or not (\code{FALSE}). If
@@ -127,12 +205,14 @@ The \strong{plot_ppc()} is a wrapper around the \code{\link[brms:pp_check.brmsfi
 
 # Fit Bayesian SITAR model 
 
-# To avoid mode estimation which takes time, a model fitted to the 
-# 'berkeley_mdata' has already been saved as 'berkeley_mfit'. 
-# Details on 'berkeley_mdata' and 'berkeley_mfit' are provided in the 
-# 'bsitar' function.
+# To avoid mode estimation which takes time, the Bayesian SITAR model fit to 
+# the 'berkeley_exdata' has been saved as an example fit ('berkeley_exfit').
+# See 'bsitar' function for details on 'berkeley_exdata' and 'berkeley_exfit'.
 
-model <- berkeley_mfit
+# Check and confirm whether model fit object 'berkeley_exfit' exists
+ berkeley_exfit <- getNsObject(berkeley_exfit)
+
+model <- berkeley_exfit
 
 plot_ppc(model, ndraws = 100)
 

@@ -936,6 +936,9 @@ rename <- function(x,
 #' @param viewer A logical (default \code{FALSE}) to indicate whether to display
 #'   the output in R viewer. Currently ignored to avoid dependency on the 'gt'
 #'   package.
+#' @param raw A logical (default \code{FALSE}) to indicate whether to return
+#'   the output in original format.
+#'   
 #' @keywords internal
 #' @return A data frame object.
 #' @noRd
@@ -952,7 +955,9 @@ priors_to_textdata <- function(model,
                                 sort_coefficient = c("Intercept"),
                                 sort_class = c("b", "sd", "cor"),
                                 digits = 2,
-                                viewer = FALSE) {
+                                viewer = FALSE,
+                                raw = FALSE
+                               ) {
   arguments <- as.list(match.call())[-1]
 
   if (missing(model)) {
@@ -999,7 +1004,8 @@ priors_to_textdata <- function(model,
     x
   }
 
-  spriors <- spriors %>% dplyr::filter(source == 'user')
+  if(!raw) spriors <- spriors %>% dplyr::filter(source == 'user')
+  if( raw) prior_name_asit <- TRUE
 
   env_ <- environment()
   list2env(sdata, envir =  env_)
@@ -1014,7 +1020,7 @@ priors_to_textdata <- function(model,
       } else if (!is.na(prior_name) & prior_name == 'lkj_corr_cholesky') {
         prior_name_case <- 'LKJ'
       } else {
-        prior_name_case <- firstup(prior_name)
+        if(!raw) prior_name_case <- firstup(prior_name)
       }
     }
 
@@ -1041,6 +1047,11 @@ priors_to_textdata <- function(model,
     }
     spriors[i, ]$prior <- getxit_7
   }
+  
+  
+  if(raw) {
+    return(spriors)
+  }
 
   spriors <-
     spriors %>% data.frame() %>% dplyr::select(-c('lb', 'ub', 'source'))
@@ -1063,7 +1074,9 @@ priors_to_textdata <- function(model,
         spriors %>%  dplyr::mutate(group = gsub(gsub_groupi, "" , group))
     }
   }
-
+  
+  
+  
   spriors <- spriors %>% dplyr::relocate(nlpar, coef,
                                          class, prior,
                                          group, resp,
@@ -1122,7 +1135,7 @@ priors_to_textdata <- function(model,
     dplyr::arrange(match(Class, sort_class))
 
   if (!is.null(model)) {
-    if (is.na(model$model_info$univariate_by) |
+    if (is.na(model$model_info$univariate_by) &
         !model$model_info$multivariate) {
       spriors <- spriors %>%  dplyr::select(-'Response')
     }
@@ -1849,7 +1862,8 @@ inits_lb <- function(x, lb = 0) {
 #'
 check_and_install_if_not_installed <- function(pkgs,
                                                getfun = NULL,
-                                               installpkg = TRUE) {
+                                               installpkg = TRUE,
+                                               verbose = FALSE) {
   successfully_loaded <- vapply(
     pkgs, requireNamespace,
     FUN.VALUE = logical(1L), quietly = TRUE
@@ -1859,10 +1873,12 @@ check_and_install_if_not_installed <- function(pkgs,
 
   if(!is.null(getfun)) {
     if(is.symbol(getfun)) getfun <- deparse(getfun)
-    message('Checking required packages for ', getfun, " ",
-            "\n ",
-            paste(pkgs, collapse = ", "))
-  }
+    if(verbose) {
+      message('Checking required packages for ', getfun, " ",
+              "\n ",
+              paste(pkgs, collapse = ", "))
+    } # if(verbose) {
+  } # if(!is.null(getfun)) {
 
   # Dont install package in function
   # CRAN does not accept it, so comment it out
@@ -1874,9 +1890,9 @@ check_and_install_if_not_installed <- function(pkgs,
     # utils::install.packages(required_pkgs,
     #                         repos = "http://cran.us.r-project.org")
   }
-
-
 }
+
+
 
 
 #' Plot tripple logistic model with marked x and y axis
@@ -2085,53 +2101,171 @@ sample_n_of_groups <- function(data, size, ...) {
 }
 
 
-
-#' An internal function to check for the exposed function
+#' An internal function to check the minimum version of the package
 #'
-#' @param model An object of class \code{bgmfit}.
-#' @param o An object used as an index for functions
+#' @param pkg A character string of package names
+#' @param minver A character string of minimum version of the package
+#' @param verbose A logical (default \code{FALSE}) to check 
+#' @param ... other arguments. Currently ignored.
 #' @keywords internal
 #' @return A list comprised of exposed functions.
 #' @noRd
 #'
-check_if_functions_exists <- function(model, o, xcall = NULL, verbose = TRUE, ...) {
+
+check_pkg_version_exists <- function(pkg, 
+                                     minversion = NULL, 
+                                     verbose = FALSE,
+                                     ...) {
+  
+  try(zz <- insight::check_if_installed(pkg, 
+                                        minimum_version = minversion,
+                                        ...))
+ 
+  if(!isTRUE(zz)) {
+    if(verbose) {
+      message("Please install the latest version of the 'brms' package",
+              "\n ",
+              "remotes::install_github('paul-buerkner/brms')")
+    }
+  }
+  return(zz)
+}
+
+
+#' An internal function to check for the exposed function
+#'
+#' @param o An object used as an index for functions
+#' @param checks A logical (default \code{FALSE}) to check if funnctions are 
+#' attached to the \code{model}.
+#' @inherit growthparameters.bgmfit params
+#' @param ... other arguments. Currently ignored.
+#' @keywords internal
+#' @return A list comprised of exposed functions.
+#' @noRd
+#'
+check_if_functions_exists <- function(model, 
+                                      o = NULL, 
+                                      xcall = NULL, 
+                                      verbose = TRUE, 
+                                      usesavedfuns = FALSE, 
+                                      checks = FALSE,...) {
+  
+  if(!checks) {
+    if(is.null(o)) stop("object 'o' must be specified")
+  }
+  
+  check_brms_v <- 
+  check_pkg_version_exists('brms', 
+                           minversion = get_package_minversion('brms'), 
+                           prompt = FALSE,
+                           stop = FALSE,
+                           verbose = FALSE)
+  
+  latest_brms_v <- TRUE
+  if(!isTRUE(check_brms_v)) {
+    latest_brms_v <- FALSE
+  }
+  
+  # if(exists(o[[1]], mode = "function", envir = globalenv())) {
+  #   envgtf <- TRUE
+  # } else {
+  #   envgtf <- FALSE
+  # }
+  
+  if(is.null(xcall)) {
+    xcall <- strsplit( deparse(sys.calls()[[sys.nframe()-1]]) , "\\(")[[1]][1]
+  }
+  
+  classname <- attr(model, 'class')[2]
+  calname.fun <- xcall # match.call()[1]
+  calname.fun <- gsub(paste0(".", classname), "", calname.fun)
+  
+  msg1 <- paste0(" Please expose user defined Stan function before calling the",
+                 "\n ",
+                 "'", calname.fun, "()'", " function",
+                  "\n ",
+                 " (See '?expose_model_functions()' for details).",
+                 "\n ",
+                 "\n ",
+                 "Note that if you have already exposed Stan functions in ",
+                 "'bsitar()' call,\n then those saved functions can be used here ",
+                 "by setting usesavedfuns = TRUE",
+                 "\n ",
+                 paste0(calname.fun,
+                        "(...,", " usesavedfuns = TRUE"),
+                 "\n "              )
+  
+  
+  msg2 <- paste0("Please expose user defined Stan function before calling the",
+                 "\n",
+                 "'", calname.fun, "()'", " function",
+                 # "\n ",
+                 " (See '?expose_model_functions()' for details).",
+                 "\n ",
+                 "\n ",
+                 "Note that you can use 'usesavedfuns = TRUE' only if Stan ",
+                 "functions have been ",
+                 "\n",
+                 " exposed and saved within the 'bsitar()' ",
+                 "by there using 'expose_functions = TRUE'",
+                 "\n "              )
+  
+  msg3 <- paste0(" Please expose user defined Stan function before calling the ",
+                 "'", calname.fun, "()'", " function",
+                 "\n ",
+                 "(See '?expose_model_functions()' for details).",
+                 "\n ",
+                 "\n ",
+                 "Also, 'envir' should be set as global environment i.e.,",
+                 "\n ",
+                 paste0(calname.fun, "(...,", " envir = "," .GlobalEnv)"),
+                 "\n ",
+                 "This is a known issue ",
+                 "(https://github.com/paul-buerkner/brms/issues/1577)",
+                 "\n ",
+                 "\n ",
+                 "Note that if you have already exposed the Stan functions in ",
+                 "'bsitar()' call,\n then those saved functions can be used ",
+                 "here by setting 'usesavedfuns = TRUE'",
+                 "\n ",
+                 paste0(calname.fun,
+                        "(...,", " usesavedfuns = TRUE, envir = "," .GlobalEnv)"),
+                 "\n "              )
+  
+  if(!latest_brms_v) {
+    msg3 <- paste0(msg3, 
+                   "\n ",
+                   "Or else, you can install the lates deveopmental versions ",
+                   " of the brms package:",
+                   "\n ",
+                   "remotes::install_github('paul-buerkner/brms')"
+    )
+  }
+  
+  if(checks) {
+    if(is.null(model$model_info$exefuns[[1]])) {
+      if(!is.null(usesavedfuns)) {
+        if(!usesavedfuns & latest_brms_v) message(msg1)
+        if(usesavedfuns & latest_brms_v) message(msg2)
+        
+        if(!usesavedfuns & !latest_brms_v) message(msg3)
+        if(usesavedfuns & !latest_brms_v) message(msg3)
+        
+      }
+    }
+    return(invisible(NULL))
+  }
+  
+  
   if(exists(o[[1]], mode = "function", envir = globalenv())) {
     envgtf <- TRUE
   } else {
     envgtf <- FALSE
   }
 
-  if(is.null(xcall)) {
-    xcall <- strsplit( deparse(sys.calls()[[sys.nframe()-1]]) , "\\(")[[1]][1]
-  }
-
   if(verbose) {
     if(!envgtf) {
-      classname <- attr(model, 'class')[2]
-      calname.fun <- xcall # match.call()[1]
-      calname.fun <- gsub(paste0(".", classname), "", calname.fun)
-      m <- paste0("Please expose user defined Stan function before calling the",
-              "\n",
-              "'", calname.fun, "()'", " function",
-              # "\n ",
-              " (See '?expose_model_functions()' for details).",
-              "\n ",
-              "Also, 'envir' should be set as global environment as",
-              "\n ",
-              paste0(calname.fun, "(...,", " envir = "," .GlobalEnv)"),
-              "\n ",
-              "This is a known issue ",
-              "(https://github.com/paul-buerkner/brms/issues/1577)",
-              "\n ",
-              "\n ",
-              "Note that if you have already exposed Stan functions in ",
-              "'bsitar()' call,\n then those saved functions can be used here ",
-              "by setting usesavedfuns = TRUE",
-              "\n ",
-              paste0(calname.fun,
-                     "(...,", " usesavedfuns = TRUE, envir = "," .GlobalEnv)"),
-              "\n "              )
-      if(verbose) message(m)
+      if(verbose) message(msg3)
     }
   }
 
@@ -2143,6 +2277,81 @@ check_if_functions_exists <- function(model, o, xcall = NULL, verbose = TRUE, ..
 
   return(en)
 }
+
+
+
+
+#' An internal function to check required package(s) installed 
+#'
+#' @param o An object used as an index for functions
+#' @param checks A logical (default \code{FALSE}) to check if funnctions are 
+#' attached to the \code{model}.
+#' @inherit growthparameters.bgmfit params
+#' @param ... other arguments. Currently ignored.
+#' @keywords internal
+#' @return A list comprised of exposed functions.
+#' @noRd
+#'
+check_if_package_installed <- function(model, 
+                                      xcall = NULL, 
+                                      package = NULL, 
+                                      reason = "for this function to work",
+                                      stop = TRUE,
+                                      minimum_version = NULL,
+                                      quietly = FALSE,
+                                      prompt = FALSE,
+                                      verbose = TRUE, 
+                                      ...) {
+  
+  
+  
+  if(is.null(xcall)) {
+    xcall <- strsplit( deparse(sys.calls()[[sys.nframe()-1]]) , "\\(")[[1]][1]
+  }
+  
+  classname <- attr(model, 'class')[2]
+  calname.fun <- xcall # match.call()[1]
+  calname.fun <- gsub(paste0(".", classname), "", calname.fun)
+  
+  
+  if(is.null(package)) {
+    if(calname.fun == "plot_curves") {
+      package <- c('ggplot2', 'jtools')
+    } else if(calname.fun == "growthparameters_comparison") {
+      package <- c('tidyr', 'collapse')
+    } else if(calname.fun == "marginal_draws") {
+      package <- c('tidyr', 'collapse')
+    } else  {
+      return(invisible(NULL))
+    }
+  } # if(is.null(package)) {
+  
+  
+  
+  if(!is.null(package)) {
+    if(is.null(reason)) {
+      reason <- paste0("for ", "'", calname.fun, "()'", " function", " to work")
+    } else {
+      reason <- reason
+    }
+    
+    insight::check_if_installed(package = package,
+                                reason = reason,
+                                stop = stop,
+                                minimum_version = minimum_version,
+                                quietly = quietly,
+                                prompt = prompt
+    )
+    
+    return(invisible(NULL))
+  } # if(!is.null(package)) {
+  
+}
+
+
+
+
+
 
 
 #' An internal function to get the environment of an object
@@ -2188,97 +2397,6 @@ getpipedot <- function(arguments, asstr = FALSE) {
   }
   if(asstr) mymodel <- deparse(mymodel)
   mymodel
-}
-
-
-
-
-
-
-#' An internal function to set up exposed functions and their environment
-#'
-#' @param model A list of arguments.
-#' @param o A logical (default \code{FALSE}) to indicate whether to
-#' return the object as a character string.
-#' @param usesavedfuns A logical (default \code{FALSE}) to indicate whether to
-#' @param deriv
-#' @keywords internal
-#' @return A list comprised of exposed functions.
-#' @noRd
-#'
-
-setupfuns <- function(model,
-                      resp = NULL,
-                      o = NULL,
-                      oall = NULL,
-                      usesavedfuns = NULL,
-                      deriv = NULL,
-                      envir = NULL,
-                      deriv_model = NULL,
-                      ...) {
-
-  if(is.null(envir)) {
-    envir <- parent.frame()
-  }
-
-  if (is.null(resp)) {
-    resp_ <- resp
-  } else if (!is.null(resp)) {
-    resp_ <- paste0(resp, "_")
-  }
-
-  if(is.null(model$xcall)) {
-    xcall <- strsplit( deparse(sys.calls()[[sys.nframe()-1]]) , "\\(")[[1]][1]
-  } else {
-    xcall <- model$xcall
-  }
-
-
-  if(!usesavedfuns) {
-    if(is.null(check_if_functions_exists(model, o, xcall))) {
-      return(invisible(NULL))
-    }
-  }
-
-  if(usesavedfuns) {
-    if(is.null(check_if_functions_exists(model, o, xcall,
-                                         verbose = F))) {
-      envir <- envir
-    } else {
-     #  envir <- getEnv(o[[1]], geteval = TRUE)
-    }
-    # envir <- getEnv(o[[1]], geteval = TRUE)
-
-    oall <- model$model_info[['exefuns']]
-    oalli_c <- names(oall)
-    for (oalli in oalli_c) {
-      assign(oalli, oall[[oalli]], envir = envir)
-    }
-  }
-
-  if(!is.null(deriv)) {
-    if(deriv == 0) {
-      assignfun <- paste0(model$model_info[['namesexefuns']], deriv)
-      assignfun <- paste0(resp_, assignfun)
-      assign(o[[1]], model$model_info[['exefuns']][[assignfun]], envir = envir)
-    } else if(deriv > 0) {
-      if(deriv_model) {
-        assignfun <- paste0(model$model_info[['namesexefuns']], deriv)
-        assignfun <- paste0(resp_, assignfun)
-      } else if(!deriv_model) {
-        assignfun <- paste0(model$model_info[['namesexefuns']], '0')
-        assignfun <- paste0(resp_, assignfun)
-      }
-      assign(o[[1]], model$model_info[['exefuns']][[assignfun]], envir = envir)
-    }
-  }
-
-  if(is.null(deriv)) {
-    assignfun <- paste0(model$model_info[['namesexefuns']], "")
-    assignfun <- paste0(resp_, assignfun)
-    assign(o[[1]], model$model_info[['exefuns']][[assignfun]], envir = envir)
-  }
-  return(envir)
 }
 
 
@@ -2443,6 +2561,745 @@ add_parms_to_curve_data <- function(data,
 
   tojoinwith <- tojoinwith %>% dplyr::left_join(., tojoinit12, by = byjoincols)
   return(tojoinwith)
+}
+
+
+
+#' An internal function to bind rows of unequal lengths (adapted from qpcR:::cbind.na)
+#'
+#' @param deparse.level An integer to set deparse level. 
+#' @param ... A list or name of column vectors.
+#' @keywords internal
+#' @return A data frame.
+#' @keywords internal
+#' @noRd
+#'
+rbind_fill_na1 <- function (..., deparse.level = 1) {
+    na <- nargs() - (!missing(deparse.level))
+    deparse.level <- as.integer(deparse.level)
+    stopifnot(0 <= deparse.level, deparse.level <= 2)
+    argl <- list(...)
+    while (na > 0 && is.null(argl[[na]])) {
+      argl <- argl[-na]
+      na <- na - 1
+    }
+    if (na == 0) 
+      return(NULL)
+    if (na == 1) {
+      if (isS4(..1)) 
+        return(methods::rbind2(..1))
+      else return(matrix(..., nrow = 1))
+    }
+    if (deparse.level) {
+      symarg <- as.list(sys.call()[-1L])[1L:na]
+      Nms <- function(i) {
+        if (is.null(r <- names(symarg[i])) || r == "") {
+          if (is.symbol(r <- symarg[[i]]) || deparse.level == 
+              2) 
+            deparse(r)
+        }
+        else r
+      }
+    }
+    if (na == 0) {
+      r <- argl[[2]]
+      fix.na <- FALSE
+    }
+    else {
+      nrs <- unname(lapply(argl, ncol))
+      iV <- sapply(nrs, is.null)
+      fix.na <- identical(nrs[(na - 1):na], list(NULL, NULL))
+      if (deparse.level) {
+        if (fix.na) 
+          fix.na <- !is.null(Nna <- Nms(na))
+        if (!is.null(nmi <- names(argl))) 
+          iV <- iV & (nmi == "")
+        ii <- if (fix.na) 
+          2:(na - 1)
+        else 2:na
+        if (any(iV[ii])) {
+          for (i in ii[iV[ii]]) if (!is.null(nmi <- Nms(i))) 
+            names(argl)[i] <- nmi
+        }
+      }
+      nCol <- as.numeric(sapply(argl, function(x) if (is.null(ncol(x))) length(x) else ncol(x)))
+      maxCol <- max(nCol, na.rm = TRUE)
+      argl <- lapply(argl, function(x) if (is.null(ncol(x))) 
+        c(x, rep(NA, maxCol - length(x)))
+        else cbind(x, matrix(, nrow(x), maxCol - ncol(x))))
+      namesVEC <- rep(NA, maxCol)
+      for (i in 1:length(argl)) {
+        CN <- colnames(argl[[i]])
+        m <- !(CN %in% namesVEC)
+        namesVEC[m] <- CN[m]
+      }
+      for (j in 1:length(argl)) {
+        if (!is.null(ncol(argl[[j]]))) 
+          colnames(argl[[j]]) <- namesVEC
+      }
+      r <- do.call(rbind, c(argl[-1L], list(deparse.level = deparse.level)))
+    }
+    d2 <- dim(r)
+    colnames(r) <- colnames(argl[[1]])
+    r <- methods::rbind2(argl[[1]], r)
+    if (deparse.level == 0) 
+      return(r)
+    ism1 <- !is.null(d1 <- dim(..1)) && length(d1) == 2L
+    ism2 <- !is.null(d2) && length(d2) == 2L && !fix.na
+    if (ism1 && ism2) 
+      return(r)
+    Nrow <- function(x) {
+      d <- dim(x)
+      if (length(d) == 2L) 
+        d[1L]
+      else as.integer(length(x) > 0L)
+    }
+    nn1 <- !is.null(N1 <- if ((l1 <- Nrow(..1)) && !ism1) Nms(1))
+    nn2 <- !is.null(N2 <- if (na == 2 && Nrow(..2) && !ism2) Nms(2))
+    if (nn1 || nn2 || fix.na) {
+      if (is.null(rownames(r))) 
+        rownames(r) <- rep.int("", nrow(r))
+      setN <- function(i, nams) rownames(r)[i] <<- if (is.null(nams)) 
+        ""
+      else nams
+      if (nn1) 
+        setN(1, N1)
+      if (nn2) 
+        setN(1 + l1, N2)
+      if (fix.na) 
+        setN(nrow(r), Nna)
+    }
+    r
+  }
+
+
+#' An internal function to bind columns of unequal lengths (adapted from qpcR:::cbind.na)
+#'
+#' @param deparse.level An integer to set deparse level. 
+#' @param ... A list or name of column vectors.
+#' @keywords internal
+#' @return A data frame.
+#' @keywords internal
+#' @noRd
+#'
+cbind_fill_na1 <- function (..., deparse.level = 1) {
+  na <- nargs() - (!missing(deparse.level))
+  deparse.level <- as.integer(deparse.level)
+  stopifnot(0 <= deparse.level, deparse.level <= 2)
+  argl <- list(...)
+  while (na > 0 && is.null(argl[[na]])) {
+    argl <- argl[-na]
+    na <- na - 1
+  }
+  if (na == 0) 
+    return(NULL)
+  if (na == 1) {
+    if (isS4(..1)) 
+      return(methods::cbind2(..1))
+    else return(matrix(...))
+  }
+  if (deparse.level) {
+    symarg <- as.list(sys.call()[-1L])[1L:na]
+    Nms <- function(i) {
+      if (is.null(r <- names(symarg[i])) || r == "") {
+        if (is.symbol(r <- symarg[[i]]) || deparse.level == 
+            2) 
+          deparse(r)
+      }
+      else r
+    }
+  }
+  if (na == 0) {
+    r <- argl[[2]]
+    fix.na <- FALSE
+  }
+  else {
+    nrs <- unname(lapply(argl, nrow))
+    iV <- sapply(nrs, is.null)
+    fix.na <- identical(nrs[(na - 1):na], list(NULL, NULL))
+    if (deparse.level) {
+      if (fix.na) 
+        fix.na <- !is.null(Nna <- Nms(na))
+      if (!is.null(nmi <- names(argl))) 
+        iV <- iV & (nmi == "")
+      ii <- if (fix.na) 
+        2:(na - 1)
+      else 2:na
+      if (any(iV[ii])) {
+        for (i in ii[iV[ii]]) if (!is.null(nmi <- Nms(i))) 
+          names(argl)[i] <- nmi
+      }
+    }
+    nRow <- as.numeric(sapply(argl, function(x) NROW(x)))
+    maxRow <- max(nRow, na.rm = TRUE)
+    argl <- lapply(argl, function(x) if (is.null(nrow(x))) 
+      c(x, rep(NA, maxRow - length(x)))
+      else rbind_fill_na1(x, matrix(, maxRow - nrow(x), ncol(x))))
+    r <- do.call(cbind, c(argl[-1L], list(deparse.level = deparse.level)))
+  }
+  d2 <- dim(r)
+  r <- methods::cbind2(argl[[1]], r)
+  if (deparse.level == 0) 
+    return(r)
+  ism1 <- !is.null(d1 <- dim(..1)) && length(d1) == 2L
+  ism2 <- !is.null(d2) && length(d2) == 2L && !fix.na
+  if (ism1 && ism2) 
+    return(r)
+  Ncol <- function(x) {
+    d <- dim(x)
+    if (length(d) == 2L) 
+      d[2L]
+    else as.integer(length(x) > 0L)
+  }
+  nn1 <- !is.null(N1 <- if ((l1 <- Ncol(..1)) && !ism1) Nms(1))
+  nn2 <- !is.null(N2 <- if (na == 2 && Ncol(..2) && !ism2) Nms(2))
+  if (nn1 || nn2 || fix.na) {
+    if (is.null(colnames(r))) 
+      colnames(r) <- rep.int("", ncol(r))
+    setN <- function(i, nams) colnames(r)[i] <<- if (is.null(nams)) 
+      ""
+    else nams
+    if (nn1) 
+      setN(1, N1)
+    if (nn2) 
+      setN(1 + l1, N2)
+    if (fix.na) 
+      setN(ncol(r), Nna)
+  }
+  r
+}
+
+
+
+
+
+#' An internal function to bind columns of unequal lengths
+#'
+#' @param names A vector of character string to name columns. 
+#' @param ... A list or names of column vectors.
+#' @keywords internal
+#' @return A data frame.
+#' @keywords internal
+#' @noRd
+#'
+cbind_fill_na2 <- function(..., names = NA) {
+  xlist = list(...)
+  cbindfill.id <- NULL;
+  suppressWarnings({
+    y= Reduce(
+      function(a,b) {
+        if(is.vector(a)) na = length(a)
+        if(is.factor(a)) na = levels(a)
+        if(is.factor(a)) a = data.frame(a) %>% droplevels()
+        if(is.data.frame(a)|is.matrix(a)) na = nrow(a)
+        if(is.vector(b)) nb = length(b)
+        if(is.factor(b)) nb = levels(b)
+        if(is.factor(b)) b = data.frame(b) %>% droplevels()
+        if(is.data.frame(b)|is.matrix(b)) nb = nrow(b)
+        subset(
+          merge(
+            cbind(cbindfill.id = 1:na, a),
+            cbind(cbindfill.id = 1:nb, b),
+            all = TRUE, by = "cbindfill.id"
+          ),
+          select = -cbindfill.id
+        )}
+      ,xlist)
+    if(is.na(names)) colnames(y) <- names(xlist) else colnames(y) <- names
+  })
+  return(y)
+}
+
+
+
+#' An internal function to check and appropriately set brms exported functions
+#'
+#' @param call A \code{call} object, typically the \code{match.call()}.
+#' @param arg A character string or vector of character string of brms exported
+#'   functions.
+#' @param prefix A character string specifying the namespace i.e, \code{brms::}
+#' @keywords internal
+#' @return A data frame.
+#' @keywords internal
+#' @noRd
+#'
+check_brms_args <- function(call, arg, prefix = NULL) {
+  newcall <- call
+  if(is.null(prefix)) prefix <- "brms::"
+  for (argi in arg) {
+    if(!is.null((newcall[[argi]]))) {
+      argin <- newcall[[argi]]
+      argin <- deparse(substitute(argin))
+      if(!grepl(prefix, argin)) {
+        newargin <- paste0(argi, " = ", prefix, argin)
+        newcall[[argi]] <- NULL
+        newcall[[argi]] <- (str2expression(newargin))
+      } else {
+        newcall[[argi]] <- newcall[[argi]]
+      } 
+    }
+    if(is.null((newcall[[argi]]))) {
+      newcall <- newcall
+    }
+  }
+  return(newcall)
+}
+
+
+
+#' An internal function to check and appropriately set brms exported functions
+#' 
+#' @details This function is used when no random effects are included and the
+#'   groupvar is NULL An an artificial groupvar created to maintain consistency
+#'   across various functions.
+#' 
+#' @param model model An object of class \code{bgmfit}.
+#' @param newdata A data frame
+#' @param IDvar A character string specifying the group identifier
+#' @param resp A character string specifying the response variable (default
+#'   \code{NULL})
+#' @param verbose A logical to indicate whether to print relevant information.
+#' @keywords internal
+#' @return A data frame.
+#' @keywords internal
+#' @noRd
+#'
+check_newdata_args <- function(model, newdata, IDvar, resp = NULL, verbose = FALSE) {
+  # This is when no random effects and this groupvar is NULL
+  # Therefore, an artificial group var created
+  # see also changes made to the get_idata function lines 17
+  
+  if (is.null(resp)) {
+    resp_rev_ <- resp
+  } else if (!is.null(resp)) {
+    resp_rev_ <- paste0("_", resp)
+  }
+  
+  
+  if (is.null(model$model_info$groupvar)) {
+    name_hypothetical_id <- paste0("id", resp_rev_)
+    model$model_info$groupvar <- name_hypothetical_id
+    newdata[[name_hypothetical_id]] <- as.factor("tempid")
+  } else if (!is.null(model$model_info$groupvar)) {
+    if(length(newdata[[model$model_info$groupvar]]) == 0) {
+      # name_hypothetical_id <- paste0("hy_id", resp_rev_)
+      if(length(IDvar) > 1) {
+        name_hypothetical_id <- IDvar[1] 
+      } else {
+        name_hypothetical_id <- IDvar
+      }
+      model$model_info$groupvar <- name_hypothetical_id
+      newdata[[name_hypothetical_id]] <- as.factor("tempid")
+    }
+  }
+  
+  newdata
+}
+
+
+
+
+
+#' An internal function to create interactions within the dplyr framework
+#'
+#' @param data A data frame.
+#' @param vars A character vector specifying the variables included in
+#'   interaction.
+#' @param varname A character that will be used as a name for the interaction
+#'   term created.
+#' @param envir An environment for function evaluation.
+#' @param full A logical to indicate whether to return the full data frame.
+#' @keywords internal
+#' @return A data frame.
+#' @keywords internal
+#' @noRd
+#'
+vars_to_interaction <- function(data, 
+                                vars, 
+                                varname, 
+                                envir = NULL, 
+                                full = FALSE) {
+  if(is.null(envir)) envir <- parent.frame()
+  `:=` <- NULL;
+  data_in <- data
+  nested_vars_x <- paste0("interaction(", paste(vars, collapse = ","), ")" )
+  data_ou <- data %>% dplyr::mutate(!! varname := eval(parse(text = nested_vars_x),
+                                                       envir = envir)) %>%
+    dplyr::select(dplyr::all_of(varname)) %>% 
+    dplyr::select(dplyr::all_of(varname)) %>% unlist() # %>% as.vector()
+  attr(data_ou, "names") <- NULL
+  if(full) {
+    data_in[[varname]] <- data_ou
+    return(data_in)
+  } else {
+    return(data_ou)
+  }
+}
+
+
+
+#' An internal function to redefine grid with nested variables
+#'
+#' @param fullgrid A data frame.
+#' @param fulldata A data frame.
+#' @param all_vars A character vector specifying the variables included in
+#'   interaction.
+#' @param nested_vars A character vector specifying the variables included in
+#'   interaction.
+#' @param xvar A character
+#' @param yvar A character
+#' @param idvar A character
+#' @param envir An environment for function evaluation.
+#' @keywords internal
+#' @return A data frame.
+#' @keywords internal
+#' @noRd
+#'
+refine_grid <- function(fullgrid = NULL, 
+                        fulldata = NULL, 
+                        varsvector = NULL, 
+                        all_vars = NULL, 
+                        nested_vars = NULL, 
+                        xvar = NULL, 
+                        yvar = NULL, 
+                        idvar = NULL, 
+                        envir = NULL) {
+  if(is.null(fullgrid)) stop("Please specify fullgrid")
+  if(is.null(all_vars)) stop("Please specify all_vars")
+  if(is.null(nested_vars)) stop("Please specify nested_vars")
+  if(is.null(fulldata) & is.null(varsvector)) 
+    stop("Please specify at least fulldata or varsvector")
+  if(!is.null(fulldata) & !is.null(varsvector)) 
+    stop("Please specify either fulldata or varsvector, not both")
+  
+  if(!is.null(varsvector)) {
+    # if(!is.vector(varsvector)) stop("varsvector must be a vector")
+    if(!is.factor(varsvector)) stop("varsvector must be a factor vector")
+  }
+  
+  `.` <- NULL;
+  `:=` <- NULL;
+  zzz <- NULL;
+  nested_vars_name <- 'varname'
+  
+  if(!is.null(fulldata)) {
+    zz <- fulldata %>% dplyr::arrange(!! as.name(all_vars)) %>% droplevels() %>% 
+      dplyr::mutate(nested_vars_name = 
+                      vars_to_interaction(., nested_vars, nested_vars_name)) %>% 
+      dplyr::select(nested_vars_name) %>% unlist() %>% as.vector()
+  }
+  
+  if(!is.null(varsvector)) {
+    # envir <- parent.frame()
+    # nested_vars_x <- paste0("interaction(", paste(varsvector, collapse = ","), 
+    #                         ")")
+    # zz <-  eval(parse(text = nested_vars_x), envir = envir)
+    zz <- varsvector
+  }
+  
+  zz2 <- fullgrid %>% dplyr::arrange(!! as.name(all_vars)) %>% droplevels() %>% 
+    dplyr::mutate(nested_vars_name = 
+                    vars_to_interaction(., nested_vars, nested_vars_name)) %>% 
+    dplyr::select(nested_vars_name) %>% unlist() %>% as.vector()
+  
+  zzz3 <- intersect(zz, zz2)
+  
+  nested_vars_name <- 'zzz'
+  out <- fullgrid %>% 
+    dplyr::mutate(zzz = 
+                    vars_to_interaction(., nested_vars, nested_vars_name)) %>%
+    dplyr::filter(zzz %in% zzz3) %>% 
+    dplyr::select(-dplyr::all_of('zzz')) %>% 
+    dplyr::arrange(!! as.name(all_vars)) %>% droplevels()
+  
+  out
+}
+
+
+
+
+# https://stackoverflow.com/questions/71339547/how-to-add-a-label-to-the-x-y-
+# axis-whenever-a-vertical-horizontal-line-is-ad
+
+#' An internal function to extract xintercept label
+#'
+#' @param plot A \code{ggplot} object
+#' @param xval A numeric value
+#' @param linewidth Argument to control the width of line drawn
+#' @param linetype Argument to control the type of line drawn
+#' @param alpha Argument to control the transparency of line drawn
+#' @param color_line Argument to control the color of line drawn
+#' @param color_text Argument to control the color of value marked on axis
+#' @keywords internal
+#' @return A data frame.
+#' @keywords internal
+#' @noRd
+#'
+mark_value_on_xaxis <- function(plot, xval,
+                                linewidth = 1, 
+                                linetype = 1, 
+                                alpha = 0.7,
+                                color_line = 'black', 
+                                color_text = 'black'
+                                ) {
+  
+  try(insight::check_if_installed(c("ggplot2", "ggtext"), stop = FALSE, 
+                                  prompt = FALSE))
+  
+  p2 <- ggplot2::ggplot_build(plot)
+  breaks <- p2$layout$panel_params[[1]]$x$breaks
+  breaks <- breaks[!is.na(breaks)]
+  
+  color <- c(color_text, rep("black", length(breaks)  ))
+  setx <- (c(xval, breaks)) # sort
+  labs <- as.character(setx)
+  name <- glue::glue("<i style='color:{color}'>{labs}")
+  
+  plot +
+    ggplot2::geom_vline(xintercept = xval, 
+                        linewidth = linewidth,
+                        linetype = linetype,
+                        color = color_line,
+                        alpha = alpha) +
+    ggplot2::scale_x_continuous(breaks = setx, labels = name) +
+    ggplot2::theme(axis.text.x = ggtext::element_markdown())
+}
+
+#' An internal function to extract xintercept label
+#'
+#' @param plot A \code{ggplot} object
+#' @param yval A numeric value
+#' @param linewidth Argument to control the width of line drawn
+#' @param linetype Argument to control the type of line drawn
+#' @param alpha Argument to control the transparency of line drawn
+#' @param color_line Argument to control the color of line drawn
+#' @param color_text Argument to control the color of value marked on axis
+#' @keywords internal
+#' @return A data frame.
+#' @keywords internal
+#' @noRd
+#'
+mark_value_on_yaxis <- function(plot, yval, 
+                                linewidth = 1, 
+                                linetype = 1, 
+                                alpha = 0.7,
+                                color_line = 'black', 
+                                color_text = 'black'
+                                ) {
+  
+  try(insight::check_if_installed(c("ggplot2", "ggtext"), stop = FALSE, 
+                                  prompt = FALSE))
+  
+  p2 <- ggplot2::ggplot_build(plot)
+  breaks <- p2$layout$panel_params[[1]]$y$breaks
+  breaks <- breaks[!is.na(breaks)]
+  
+  color <- c(color_text, rep("black", length(breaks)  ))
+  setx <- (c(yval, breaks)) 
+  labs <- as.character(setx)
+  name <- glue::glue("<i style='color:{color}'>{labs}")
+  
+  plot +
+    ggplot2::geom_hline(yintercept = yval, 
+                        linewidth = linewidth,
+                        linetype = linetype,
+                        color = color_line,
+                        alpha = alpha
+    ) +
+    ggplot2::scale_y_continuous(breaks = setx, labels = name) +
+    ggplot2::theme(axis.text.y = ggtext::element_markdown())
+}
+
+
+
+#' An internal function to extract and add xintercept value label
+#'
+#' @param p A \code{ggplot} object
+#' @param linewidth Argument to control the width of line drawn
+#' @param linetype Argument to control the type of line drawn
+#' @param alpha Argument to control the transparency of line drawn
+#' @param color_line Argument to control the color of line drawn
+#' @param color_text Argument to control the color of value marked on axis
+#' @keywords internal
+#' @return A data frame.
+#' @keywords internal
+#' @noRd
+#'
+mark_value_of_xintercept <- function(plot,
+                                     linewidth = 1, 
+                                     linetype = 1, 
+                                     alpha = 0.7,
+                                     color_line = 'black', 
+                                     color_text = 'black'
+                                     ) {
+  
+  try(insight::check_if_installed(c("ggplot2", "ggtext"), stop = FALSE, 
+                                  prompt = FALSE))
+  
+  p <- plot
+  p2 <- ggplot2::ggplot_build(p)
+  breaks <- p2$layout$panel_params[[1]]$x$breaks
+  breaks <- breaks[!is.na(breaks)]
+  
+  vals <- unlist(lapply(seq_along(p$layers), function(x) {
+    d <- ggplot2::layer_data(p, x)
+    if('xintercept' %in% names(d)) d$xintercept else numeric()
+  }))
+  
+  xval <- vals
+  
+  color <- c(color_text, rep("black", length(breaks)  ))
+  setx <- c(xval, breaks)
+  labs <- as.character(setx)
+  name <- glue::glue("<i style='color:{color}'>{labs}")
+  
+  plot +
+    ggplot2::geom_vline(xintercept = xval, 
+                        linewidth = linewidth,
+                        linetype = linetype,
+                        color = color_line,
+                        alpha = alpha) +
+    ggplot2::scale_x_continuous(breaks = setx, labels = name) +
+    ggplot2::theme(axis.text.x = ggtext::element_markdown())
+}
+
+
+
+#' An internal function to extract and add xintercept value label
+#'
+#' @param p A \code{ggplot} object
+#' @param linewidth Argument to control the width of line drawn
+#' @param linetype Argument to control the type of line drawn
+#' @param alpha Argument to control the transparency of line drawn
+#' @param color_line Argument to control the color of line drawn
+#' @param color_text Argument to control the color of value marked on axis
+#' @keywords internal
+#' @return A data frame.
+#' @keywords internal
+#' @noRd
+#'
+mark_value_of_yintercept <- function(plot,
+                                     linewidth = 1, 
+                                     linetype = 1, 
+                                     alpha = 0.7,
+                                     color_line = 'black', 
+                                     color_text = 'black'
+                                     ) {
+  
+  try(insight::check_if_installed(c("ggplot2", "ggtext"), stop = FALSE, 
+                                  prompt = FALSE))
+  
+  p <- plot
+  p2 <- ggplot2::ggplot_build(p)
+  breaks <- p2$layout$panel_params[[1]]$y$breaks
+  breaks <- breaks[!is.na(breaks)]
+  
+  vals <- unlist(lapply(seq_along(p$layers), function(x) {
+    d <- ggplot2::layer_data(p, x)
+    if('yintercept' %in% names(d)) d$yintercept else numeric()
+  }))
+  
+  yval <- vals
+  
+  color <- c(color_text, rep("black", length(breaks)  ))
+  setx <- c(yval, breaks)
+  labs <- as.character(setx)
+  name <- glue::glue("<i style='color:{color}'>{labs}")
+  
+  plot +
+    ggplot2::geom_hline(yintercept = yval, 
+                        linewidth = linewidth,
+                        linetype = linetype,
+                        color = color_line,
+                        alpha = alpha) +
+    ggplot2::scale_y_continuous(breaks = setx, labels = name) +
+    ggplot2::theme(axis.text.y = ggtext::element_markdown())
+}
+
+
+#' An internal function to get the minimum version of packahege need
+#'
+#' @param pkg A character string specifying the package
+#' @param version A numeric indicating the version to be returned
+#' @param verbose A logical
+#' @keywords internal
+#' @return A character string.
+#' @keywords internal
+#' @noRd
+#'
+get_package_minversion <- function(pkg, version = NULL, verbose = FALSE) {
+  if(!is.character(pkg)) stop('pkg must be a character')
+  if(pkg == 'brms') {
+    if(is.null(version)) {
+      out <- '2.20.17' 
+    } else {
+      if(!is.character(version)) stop('version must be a character')
+      out <- version
+    }
+  }
+  if(pkg == 'marginaleffects') {
+    if(is.null(version)) {
+      out <- '0.18.0.9003'
+    } else {
+      if(!is.character(version)) stop('version must be a character')
+      out <- version
+    }
+  }
+  
+  return(out)
+}
+
+
+
+#' An internal function to sanitize algorithm specific arguments
+#'
+#' @param args A list of argument to be sanitized
+#' @param algorithm A character specifying the algorithm
+#' @param verbose A logical
+#' @keywords internal
+#' @return A named list.
+#' @keywords internal
+#' @noRd
+#'
+sanitize_algorithm_args <- function(args, algorithm, verbose = FALSE) {
+  if(!is.character(algorithm)) stop('algorithm must be a character')
+  
+  pathfinderargs <- c('save_latent_dynamics', 'output_dir',
+                      'output_basename', 'sig_figs', 
+                      'num_threads', 'init_alpha', 'tol_obj',
+                      'tol_rel_obj', 'tol_grad', 'tol_rel_grad',
+                      'tol_param', 'history_size', 'single_path_draws',
+                      'draws', 'num_paths', 'max_lbfgs_iters', 
+                      'num_elbo_draws', 'save_single_paths')
+  
+  laplacerargs <- c('save_latent_dynamics', 'output_dir',
+                    'output_basename', 'sig_figs', 
+                    'mode', 'opt_args', 'jacobian',
+                    'draws')
+  
+  # if(algorithm == 'sampling') {
+  #   return(args)
+  # } else if(algorithm == 'meanfield') {
+  #   return(args)
+  # } else if(algorithm == 'fullrank') {
+  #   return(args)
+  # } else if(algorithm == 'fixed_param') {
+  #   return(args)
+  # }  
+  
+  if(!'pathfinder' %in% algorithm) {
+    for (i in pathfinderargs) {
+      if(!is.null(args[[i]])) args[[i]] <- NULL
+    }
+  } else if(!'laplace' %in% algorithm) {
+    for (i in laplacerargs) {
+      if(!is.null(args[[i]])) args[[i]] <- NULL
+    }
+  } else {
+    args <- args
+  }
+  
+  return(args)
 }
 
 

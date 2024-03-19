@@ -23,6 +23,11 @@
 #' @param returnobj A logical (default \code{TRUE}) to indicate whether to
 #'   return the model object. When \code{expose = TRUE}, then it is advisable to
 #'  set \code{returnobj = TRUE} too.
+#'
+#' @param vectorize A logical (default \code{FALSE}) to indicate whether the
+#'   exposed functions should be vectorized via [base::Vectorize()]. Note that
+#'   currently \code{vectorize} should be set to \code{FALSE} because setting it
+#'   \code{TRUE} may not work as expected.
 #' 
 #' @inherit growthparameters.bgmfit params
 #' 
@@ -41,17 +46,22 @@
 #'
 #' @examples
 #' 
+#' \donttest{
 #' # Fit Bayesian SITAR model 
 #' 
-#' # To avoid mode estimation which takes time, a model fitted to the 
-#' # 'berkeley_mdata' has already been saved as 'berkeley_mfit'. 
-#' # Details on 'berkeley_mdata' and 'berkeley_mfit' are provided in the 
-#' # 'bsitar' function.
+#' # To avoid mode estimation which takes time, the Bayesian SITAR model fit to 
+#' # the 'berkeley_exdata' has been saved as an example fit ('berkeley_exfit').
+#' # See 'bsitar' function for details on 'berkeley_exdata' and 'berkeley_exfit'.
 #' 
-#' model <- berkeley_mfit
+#' # Check and confirm whether model fit object 'berkeley_exfit' exists
+#'  berkeley_exfit <- getNsObject(berkeley_exfit)
 #' 
-#' \donttest{
-#' expose_model_functions(model)
+#' model <- berkeley_exfit
+#' 
+#' # To save time, argument expose is set as FALSE which runs a dummy test 
+#' # and avoid model compilation which often takes time
+#' 
+#' expose_model_functions(model, expose = FALSE)
 #' }
 #' 
 expose_model_functions.bgmfit <- function(model, 
@@ -59,13 +69,18 @@ expose_model_functions.bgmfit <- function(model,
                                  expose = TRUE, 
                                  select_model = NULL, 
                                  returnobj = TRUE,
+                                 vectorize = FALSE,
                                  verbose = FALSE,
                                  envir = NULL,
                                  ...) {
   
   if(is.null(envir)) {
+    envir <- model$model_info$envir
+  } else {
     envir <- parent.frame()
   }
+  
+  fun_env <- envir
   
   if(is.null(select_model)) select_model <- model$model_info$select_model
   
@@ -78,13 +93,21 @@ expose_model_functions.bgmfit <- function(model,
   
   
   if(expose) {
+    if (verbose) {
+      setmsgtxt <-
+        paste0("\n Exposing Stan functions for post-processing\n")
+      message(setmsgtxt)
+    }
+  }
+  
+  if(expose) {
     if (is.null(scode)) {
       exposecode <- brms::stancode(model)
     } else if (!is.null(scode)) {
       exposecode <- scode
     }
     rstan::expose_stan_functions(rstan::stanc(model_code = exposecode), 
-                                 env = envir)
+                                 env = fun_env)
   }
   
   
@@ -146,6 +169,7 @@ expose_model_functions.bgmfit <- function(model,
       spfun_collecti_name <- gsub("_d2", "2", spfun_collecti_name)
       getfun_ <- spfun_collecti
       getfun_ <- eval(parse(text = getfun_), envir = envir)
+      if(vectorize) getfun_ <- Vectorize(getfun_, SIMPLIFY = TRUE)
       assign(spfun_collecti_name, getfun_, envir = envir)
       Spl_funs[[paste0(spfun_collecti_name, "")]] <- getfun_
       if(grepl("_d", spfun_collecti_name_org)) {
@@ -173,8 +197,9 @@ expose_model_functions.bgmfit <- function(model,
       gsub_by <- "0"
       getfun__ <- gsub(gsub_it, gsub_by, getfun__, fixed = T)
       getfun__ <- paste0(getfun__, collapse =  "\n")
-      Spl_funs[[paste0(spfun_collecti_name, "")]] <- 
-        eval(parse(text = getfun__), envir = envir)
+      getfun__ <- eval(parse(text = getfun__), envir = envir)
+      if(vectorize) getfun__ <- Vectorize(getfun__, SIMPLIFY = TRUE)
+      Spl_funs[[paste0(spfun_collecti_name, "")]] <- getfun__
     }
   } 
   

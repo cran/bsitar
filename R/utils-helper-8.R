@@ -713,9 +713,17 @@ prepare_initials <- function(init_argument,
   # Like a b c d e beta when ~ 0 +..., init for sigma are rep of sigma_init_beta 
   if (class == 'b' & suffix == 'beta' & ept("sigma_dpar") == "sigma") {
     if(ept(ept("init_argument")) != 'random' ) {
-      if(ept("sigma_form_0")) {
-        out_list[[name_parm]] <- rep(out_list[[name_parm]], ept(nparcov))
-      } else if(!ept("sigma_form_0")) {
+      # edited on 07 03 2024
+      if(ept(check_form_0)) {
+        if(length(out_list[[name_parm]]) == ept(nparcov)) {
+          out_list[[name_parm]] <- out_list[[name_parm]]
+        } else if(length(out_list[[name_parm]]) == 1 & ept(nparcov) > 1) {
+          out_list[[name_parm]] <- rep(out_list[[name_parm]], ept(nparcov))
+        } else if(length(out_list[[name_parm]]) != ept(nparcov)) {
+          stop("length of initials for sigma does not match with the number",
+               " of coefficients")
+        }
+      } else if(!ept(check_form_0)) {
         if(eit_cov) {
           addcovsigma <- unlist(ept(ept(ept("init_argument"))))
           addcovsigma_n <- ept(nparcov) - 1

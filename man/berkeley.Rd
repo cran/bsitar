@@ -26,14 +26,14 @@ berkeley
 A data frame with 10 columns.
 }
 \description{
-The Berkeley Child Guidance Study data set containing
-longitudinal growth data for 136 children from birth to 21 years.
+Data provide longitudinal growth records for 136 children.
 }
 \details{
-Data originally provided as an appendix to the book by
-\insertCite{Tuddenham1954;textual}{bsitar} and later used in the
-\pkg{sitar} \insertCite{R-sitar}{bsitar} package after correcting the
-transcription errors.
+Data originally included as an appendix in the book “Physical growth
+of California boys and girls from birth to eighteen years" authored by
+\insertCite{Tuddenham1954;textual}{bsitar}, and later used as an example
+dataset in the \pkg{sitar} \insertCite{R-sitar}{bsitar} package after
+correcting for the transcription errors.
 
 A detailed description of the data including the frequency of measurements
 per year is provided in the \pkg{sitar} package.

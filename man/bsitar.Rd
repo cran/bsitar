@@ -40,6 +40,8 @@ bsitar(
   dpar_formula = NULL,
   autocor_formula = NULL,
   family = gaussian(),
+  custom_family = NULL,
+  custom_stanvars = NULL,
   group_arg = list(groupvar = NULL, by = NULL, cor = un, cov = NULL, dist = gaussian),
   sigma_group_arg = list(groupvar = NULL, by = NULL, cor = un, cov = NULL, dist =
     gaussian),
@@ -163,6 +165,7 @@ bsitar(
   save_model = NULL,
   fit = NA,
   file = NULL,
+  file_compress = TRUE,
   file_refit = getOption("brms.file_refit", "never"),
   future = getOption("future", FALSE),
   parameterization = "ncp",
@@ -488,7 +491,21 @@ available distributions and link functions, and how to specify them. For
 be same (e.g., \code{family = gaussian()}) for sub models or different for
 each sub model such as \code{family = list(gaussian(), student())} which
 sets \code{gaussian} distribution for the first sub model and
-\code{student_t} distribution for the second sub model.}
+\code{student_t} distribution for the second sub model. Please note that
+argument \code{family} is ignored when use specifies \code{custom_family}
+i.e., \code{custom_family} is not \code{NULL}.}
+
+\item{custom_family}{Specify  custom families (i.e. response distribution).
+Default \code{NULL}. Please see \code{\link[brms:custom_family]{brms::custom_family()}} for details. It is
+important no note that user defined Stan functions must be expose by setting
+\code{expose_functions = TRUE}.}
+
+\item{custom_stanvars}{Prepare and pass user-defined variables that need to be
+added to the Stan's program blocks (default \code{NULL}). This is primarily
+useful when defining \code{custom_family}. Please see
+\code{\link[brms:custom_family]{brms::custom_family()}} for details on specifying \code{stanvars}. Note that
+\code{custom_stanvars} are passed directly without conducting any sanity
+checks.}
 
 \item{group_arg}{Specify arguments for group-level random effects. The
 \code{group_arg} should be a named list that may include \code{groupvar},
@@ -600,6 +617,44 @@ standard deviation of the response variable (See \code{\link[brms:set_prior]{brm
 \pkg{bsitar} package offers full flexibility in choosing the scaling factor
 as any real number instead of 1.0 or 2.5 (e.g., \code{autosclae = 5.0}).
 When \code{autosclae = TRUE}, \code{2.5} is the default scaling factor.
+\item For location-scale based distributions such as \code{normal}, options
+\code{fxl} (\code{function location}) and \code{fxs} (\code{function scale})
+are available to apply any function such as \code{log} and \code{sqrt},
+or a function defined in the R environment to transform the location and
+scale parameters. For example, prior \code{normal(2, 5, fxl = 'log', fxs =
+ 'sqrt')} will be translated internally as \code{normal(log(2), sqrt(5))}
+implying that the actually prior assigned will be  \code{normal(0.693,
+ 2.23)}. The default for both  \code{fxl} and \code{fxs} is \code{NULL}.
+\item Like \code{fxl} and \code{fxs} functions, another function \code{fxls}
+(\code{function location scale}) is available to transform location and
+scale parameters for the location-scale based distributions such
+as \code{normal}. Unlike \code{fxl} and \code{fxs} functions which transform
+location and scale parameters individually, the \code{fxls} function is used
+for those transformation for which both location and scale parameters are
+needed in the transformation of these parameters. For example, the
+transformation of location and scale parameters for the normal prior on log
+scale is as follows: \cr
+\code{log_location = log(location / sqrt(scale^2 / location^2 + 1))}, \cr
+\code{log_scale = sqrt(log(scale^2 / location^2 + 1))}, \cr
+where location and scale are the original parameters supplied by the user
+and log_location and log_scale are the equivalent parameters on the log
+scale. The \code{fxls} can be set as a character string or a list comprised
+of two functions where first function of the list will be used to transform
+the location parameter and the second function will be for the scale
+transformation. If a character string is used such as \code{fxls = 'log'},
+then the above transformation for the log parametrization will be applied
+automatically. Note that if using a list, then the list must be crated
+within the R environment and then passed this to the  \code{fxls} as: \cr
+\code{location_fun <- function(location, scale) {
+ log(location / sqrt(scale^2 / location^2 + 1))
+ }} \cr
+\code{scale_fun <- function(location, scale) {
+ sqrt(log(scale^2 / location^2 + 1))
+ }} \cr
+fxls_fun <- list(location_fun = location_fun, scale_fun = scale_fun) \cr
+\code{fxls = 'fxls_fun'} \cr
+As an example, \code{normal(2, 5, fxls = 'fxls_fun'}. The default for
+\code{fxls} is \code{NULL}.
 \item For strictly positive distributions such as \code{exponential},
 \code{gamma} and \code{inv_gamma}, the lower bound (\code{lb}) is
 automatically set to zero i.e., \code{lb = 0}. \item For uniform
@@ -613,8 +668,8 @@ parameter is evaluated as inverse. In other words, prior set as
 explicitly because the missing options are set to their default values
 automatically. For example, the prior specified as
 \code{a_prior_beta = normal(location = 5, scale = 1, lb = NA, ub = NA,
- addrange = NA, autosclae = FALSE)}) is same as
-\code{a_prior_beta = normal(5, 1)}).
+ addrange = NA, autosclae = FALSE, fxl = NULL, fxs = NULL)}) is same
+as \code{a_prior_beta = normal(5, 1)}).
 \item For \code{univariate_by} \code{multivariate} models, priors
 can be same for sub models (e.g., \code{a_prior_beta =
  normal(5, 1)}), or different for each sub such as \code{a_prior_beta =
@@ -1136,9 +1191,14 @@ steps can be used to set covariate priors that each has scale parameter
 can be used to pass information to the initial arguments. The approach is
 the exact same as described above for the \code{prior_data}.}
 
-\item{init_custom}{Specify a custom initials object (a named list). Note that
-the named list is directly passed to the \code{init} argument without
-checking for the dimensions and name matching.}
+\item{init_custom}{Specify a custom initials object (a named list). The named
+list is directly passed to the \code{init} argument without checking for the
+dimensions and name matching. Note that in case initials are set for
+some parameter by using parameter specific argument (e.g., \code{a_init_beta
+ = 0}), then \code{init_custom} is only passed to those parameters for which
+initials are missing. If user want to override this behaviors i.e., to pass
+all \code{init_custom} ignoring parameter specific initials, then
+\code{init} should be set as \code{init = 'custom'}.}
 
 \item{verbose}{An optional argument (logical, default \code{FALSE}) to
 indicate whether to print information collected during setting up the model
@@ -1164,7 +1224,7 @@ get the formula. (see \code{\link[brms:brmsformula]{brms::brmsformula()}} for de
 get the stanvars (see \code{\link[brms:stanvar]{brms::stanvar()}} for details).}
 
 \item{get_priors}{An optional argument (logical, default \code{FALSE}) to
-get the priors. (see \code{\link[brms:get_prior]{brms::get_prior()}} for details).}
+get the priors. (see \code{brms::get_prior()} for details).}
 
 \item{get_priors_eval}{An optional argument (logical, default \code{FALSE}) to
 get the priors specified by the user.}
@@ -1348,6 +1408,11 @@ the \code{file_refit} argument as well, the existing files won't be
 overwritten, you have to manually remove the file in order to refit and save
 the model under an existing file name. The file name is stored in the
 \code{brmsfit} object for later usage.}
+
+\item{file_compress}{Logical or a character string, specifying one of the
+compression algorithms supported by \code{\link{saveRDS}}. If the
+\code{file} argument is provided, this compression will be used when saving
+the fitted model object.}
 
 \item{file_refit}{Modifies when the fit stored via the \code{file} argument is
 re-used. Can be set globally for the current \R session via the
@@ -1541,15 +1606,28 @@ post-processing features will be added soon.
 }
 \examples{
 
-# Examples below fits the SITAR model to the Berkley height data for males. 
-# See help file (?berkeley_mdata) for details on berkeley_mdata dataset.
+# Examples below fits SITAR model to the 'berkeley_exdata' which is a subset
+# of the  Berkley height data. The same subset of the  Berkley height data
+# has been used as an example data in the vignette for the 'sitar' package.
+#
+# The Berkley height data comprise of repeated growth measurements made on
+# 66 boys and 70 girls (birth to 21 years). 
+#
+# The subset of the Berkley height data analysed here include growth 
+# measurements for 70 girls (8 to 18 years).
+#
+# See 'sitar' package documentation for details on Berkley height data   
+# (help file ?sitar::berkeley ). The details on subset data for 70 girls is 
+# provided in the vignette('Fitting_models_with_SITAR', package = 'sitar').
   
-# Fit maximum likelihood (frequentist) SITAR model with df = 3 by using 
-# the sitar package 
+# Fit frequentist SITAR model with df = 5 by using the sitar package 
+
+# Get 'berkeley_exdata' data that has been already saved
+berkeley_exdata <- getNsObject(berkeley_exdata)
 
 model_ml <- sitar::sitar(x = age, y = height, id = id, 
-                          df = 3, 
-                          data = berkeley_mdata, 
+                          df = 5, 
+                          data = berkeley_exdata, 
                           xoffset = 'mean',
                           fixed = 'a+b+c', 
                           random = 'a+b+c',
@@ -1561,22 +1639,24 @@ model_ml <- sitar::sitar(x = age, y = height, id = id,
 
 # Fit Bayesian SITAR model 
 
-# To save time and memory, the model is fit using 2 chain and thin set as 15.
-# To get sufficient draws after thinning, the number of iterations are 
-# increased from 2000 per chain (default) to 6000 iteration per chain.
-# Note that fitting model with these setting still taken a while. 
+# To avoid mode estimation which takes time, the Bayesian SITAR model fit to  
+# the 'berkeley_exdata' has been saved as an example fit ('berkeley_exfit').
+# The model is fit using 2 chain (2000 iterations per) with thin set as 4 to 
+# save time and memory.
 
-# To avoid mode estimation which takes time, a model fitted to the 
-# 'berkeley_mdata' has already been saved as 'berkeley_mfit'. 
-
-if(exists('berkeley_mfit')) {
-  model <- berkeley_mfit
+# Check and confirm whether model fit object 'berkeley_exfit' exists
+# berkeley_exfit <- bsitar:::berkeley_exfit
+ berkeley_exfit <- getNsObject(berkeley_exfit)
+ 
+ print(berkeley_exfit)
+if(exists('berkeley_exfit')) {
+  model <- berkeley_exfit
 } else {
  # Fit model with default priors 
  # See documentation for prior on each parameter
   model <- bsitar(x = age, y = height, id = id, 
                   df = 3, 
-                  data = berkeley_mdata,
+                  data = berkeley_exdata,
                   xoffset = 'mean', 
                   fixed = 'a+b+c', 
                   random = 'a+b+c',
@@ -1591,7 +1671,7 @@ if(exists('berkeley_mfit')) {
 # for parameters a, b and c.
 model <- bsitar(x = age, y = height, id = id, 
                   df = 3, 
-                  data = berkeley_mdata,
+                  data = berkeley_exdata,
                   xoffset = 'mean', 
                   fixed = 'a+b+c', 
                   random = 'a+b+c',

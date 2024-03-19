@@ -202,12 +202,14 @@
 #' 
 #' # Fit Bayesian SITAR model 
 #' 
-#' # To avoid mode estimation which takes time, a model fitted to the 
-#' # 'berkeley_mdata' has already been saved as 'berkeley_mfit'. 
-#' # Details on 'berkeley_mdata' and 'berkeley_mfit' are provided in the 
-#' # 'bsitar' function.
+#' # To avoid mode estimation which takes time, the Bayesian SITAR model fit to 
+#' # the 'berkeley_exdata' has been saved as an example fit ('berkeley_exfit').
+#' # See 'bsitar' function for details on 'berkeley_exdata' and 'berkeley_exfit'.
 #' 
-#' model <- berkeley_mfit
+#' # Check and confirm whether model fit object 'berkeley_exfit' exists
+#'  berkeley_exfit <- getNsObject(berkeley_exfit)
+#' 
+#' model <- berkeley_exfit
 #' 
 #' # Population average distance and velocity curves with default options
 #' plot_curves(model, opt = 'dv')
@@ -312,22 +314,43 @@ plot_curves.bgmfit <- function(model,
                                verbose = FALSE,
                                fullframe = NULL,
                                dummy_to_factor = NULL,
-                               usesavedfuns = FALSE,
+                               expose_function = FALSE,
+                               usesavedfuns = NULL,
                                clearenvfuns = NULL,
                                envir = NULL,
                                ...) {
   
   if(is.null(envir)) {
+    envir <- model$model_info$envir
+  } else {
     envir <- parent.frame()
   }
   
-  
-  # Move down NULL where setting the arguments
-  if(system.file(package='ggplot2') == "") {
-    stop("Please install 'ggplot2' package before calling the 'plot_curves'")
+
+  if(is.null(usesavedfuns)) {
+    if(!is.null(model$model_info$exefuns[[1]])) {
+      usesavedfuns <- TRUE
+    } else if(is.null(model$model_info$exefuns[[1]])) {
+      if(expose_function) {
+        model <- expose_model_functions(model, envir = envir)
+        usesavedfuns <- TRUE
+      } else if(!expose_function) {
+        usesavedfuns <- FALSE
+      }
+    }
+  } else { 
+    if(!usesavedfuns) {
+      if(expose_function) {
+        model <- expose_model_functions(model, envir = envir)
+        usesavedfuns <- TRUE
+      }
+    } else if(usesavedfuns) {
+      check_if_functions_exists(model, checks = TRUE, 
+                                usesavedfuns = usesavedfuns)
+    }
   }
   
-
+  
   # Initiate non formalArgs()
   xvar <- NULL;
   yvar <- NULL;
@@ -399,10 +422,15 @@ plot_curves.bgmfit <- function(model,
   }
   
   xcall <- get_xcall(xcall, scall)
+  
+  check_if_package_installed(model, xcall = xcall)
+  
+  
   model$xcall <- xcall
   
   arguments <- get_args_(match.call.list.in, xcall)
   arguments$model <- model
+  arguments$usesavedfuns <- usesavedfuns
   
   
   if(is.null(envir)) {
@@ -625,6 +653,7 @@ plot_curves.bgmfit <- function(model,
   
   if(length(list(...)) != 0) arguments <- c(arguments, list(...))
   
+  arguments$draw_ids <- draw_ids
 
   d. <- do.call(growthparameters.bgmfit, arguments)
   
@@ -882,7 +911,7 @@ plot_curves.bgmfit <- function(model,
       } else if (level == 1) {
         re_formula <- NULL
       }
-      print(estimation_method)
+      
       if (estimation_method == 'fitted') {
         extra$ey <-
           fitted_draws(

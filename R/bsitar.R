@@ -456,7 +456,21 @@
 #'  be same (e.g., \code{family = gaussian()}) for sub models or different for
 #'  each sub model such as \code{family = list(gaussian(), student())} which
 #'  sets \code{gaussian} distribution for the first sub model and
-#'  \code{student_t} distribution for the second sub model.
+#'  \code{student_t} distribution for the second sub model. Please note that
+#'  argument \code{family} is ignored when use specifies \code{custom_family}
+#'  i.e., \code{custom_family} is not \code{NULL}.
+#'
+#'@param custom_family Specify  custom families (i.e. response distribution).
+#'  Default \code{NULL}. Please see [brms::custom_family()] for details. It is
+#'  important no note that user defined Stan functions must be expose by setting
+#'  \code{expose_functions = TRUE}.
+#'  
+#'@param custom_stanvars Prepare and pass user-defined variables that need to be
+#'  added to the Stan's program blocks (default \code{NULL}). This is primarily
+#'  useful when defining \code{custom_family}. Please see
+#'  [brms::custom_family()] for details on specifying \code{stanvars}. Note that
+#'  \code{custom_stanvars} are passed directly without conducting any sanity
+#'  checks.
 #'
 #'@param group_arg Specify arguments for group-level random effects. The
 #'  \code{group_arg} should be a named list that may include \code{groupvar},
@@ -568,6 +582,44 @@
 #'  \pkg{bsitar} package offers full flexibility in choosing the scaling factor
 #'  as any real number instead of 1.0 or 2.5 (e.g., \code{autosclae = 5.0}).
 #'  When \code{autosclae = TRUE}, \code{2.5} is the default scaling factor.
+#'  \item For location-scale based distributions such as \code{normal}, options
+#'  \code{fxl} (\code{function location}) and \code{fxs} (\code{function scale}) 
+#'  are available to apply any function such as \code{log} and \code{sqrt}, 
+#'  or a function defined in the R environment to transform the location and
+#'  scale parameters. For example, prior \code{normal(2, 5, fxl = 'log', fxs =
+#'  'sqrt')} will be translated internally as \code{normal(log(2), sqrt(5))}
+#'  implying that the actually prior assigned will be  \code{normal(0.693,
+#'  2.23)}. The default for both  \code{fxl} and \code{fxs} is \code{NULL}.
+#'  \item Like \code{fxl} and \code{fxs} functions, another function \code{fxls}
+#'  (\code{function location scale}) is available to transform location and
+#'  scale parameters for the location-scale based distributions such
+#'  as \code{normal}. Unlike \code{fxl} and \code{fxs} functions which transform
+#'  location and scale parameters individually, the \code{fxls} function is used
+#'  for those transformation for which both location and scale parameters are
+#'  needed in the transformation of these parameters. For example, the
+#'  transformation of location and scale parameters for the normal prior on log
+#'  scale is as follows: \cr 
+#'  \code{log_location = log(location / sqrt(scale^2 / location^2 + 1))}, \cr 
+#'  \code{log_scale = sqrt(log(scale^2 / location^2 + 1))}, \cr 
+#'  where location and scale are the original parameters supplied by the user
+#'  and log_location and log_scale are the equivalent parameters on the log
+#'  scale. The \code{fxls} can be set as a character string or a list comprised
+#'  of two functions where first function of the list will be used to transform
+#'  the location parameter and the second function will be for the scale
+#'  transformation. If a character string is used such as \code{fxls = 'log'},
+#'  then the above transformation for the log parametrization will be applied
+#'  automatically. Note that if using a list, then the list must be crated
+#'  within the R environment and then passed this to the  \code{fxls} as: \cr
+#'  \code{location_fun <- function(location, scale) {
+#'  log(location / sqrt(scale^2 / location^2 + 1))
+#'  }} \cr
+#'  \code{scale_fun <- function(location, scale) {
+#'  sqrt(log(scale^2 / location^2 + 1))
+#'  }} \cr
+#'  fxls_fun <- list(location_fun = location_fun, scale_fun = scale_fun) \cr
+#'  \code{fxls = 'fxls_fun'} \cr
+#'  As an example, \code{normal(2, 5, fxls = 'fxls_fun'}. The default for
+#'  \code{fxls} is \code{NULL}.
 #'  \item For strictly positive distributions such as \code{exponential},
 #'  \code{gamma} and \code{inv_gamma}, the lower bound (\code{lb}) is
 #'  automatically set to zero i.e., \code{lb = 0}. \item For uniform
@@ -581,8 +633,8 @@
 #'  explicitly because the missing options are set to their default values
 #'  automatically. For example, the prior specified as
 #'  \code{a_prior_beta = normal(location = 5, scale = 1, lb = NA, ub = NA,
-#'  addrange = NA, autosclae = FALSE)}) is same as
-#'  \code{a_prior_beta = normal(5, 1)}).
+#'  addrange = NA, autosclae = FALSE, fxl = NULL, fxs = NULL)}) is same 
+#'  as \code{a_prior_beta = normal(5, 1)}).
 #'  \item For \code{univariate_by} \code{multivariate} models, priors
 #'  can be same for sub models (e.g., \code{a_prior_beta =
 #'  normal(5, 1)}), or different for each sub such as \code{a_prior_beta =
@@ -1103,10 +1155,15 @@
 #'@param init_data An optional argument (a named list, default \code{NULL}) that
 #'  can be used to pass information to the initial arguments. The approach is
 #'  the exact same as described above for the \code{prior_data}.
-#'  
-#'@param init_custom Specify a custom initials object (a named list). Note that
-#'  the named list is directly passed to the \code{init} argument without
-#'  checking for the dimensions and name matching.
+#'
+#'@param init_custom Specify a custom initials object (a named list). The named
+#'  list is directly passed to the \code{init} argument without checking for the
+#'  dimensions and name matching. Note that in case initials are set for
+#'  some parameter by using parameter specific argument (e.g., \code{a_init_beta
+#'  = 0}), then \code{init_custom} is only passed to those parameters for which
+#'  initials are missing. If user want to override this behaviors i.e., to pass
+#'  all \code{init_custom} ignoring parameter specific initials, then
+#'  \code{init} should be set as \code{init = 'custom'}.
 #'
 #'@param verbose An optional argument (logical, default \code{FALSE}) to
 #'  indicate whether to print information collected during setting up the model
@@ -1132,7 +1189,7 @@
 #'  get the stanvars (see [brms::stanvar()] for details).
 #'
 #'@param get_priors An optional argument (logical, default \code{FALSE}) to
-#'  get the priors. (see [brms::get_prior()] for details).
+#'  get the priors. (see \code{brms::get_prior()} for details). 
 #'
 #'@param get_priors_eval An optional argument (logical, default \code{FALSE}) to
 #'  get the priors specified by the user.
@@ -1366,6 +1423,8 @@
 #'
 #'@export
 #'
+#'@inheritParams brms::brm
+#'
 #'@importFrom methods formalArgs
 #'
 #'@importFrom stats as.formula coef df dist filter fitted gaussian lm mad median
@@ -1393,15 +1452,28 @@
 #' 
 #' @examples
 #' 
-#' # Examples below fits the SITAR model to the Berkley height data for males. 
-#' # See help file (?berkeley_mdata) for details on berkeley_mdata dataset.
+#' # Examples below fits SITAR model to the 'berkeley_exdata' which is a subset
+#' # of the  Berkley height data. The same subset of the  Berkley height data
+#' # has been used as an example data in the vignette for the 'sitar' package.
+#' #
+#' # The Berkley height data comprise of repeated growth measurements made on
+#' # 66 boys and 70 girls (birth to 21 years). 
+#' #
+#' # The subset of the Berkley height data analysed here include growth 
+#' # measurements for 70 girls (8 to 18 years).
+#' #
+#' # See 'sitar' package documentation for details on Berkley height data   
+#' # (help file ?sitar::berkeley ). The details on subset data for 70 girls is 
+#' # provided in the vignette('Fitting_models_with_SITAR', package = 'sitar').
 #'   
-#' # Fit maximum likelihood (frequentist) SITAR model with df = 3 by using 
-#' # the sitar package 
+#' # Fit frequentist SITAR model with df = 5 by using the sitar package 
+#' 
+#' # Get 'berkeley_exdata' data that has been already saved
+#' berkeley_exdata <- getNsObject(berkeley_exdata)
 #' 
 #' model_ml <- sitar::sitar(x = age, y = height, id = id, 
-#'                           df = 3, 
-#'                           data = berkeley_mdata, 
+#'                           df = 5, 
+#'                           data = berkeley_exdata, 
 #'                           xoffset = 'mean',
 #'                           fixed = 'a+b+c', 
 #'                           random = 'a+b+c',
@@ -1413,22 +1485,24 @@
 #' 
 #' # Fit Bayesian SITAR model 
 #' 
-#' # To save time and memory, the model is fit using 2 chain and thin set as 15.
-#' # To get sufficient draws after thinning, the number of iterations are 
-#' # increased from 2000 per chain (default) to 6000 iteration per chain.
-#' # Note that fitting model with these setting still taken a while. 
+#' # To avoid mode estimation which takes time, the Bayesian SITAR model fit to  
+#' # the 'berkeley_exdata' has been saved as an example fit ('berkeley_exfit').
+#' # The model is fit using 2 chain (2000 iterations per) with thin set as 4 to 
+#' # save time and memory.
 #' 
-#' # To avoid mode estimation which takes time, a model fitted to the 
-#' # 'berkeley_mdata' has already been saved as 'berkeley_mfit'. 
-#' 
-#' if(exists('berkeley_mfit')) {
-#'   model <- berkeley_mfit
+#' # Check and confirm whether model fit object 'berkeley_exfit' exists
+#' # berkeley_exfit <- bsitar:::berkeley_exfit
+#'  berkeley_exfit <- getNsObject(berkeley_exfit)
+#'  
+#'  print(berkeley_exfit)
+#' if(exists('berkeley_exfit')) {
+#'   model <- berkeley_exfit
 #' } else {
 #'  # Fit model with default priors 
 #'  # See documentation for prior on each parameter
 #'   model <- bsitar(x = age, y = height, id = id, 
 #'                   df = 3, 
-#'                   data = berkeley_mdata,
+#'                   data = berkeley_exdata,
 #'                   xoffset = 'mean', 
 #'                   fixed = 'a+b+c', 
 #'                   random = 'a+b+c',
@@ -1443,7 +1517,7 @@
 #' # for parameters a, b and c.
 #' model <- bsitar(x = age, y = height, id = id, 
 #'                   df = 3, 
-#'                   data = berkeley_mdata,
+#'                   data = berkeley_exdata,
 #'                   xoffset = 'mean', 
 #'                   fixed = 'a+b+c', 
 #'                   random = 'a+b+c',
@@ -1527,6 +1601,8 @@ bsitar <- function(x,
                    dpar_formula = NULL,
                    autocor_formula = NULL,
                    family = gaussian(),
+                   custom_family = NULL,
+                   custom_stanvars  = NULL,
                    group_arg = list(
                      groupvar = NULL,
                      by = NULL,
@@ -1663,12 +1739,18 @@ bsitar <- function(x,
                    save_model = NULL,
                    fit = NA,
                    file = NULL,
+                   file_compress = TRUE,
                    file_refit = getOption("brms.file_refit", "never"),
                    future = getOption("future", FALSE),
                    parameterization = 'ncp',
                    ...) {
   
   mcall <- mcall_ <- match.call()
+  
+  newcall_checks <- c('threads', 'save_pars')
+  
+  newcall <- check_brms_args(mcall, newcall_checks)
+  mcall <- mcall_ <- newcall
   
   # Check and set Alias argument for a b c ... formula
   dots_allias <- list(...)
@@ -1982,8 +2064,39 @@ bsitar <- function(x,
   temp2 <- NULL;
   
   
+  # override but check using 'log_and_divide' to see if  'err.' correctly 
+  # assigned and not passed to the outer .G environment 
+  # Seems enverr. <- environment() works fine
+  # Note that same 'enverr.' is passed to the model_info
   
-  enverr. <- parent.frame()
+
+  enverr. <- environment()
+  
+  # assign('err.', FALSE, envir = enverr.)
+  # log_and_divide <- function(x, y){
+  #   tryCatch(
+  #     {
+  #       result = log(x) / y
+  #       return(result)
+  #     },
+  #     error=function(e) {
+  #       assign('err.', TRUE, envir = enverr.)
+  #       message('An Error Occurred')
+  #       
+  #     },
+  #     warning=function(w) {
+  #       message('A Warning Occurred')
+  #       
+  #       return(NA)
+  #     }
+  #   )
+  # }
+  # print(err.)
+  # log_and_divide(10)
+  # print(err.)
+  
+  
+  
   for (i in names(mcall)[-1]) {
     no_default_args_plus_family <- c(no_default_args, "family")
     if (!i %in% no_default_args_plus_family) {
@@ -2249,10 +2362,11 @@ bsitar <- function(x,
       'fit',
       'file',
       'file_refit',
+      'file_compress',
       'future'
     )
   
-
+  
 
   if(is.numeric(arguments$cores)) {
    oldopts <- options(mc.cores = arguments$cores)
@@ -2270,7 +2384,7 @@ bsitar <- function(x,
     arguments[[brms_arguments_listi]] <- NULL
   }
   
- 
+  
   brms_arguments <- mget(brms_arguments_list)
   
   if (eval(brms_arguments$backend) != "rstan" &
@@ -2281,6 +2395,26 @@ bsitar <- function(x,
          "\ Please check it which you have specified as: ", 
          eval(brms_arguments$backend))
   }
+  
+  
+  
+  
+  # threads_check <- brms_arguments$threads
+  # threads_check <- deparse(substitute(threads_check))
+  # if( grepl('threading', threads_check) &
+  #     !grepl('brms::', threads_check)) {
+  #   threads_check <- paste0('brms::', threads_check)
+  # } else if( grepl('threading', threads_check) &
+  #            grepl('brms::', threads_check)) {
+  #   threads_check <- threading
+  # } else if(!grepl('threading', threads_check)) {
+  #   # stop("Argument threads should be specified as brmsfamily(threading,...)")
+  # }
+  # threads_check <- threads_check
+ 
+  
+  
+  
   
   
   displayit <- 'col'
@@ -2319,15 +2453,17 @@ bsitar <- function(x,
       if (gsubs_c_counter == 1) {
         splitmvar2 <- gsub(noquote(majors2), majors3, splitmvar, fixed = F)
       } else {
-        splitmvar2 <- gsub(noquote(majors2), majors3, splitmvar2, fixed = F)
+        # splitmvar2 <- gsub(noquote(majors2), majors3, splitmvar2, fixed = F)
+        splitmvar2 <- gsub(paste0('\\<', noquote(majors2), '\\>'), majors3, 
+                           splitmvar2, fixed = F)
       }
     }
+    
     for (i in 1:length(splitmvar_w3))
       splitmvar2 <- gsub("\"\"", "\"", splitmvar2)
     splitmvar3 <- eval(parse(text = splitmvar2))
     zzz <- splitmvar3
     
-    enverr. <- parent.frame()
     for (z in names(splitmvar3)) {
       assign('err.', FALSE, envir = enverr.)
       tryCatch(
@@ -3140,7 +3276,7 @@ bsitar <- function(x,
   
   convert_to_list <- getArgNames(bsitar())
   
-  enverr. <- parent.frame()
+  # enverr. <- parent.frame()
   for (ip in convert_to_list) {
     if (grepl("_init_", ip)) {
       assign('err.', FALSE, envir = enverr.)
@@ -3204,6 +3340,8 @@ bsitar <- function(x,
     "select_model",
     "decomp",
     "parameterization",
+    "custom_family",
+    "custom_stanvars",
     "..."
   )
   
@@ -4065,7 +4203,7 @@ bsitar <- function(x,
       cortimeNlags_var <- NULL
     }
     
-   
+  
     
     if (is.null(familysi[[1]][1]) |
         familysi == "NULL") {
@@ -4082,25 +4220,31 @@ bsitar <- function(x,
     
    
     
-    
     if (!is.null(familysi)) {
       familysi_check <- familysi
-      if( grepl('brmsfamily', familysi_check) &
-          !grepl('brms::', familysi_check)) {
-        familysi_check <- paste0('brms::', familysi_check)
-      } else if( grepl('brmsfamily', familysi_check) &
-                 grepl('brms::', familysi_check)) {
+      if(grepl('brmsfamily', familysi_check) &
+          grepl('brms::', familysi_check)) {
         familysi_check <- familysi_check
-      } else if(!grepl('brmsfamily', familysi_check)) {
+      } else if( grepl('brmsfamily', familysi_check) &
+                 !grepl('brms::', familysi_check)) {
+        familysi_check <- paste0('brms::', familysi_check)
+      } else if( grepl('family', familysi_check) &
+                 !grepl('brms::', familysi_check)) {
+        familysi_check <- paste0('brms::brmsfamily', familysi_check)
+      } else if(!grepl('brmsfamily', familysi_check) & 
+                !grepl('family', familysi_check)) {
         stop("Argument family should be specified as brmsfamily(family,...)")
       }
       familysi <- familysi_check
     }
-  
+    
     
     if (!is.null(familysi)) {
       familysi <- list_to_quoted_if_not_si(familysi)
     }
+    
+    
+    
     
     
     if (!is.null(dpar_formulasi)) {
@@ -4152,6 +4296,9 @@ bsitar <- function(x,
         stop("variable ", idsi, " not in the dataframe")
     }
     
+    
+    # 28 01 2024
+    datai <- datai %>% tidyr::drop_na()
     
     if(!is.null(cortimeNlags_var)) {
       if(!is.factor(datai[[cortimeNlags_var]])) {
@@ -4265,7 +4412,7 @@ bsitar <- function(x,
     
     gkn <- function(x, df, bounds) {
       c(min(x) - bounds * (max(x) - min(x)),
-        quantile(x, (1:(df - 1)) / df),
+        quantile(x, (1:(df - 1)) / df, na.rm = TRUE), # 28 01 2024
         max(x) +
           bounds * (max(x) - min(x)))
     }
@@ -4566,6 +4713,7 @@ bsitar <- function(x,
         'nys',
         'ysi',
         'familysi',
+        'custom_family',
         'xfunsi',
         'xoffset',
         'match_sitar_d_form',
@@ -5828,6 +5976,7 @@ bsitar <- function(x,
   brmspriors <- brmspriors %>% 
     dplyr::mutate(ub = dplyr::if_else(class == 'sd', NA, ub))
   
+  
   bflist_c_list <- list()
   bflist_c <- c()
   for (il in 1:length(bflist)) {
@@ -6193,13 +6342,21 @@ bsitar <- function(x,
       }
     
     
+    if(is.null(set_self_priors)) {
+      temp_prior <- brmspriors
+    } else if(!is.null(set_self_priors)) {
+      temp_prior <- set_self_priors
+    }
+      
+  
+      
     temp_stancode2 <- brms::make_stancode(formula = bformula,
                                     stanvars = bstanvars,
-                                    prior = brmspriors,
+                                    prior = temp_prior,
                                     data = brmsdata)
     temp_standata2 <- brms::make_standata(formula = bformula,
                                     stanvars = bstanvars,
-                                    prior = brmspriors,
+                                    prior = temp_prior,
                                     data = brmsdata)
     
     
@@ -6722,6 +6879,10 @@ bsitar <- function(x,
       brmsdots_[[collect_dot_namesi]] <- NULL
   }
  
+
+  if(!is.null(custom_stanvars)) {
+    bstanvars <- bstanvars + custom_stanvars
+  }
   
   brm_args <-
     setup_brms_args(
@@ -6738,6 +6899,9 @@ bsitar <- function(x,
       brmsdots = brmsdots_
     )
   
+  if(!is.null(custom_family)) {
+    brm_args$family <- custom_family
+  }
   
   if (verbose) {
     setmsgtxt <- paste0("\n Fitting model")
@@ -6795,6 +6959,8 @@ bsitar <- function(x,
     p1p2 <- rbind(p1, p2)
     p1p2
   }
+  
+  
   
   
   if(set_higher_levels) {
@@ -6866,7 +7032,6 @@ bsitar <- function(x,
   brmspriors <-   tempprior_hold
   
   
-  
   if(!is.null(set_self_priors) & is.null(set_replace_priors)) {
     brmspriors <- set_self_priors
   }
@@ -6875,6 +7040,17 @@ bsitar <- function(x,
   if(is.null(set_self_priors) & is.null(set_replace_priors)) {
     brmspriors <- brmspriors
   }
+  
+  
+  
+  
+  
+
+  
+  # brmspriors <- brmspriors %>% 
+  #   dplyr::mutate(prior = dplyr::if_else(prior == "", "''", prior))
+  # brmspriors <- brmspriors %>% dplyr::filter(!grepl("''", prior, fixed = F))
+  # brmspriorsx <<- brmspriors
   
   
   brm_args$prior <- brmspriors
@@ -6948,17 +7124,28 @@ bsitar <- function(x,
   }
   
 
+  
   get_priors_eval_numeric <- TRUE
   if(get_priors_eval & get_priors_eval_numeric) {
     get_priors_eval_out <- priors_to_textdata(spriors = brm_args$prior,
-                                                  sdata = sdata)
+                                                  sdata = sdata,
+                                              raw = TRUE)
   }
   
   if(get_priors_eval & !get_priors_eval_numeric) {
     get_priors_eval_out <- brm_args$prior
   }
   
-    
+  
+  
+  full_custom <- FALSE
+  if(is.null(initsi) | initsi == 'NULL') {
+    init_custom <- init_custom
+  } else if(initsi[[1]] == 'custom') {
+    if(!is.null(init_custom)) full_custom <- TRUE
+  }
+  
+
   if(!exe_model_fit) {
     if(get_priors) {
       return(do.call(brms::get_prior, brm_args))
@@ -6978,8 +7165,6 @@ bsitar <- function(x,
       return(brm_args$stanvars)
     }
   } 
-  
-  
   
   
   if(exe_model_fit) {
@@ -7034,16 +7219,29 @@ bsitar <- function(x,
                " or else a list of list matching the number of chains")
         }
       }
-      new_init_append <- list()
-      init_old <- brm_args$init
-      init_append <- init_custom
-      for (ilen in 1:length(init_old)) {
-        new_init_append[[ilen]] <- c(init_old[[ilen]], init_append[[ilen]])
-      }
-      brm_args$init <- new_init_append
-    } 
+      
+      
+      if(!full_custom) {
+        new_init_append <- list()
+        init_old <- brm_args$init
+        init_append <- init_custom
+        # for (ilen in 1:length(init_old)) {
+        #   new_init_append[[ilen]] <- c(init_old[[ilen]], init_append[[ilen]])
+        # }
+        additional_init_names <- 
+          setdiff(names(init_append[[1]]), names(init_old[[1]]))
+        for (ilen in 1:length(init_old)) {
+          additional_init <- init_append[[ilen]][additional_init_names]
+          new_init_append[[ilen]] <- c(init_old[[ilen]], additional_init)
+        }
+        brm_args$init <- new_init_append
+      } else if(full_custom) {
+        brm_args$init <- init_custom
+      } # if(!full_custom) {
+      
+    } # if(!is.null(init_custom)) {
     
-    
+
     
     # This when all lists of list NULL (e.g., when all init args random)
     if(length(brm_args$init[lengths(brm_args$init) != 0]) == 0) {
@@ -7059,6 +7257,66 @@ bsitar <- function(x,
     }
     
     brm_args$refresh <- NULL
+    
+    
+    # Get and evaluate file argument
+    # This to save object 'file' at the end with model info
+    get_file <- brm_args$file
+    get_file_refit <- brm_args$file_refit
+    
+    get_file_compress <- brm_args$file_compress
+    
+    get_write_brmsfit          <-
+      utils::getFromNamespace("write_brmsfit", "brms")
+    
+    get_read_brmsfit          <-
+      utils::getFromNamespace("read_brmsfit", "brms")
+    
+    get_file_refit_options          <-
+      utils::getFromNamespace("file_refit_options", "brms")
+    
+    get_file_refit <- match.arg(get_file_refit, get_file_refit_options())
+    if (!is.null(get_file) && get_file_refit == "never") {
+      x_from_file <- get_read_brmsfit(get_file)
+      if (!is.null(x_from_file)) {
+        return(x_from_file)
+      }
+    }
+    
+    if (!is.null(get_file) && get_file_refit == "on_change") {
+      x_from_file <- get_read_brmsfit(get_file)
+      if (!is.null(x_from_file)) {
+        needs_refit <- brms::brmsfit_needs_refit(
+          x_from_file, scode = brms::stancode(x_from_file), 
+          sdata = brms::standata(x_from_file),
+          data = x_from_file$data, 
+          algorithm = brm_args$algorithm, silent = brm_args$silent
+        )
+        if (!needs_refit) {
+          return(x_from_file)
+        }
+      }
+    }
+    
+    # Set it to NULL to avoid re saving later
+    brm_args$file <- NULL
+    
+    
+    brm_args <- sanitize_algorithm_args(args = brm_args,
+                                        algorithm = brm_args$algorithm,
+                                        verbose = FALSE)
+
+    # pathfinderargs <- c('num_paths', 'single_path_draws', 
+    #                     'draws', 'history_size', 'max_lbfgs_iters')
+    # 
+    # for (i in pathfinderargs) {
+    #   if(!is.null(brm_args[[i]])) brm_args[[i]] <- NULL
+    # }
+    # 
+    # brm_argsx <<- brm_args
+    # brm_args$init <- brm_args$init[[1]]
+    # brm_args$init <- list(brm_args$init)
+
     
 
     if(fit_edited_scode) {
@@ -7177,30 +7435,36 @@ bsitar <- function(x,
     model_info[['select_model']] <- select_model
     model_info[['decomp']] <- decomp
     model_info[['fun_scode']] <- fun_scode
+    model_info[['envir']] <- enverr.
     brmsfit$model_info <- model_info
     
+    environment(brmsfit$formula) <- enverr.
+    
+    # Now message moved to the expose_model_functions()
     if (expose_function) {
-      if (verbose) {
-        setmsgtxt <-
-          paste0("\n Exposing Stan functions for post-processing\n")
-        if (displayit == 'msg') {
-          message(setmsgtxt)
-        } else if (displayit == 'col') {
-          col <- setcolh
-          cat(paste0("\033[0;", col, "m", setmsgtxt, "\033[0m", "\n"))
-        }
-      }
-      if (!verbose) {
-        setmsgtxt <-
-          paste0("\n Exposing Stan functions for post-processing..\n")
-        message(setmsgtxt)
-      }
+      # if (verbose) {
+      #   setmsgtxt <-
+      #     paste0("\n Exposing Stan functions for post-processing\n")
+      #   if (displayit == 'msg') {
+      #     message(setmsgtxt)
+      #   } else if (displayit == 'col') {
+      #     col <- setcolh
+      #     cat(paste0("\033[0;", col, "m", setmsgtxt, "\033[0m", "\n"))
+      #   }
+      # }
+      # if (!verbose) {
+      #   setmsgtxt <-
+      #     paste0("\n Exposing Stan functions for post-processing..\n")
+      #   message(setmsgtxt)
+      # }
       
       brmsfit <- expose_model_functions(model = brmsfit, 
                                       scode = fun_scode,
                                       expose = TRUE, 
                                       select_model = NULL,
                                       returnobj = TRUE,
+                                      vectorize = FALSE,
+                                      verbose = TRUE,
                                       envir = NULL)
       brmsfit$model_info[['expose_method']] <- 'S'
     } 
@@ -7211,6 +7475,8 @@ bsitar <- function(x,
                                       expose = FALSE, 
                                       select_model = select_model,
                                       returnobj = TRUE,
+                                      vectorize = FALSE,
+                                      verbose = TRUE,
                                       envir = NULL)
       brmsfit$model_info[['expose_method']] <- 'R'
     } 
@@ -7224,7 +7490,12 @@ bsitar <- function(x,
         cat(paste0("\033[0;", col, "m", setmsgtxt, "\033[0m", "\n"))
       }
     }
-    if(exists("err.")) rm("err.")
+    
+    if (!is.null(get_file)) {
+      brmsfit <- get_write_brmsfit(brmsfit, get_file, 
+                               compress = get_file_compress)
+    }
+    
     return(brmsfit)
   } # exe_model_fit
   

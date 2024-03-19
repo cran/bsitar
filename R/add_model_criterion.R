@@ -1,76 +1,60 @@
 
 
-#' Perform posterior predictive distribution checks
+#' Add model fit criteria to model
 #' 
-#' @details The \strong{plot_ppc()} is a wrapper around the [brms::pp_check()].
+#' @description The \strong{add_model_criterion()} is a wrapper around the
+#'   [brms::add_criterion()]. Note that arguments \code{compare} and
+#'   \code{pointwise} are relevant only for [brms::add_loo] whereas arguments
+#'   \code{summary}, \code{robust}, and \code{probs} ignored except for the
+#'   [brms::bayes_R2()].
 #' 
 #' @param model An object of class \code{bgmfit}.
 #' 
 #' @inheritParams growthparameters.bgmfit
-#' @inheritParams brms::pp_check.brmsfit
+#' @inherit brms::add_criterion.brmsfit params description return
+#' @inheritParams brms::bayes_R2.brmsfit
+#' @inheritParams brms::waic.brmsfit
 #' @inheritParams fitted_draws.bgmfit
-#' @inheritParams bayesplot::ppc_dens_overlay
-#' @inheritParams bayesplot::ppc_ecdf_overlay
-#' @inheritParams bayesplot::ppc_freqpoly
-#' @inheritParams bayesplot::ppc_violin_grouped
-#' @inheritParams bayesplot::ppc_hist
-#' @inherit brms::pp_check.brmsfit description
-#' 
-#' @param ... Additional arguments passed to the [brms::pp_check.brmsfit()] 
-#' function. Please see [brms::pp_check.brmsfit()] for details.
-#' 
-#' @return A ggplot object that can be further customized using the
-#' ggplot2 package.
+#'  
+#' @return An object of class class \code{bgmfit} with fit criteria added.
 #' 
 #' @export
+#' @seealso [brms::add_loo] [brms::add_loo] [brms::add_ic()] [brms::add_waic()]
+#'   [brms::bayes_R2()]
 #' 
 #' @inherit berkeley author
 #'
 #' @examples
 #' 
+#' \donttest{
 #' # Fit Bayesian SITAR model 
 #' 
 #' # To avoid mode estimation which takes time, the Bayesian SITAR model fit to 
 #' # the 'berkeley_exdata' has been saved as an example fit ('berkeley_exfit').
 #' # See 'bsitar' function for details on 'berkeley_exdata' and 'berkeley_exfit'.
 #' 
-#' # Check and confirm whether model fit object 'berkeley_exfit' exists
-#'  berkeley_exfit <- getNsObject(berkeley_exfit)
-#' 
 #' model <- berkeley_exfit
 #' 
-#' plot_ppc(model, ndraws = 100)
+#' model <- add_model_criterion(model, criterion = c("waic"))
 #' 
-plot_ppc.bgmfit <-
+#' }
+#' 
+add_model_criterion.bgmfit <-
   function(model,
-           type,
+           criterion = c("loo", "waic"),
            ndraws = NULL,
            draw_ids = NULL,
-           prefix = c("ppc", "ppd"),
-           group = NULL,
-           x = NULL,
+           compare = TRUE,
+           pointwise = FALSE,
+           model_names = NULL,
+           summary = TRUE,
+           robust = FALSE,
+           probs = c(0.025, 0.975),
            newdata = NULL,
            resp = NULL,
-           size = 0.25,
-           alpha = 0.7,
-           trim = FALSE,
-           bw = "nrd0",
-           adjust = 1,
-           kernel = "gaussian",
-           n_dens = 1024,
-           pad = TRUE,
-           discrete = FALSE,
-           binwidth = NULL,
-           bins = NULL,
-           breaks = NULL,
-           freq = TRUE,
-           y_draw = c("violin", "points", "both"),
-           y_size = 1,
-           y_alpha = 1,
-           y_jitter = 0.1,
-           verbose = FALSE,
+           cores = 1,
            deriv_model = NULL,
-           dummy_to_factor = NULL, 
+           verbose = FALSE,
            expose_function = FALSE,
            usesavedfuns = NULL,
            clearenvfuns = NULL,
@@ -78,12 +62,13 @@ plot_ppc.bgmfit <-
            ...) {
     
     if(is.null(envir)) {
-      envir <- model$model_info$envir
-    } else {
-      envir <- parent.frame()
+      if(!is.null(model$model_info$exefuns[[1]])) {
+        envir <- environment(model$model_info$exefuns[[1]])
+      } else {
+        envir <- parent.frame()
+      }
     }
     
-
     if(is.null(usesavedfuns)) {
       if(!is.null(model$model_info$exefuns[[1]])) {
         usesavedfuns <- TRUE
@@ -95,7 +80,7 @@ plot_ppc.bgmfit <-
           usesavedfuns <- FALSE
         }
       }
-    } else { 
+    } else { # if(!is.null(usesavedfuns)) {
       if(!usesavedfuns) {
         if(expose_function) {
           model <- expose_model_functions(model, envir = envir)
@@ -107,8 +92,6 @@ plot_ppc.bgmfit <-
       }
     }
     
-    
-    check_if_package_installed(model, xcall = NULL)
     
     
     if(is.null(ndraws)) {
@@ -149,7 +132,7 @@ plot_ppc.bgmfit <-
                                 xcall = match.call(),
                                 resp = resp,
                                 envir = envir,
-                                deriv = 'deriv', 
+                                deriv = deriv, 
                                 all = FALSE,
                                 verbose = verbose)
     
@@ -173,8 +156,7 @@ plot_ppc.bgmfit <-
     
     
     if(!isTRUE(
-      check_pkg_version_exists('brms', 
-                               minversion = get_package_minversion('brms'), 
+      check_pkg_version_exists('brms', minversion = '2.20.17', 
                                prompt = FALSE,
                                stop = FALSE,
                                verbose = FALSE))) {
@@ -197,13 +179,15 @@ plot_ppc.bgmfit <-
                                           verbose = verbose)
    
     
-    calling.args$object <- full.args$model
-    if(is.null(calling.args$newdata)) {
-      if(!is.null(newdata)) calling.args$newdata <- newdata
-    }
-   
+    calling.args$object    <- full.args$model
+    calling.args$x         <- full.args$model
+    calling.args$object    <- full.args$model <- NULL
+    calling.args$criterion <- criterion
     
-    . <- do.call(brms::pp_check, calling.args)
+    suppressWarnings({
+      . <- do.call(brms::add_criterion, calling.args)
+    })
+    
     
    
     # Restore function(s)
@@ -250,10 +234,10 @@ plot_ppc.bgmfit <-
   }
 
 
-#' @rdname plot_ppc.bgmfit
+#' @rdname add_model_criterion.bgmfit
 #' @export
-plot_ppc <- function(model, ...) {
-  UseMethod("plot_ppc")
+add_model_criterion <- function(model, ...) {
+  UseMethod("add_model_criterion")
 }
 
 

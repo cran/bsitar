@@ -28,21 +28,21 @@
 #' @param outliers An optional (default \code{NULL}) to remove velocity
 #'   outliers. The argument should be a named list to pass options to the
 #'   [bsitar::outliers()] function. See [bsitar::outliers()] for details.
-#'   
+#'
 #' @param subset A logical (default \code{TRUE}) to indicate whether to create
 #'   data for each level of the \code{univariate_by} variable, or only for a
 #'   subset of levels. The \code{subset = TRUE} is typically used during model
 #'   fit and \code{subset = FALSE} during post processing of each sub model. The
 #'   argument \code{subset} is ignored when \code{univariate_by} is \code{NA} or
 #'   \code{NULL}.
-#' 
+#'
 #' @return A data frame with necessary information added a attributes.
-#' 
+#'
 #' @author Satpal Sandhu  \email{satpal.sandhu@bristol.ac.uk}
 #'
 #' @keywords internal
 #' @noRd
-#' 
+#'
 prepare_data <- function(data,
                          x,
                          y,
@@ -53,7 +53,8 @@ prepare_data <- function(data,
                          yfuns = NULL,
                          outliers = NULL,
                          subset = TRUE) {
-  
+
+  . <- NULL;
   data <- data %>% droplevels()
   
   if (!is.null(outliers)) {
@@ -65,7 +66,7 @@ prepare_data <- function(data,
     lag_ <- outliers$lag
     linearise_ <- outliers$linearise
     verbose_ <- outliers$verbose
-    
+
     for (yi in 1:length(y)) {
       if (!y[yi] %in% colnames(data)) {
         stop(
@@ -89,10 +90,10 @@ prepare_data <- function(data,
       }
       if (!id[yi] %in% colnames(data)) {
         stop(
-          "When model is fit with argument outliers 
+          "When model is fit with argument outliers
           (i.e., outliers not NULL), ",
           "\n",
-          "  then group identifier variable should be 
+          "  then group identifier variable should be
           part of the newdata specified.",
           "\n",
           "  please check the missing group identifier varibale: ",
@@ -113,12 +114,17 @@ prepare_data <- function(data,
           remove = remove_,
           verbose = verbose_
         )
-      
+
     }
   } # if(!is.null(outliers)) {
+
+  # Internal argument 'uvarby_method2' to set data for multivariate framework 
+  # for uvarby. Did not work. The 'uvarby_method1' is the traditional and 
+  # correct approach.
+  uvarby_method <- 'uvarby_method1'
   
   org.data <- data
-  
+
   # Note that x tarnsformation is done within the prepare_function
   transform_y <- function(y, yfuns) {
     for (myfunsi in 1:length(y)) {
@@ -139,7 +145,7 @@ prepare_data <- function(data,
     }
     return(data)
   }
-  
+
   if (!(is.na(uvarby) | uvarby == "NA")) {
     if (!uvarby %in% colnames(data)) {
       stop(paste(
@@ -153,16 +159,39 @@ prepare_data <- function(data,
            uvarby,
            "' should be a factor variable")
     }
-    for (l in levels(data[[uvarby]])) {
-      if(!subset) data[[l]] <- data[[y[1]]]
-      if(subset) data[[l]]  <- data[[l]]
-    }
-    unibyimat <-
-      model.matrix(~ 0 + eval(parse(text = uvarby)), data)
-    subindicators <- paste0(uvarby, levels(data[[uvarby]]))
-    colnames(unibyimat) <- subindicators
-    y <- levels(data[[uvarby]])
-    data <- as.data.frame(cbind(data, unibyimat))
+    
+    if(uvarby_method == 'uvarby_method1') {
+      for (l in levels(data[[uvarby]])) {
+        if(!subset) data[[l]] <- data[[y[1]]]
+        if(subset) data[[l]]  <- data[[l]]
+      }
+      unibyimat <-
+        model.matrix(~ 0 + eval(parse(text = uvarby)), data)
+      subindicators <- paste0(uvarby, levels(data[[uvarby]]))
+      colnames(unibyimat) <- subindicators
+      #
+      unibyimat <- unibyimat %>% data.frame()
+      unibyimat <- sapply(unibyimat, as.integer ) %>% data.frame()
+      # unibyimat <- sapply(unibyimat, as.logical ) %>% data.frame()
+      #
+      y <- levels(data[[uvarby]])
+      data <- as.data.frame(cbind(data, unibyimat))
+    } # if(uvarby_method == 'uvarby_method1') {
+    
+    
+    if(uvarby_method == 'uvarby_method2') {
+      id_colsx <- setdiff(colnames(data), c(y, uvarby))
+      uvarbyx  <- levels(data[[uvarby]])
+      data <-
+        data %>% data.frame() %>% 
+        tidyr::pivot_wider(., id_cols= dplyr::all_of(id_colsx), names_from = uvarby, values_from = y) %>% 
+        dplyr::mutate(dplyr::across(dplyr::all_of(uvarbyx), 
+                             ~ dplyr::if_else(is.na(.x), FALSE, TRUE), .names = "{.col}s"))
+      data[[uvarby]] <- org.data[[uvarby]]
+      subindicators <- paste0(uvarbyx, 's')
+      y <- uvarbyx
+    } # if(uvarby_method == 'uvarby_method2') {
+    
     data <- transform_y(y, yfuns)
     attr(data, "ys") <- y
     attr(data, "multivariate") <- FALSE

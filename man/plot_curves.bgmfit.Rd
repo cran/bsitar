@@ -67,7 +67,8 @@
   verbose = FALSE,
   fullframe = NULL,
   dummy_to_factor = NULL,
-  usesavedfuns = FALSE,
+  expose_function = FALSE,
+  usesavedfuns = NULL,
   clearenvfuns = NULL,
   envir = NULL,
   ...
@@ -164,12 +165,12 @@ is nested within the \code{study} Note that it is not guaranteed that the
 manually when fitting a model with three or more levels of hierarchy.}
 
 \item{avg_reffects}{An optional argument (default \code{NULL}) to calculate
-(marginal/average) curves and growth parameters (such as APGV and PGV). If
+(marginal/average) curves and growth parameters such as APGV and PGV. If
 specified, it must be a named list indicating the \code{over} (typically
 level 1 predictor, such as age), \code{feby} (fixed effects, typically a
 factor variable), and  \code{reby} (typically \code{NULL} indicating that
 parameters are integrated over the random effects) such as
-\code{avg_reffects = list(feby = 'study', reby = NULL, over = 'age'}.}
+\code{avg_reffects = list(feby = 'study', reby = NULL, over = 'age')}.}
 
 \item{ipts}{An integer to set the length of the predictor variable to get a
 smooth velocity curve. The \code{NULL} will return original values whereas
@@ -458,11 +459,31 @@ factor levels are assigned same name as \code{factor.dummy}. Note that when
 \code{factor.level} is not \code{NULL}, its length must be same as the
 length of the \code{factor.dummy}.}
 
-\item{usesavedfuns}{A logical (default \code{FALSE}) to indicate whether to
-use the already exposed and saved \code{Stan} functions. This is for
-internal purposes only and mainly used during the testing of the functions
-and therefore should not be used by users as it might lead to unreliable
-estimates.}
+\item{expose_function}{An optional logical argument to indicate whether to
+expose Stan functions (default \code{FALSE}). Note that if user has already
+exposed Stan functions during model fit by setting \code{expose_function =
+  TRUE} in the \code{\link[=bsitar]{bsitar()}}, then those exposed functions are saved and can be
+used during post processing of the posterior draws and therefore
+\code{expose_function} is by default set as \code{FALSE} in all post
+processing functions except \code{\link[=optimize_model]{optimize_model()}}. For \code{\link[=optimize_model]{optimize_model()}}, the
+default setting is \code{expose_function = NULL}. The reason is that each
+optimized model has different Stan function and therefore it need to be re
+exposed and saved. The \code{expose_function = NULL} implies that the
+setting for \code{expose_function} is taken from the original \code{model}
+fit. Note that \code{expose_function} must be set to \code{TRUE} when
+adding \code{fit criteria} and/or \code{bayes_R2} during model
+optimization.}
+
+\item{usesavedfuns}{A logical (default \code{NULL}) to indicate whether to
+use the already exposed and saved \code{Stan} functions. Depending on
+whether the user have exposed Stan functions within the \code{\link[=bsitar]{bsitar()}} call via
+\code{expose_functions} argument in the \code{\link[=bsitar]{bsitar()}}, the \code{usesavedfuns}
+is automatically set to \code{TRUE} (if \code{expose_functions = TRUE}) or
+\code{FALSE} (if \code{expose_functions = FALSE}). Therefore, manual
+setting of \code{usesavedfuns} as \code{TRUE}/\code{FALSE} is rarely
+needed. This is for internal purposes only and mainly used during the
+testing of the functions and therefore should not be used by users as it
+might lead to unreliable estimates.}
 
 \item{clearenvfuns}{A logical to indicate whether to clear the exposed
 function from the environment (\code{TRUE}) or not (\code{FALSE}). If
@@ -511,12 +532,14 @@ the difference between fitted and predicted values.
 
 # Fit Bayesian SITAR model 
 
-# To avoid mode estimation which takes time, a model fitted to the 
-# 'berkeley_mdata' has already been saved as 'berkeley_mfit'. 
-# Details on 'berkeley_mdata' and 'berkeley_mfit' are provided in the 
-# 'bsitar' function.
+# To avoid mode estimation which takes time, the Bayesian SITAR model fit to 
+# the 'berkeley_exdata' has been saved as an example fit ('berkeley_exfit').
+# See 'bsitar' function for details on 'berkeley_exdata' and 'berkeley_exfit'.
 
-model <- berkeley_mfit
+# Check and confirm whether model fit object 'berkeley_exfit' exists
+ berkeley_exfit <- getNsObject(berkeley_exfit)
+
+model <- berkeley_exfit
 
 # Population average distance and velocity curves with default options
 plot_curves(model, opt = 'dv')

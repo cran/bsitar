@@ -69,6 +69,10 @@ get.newdata <- function(model,
     IDvar <- model$model_info[[groupvar_]]
     if (!is.null(model$model_info[[hierarchical_]])) {
       IDvar <- model$model_info[[hierarchical_]]
+    } else if (is.null(model$model_info[[hierarchical_]])) {
+      # if(!is.null(model$model_info[['ids']])) {
+      #   IDvar <- model$model_info[['ids']]
+      # }
     }
   } else if (!is.null(levels_id)) {
     IDvar <- levels_id
@@ -85,6 +89,18 @@ get.newdata <- function(model,
   uvarby <- model$model_info$univariate_by
   
   
+  # When no random effects and hierarchical, IDvar <- NULL problem 02 03 2024
+  #if(idata_method == 'm2') {
+    if(is.null(levels_id)) {
+      if(is.null(IDvar)) {
+        if(!is.null(model$model_info[['ids']])) {
+          IDvar <- model$model_info[['ids']]
+        }
+      }
+    }
+  #}
+  
+ 
   
   if (is.null(newdata)) {
     if(idata_method == 'm1') newdata <- model$model_info$bgmfit.data
@@ -130,14 +146,25 @@ get.newdata <- function(model,
   # Therefore, an artificial group var created
   # see also changes made to the get_idata function lines 17
   
-  if (is.null(model$model_info$groupvar)) {
-    name_hypothetical_id <- paste0("hy_id", resp_rev_)
-    model$model_info$groupvar <- name_hypothetical_id
-    newdata[[name_hypothetical_id]] <- as.factor("tempid")
-  }
+  # if (is.null(model$model_info$groupvar)) {
+  #   name_hypothetical_id <- paste0("id", resp_rev_)
+  #   model$model_info$groupvar <- name_hypothetical_id
+  #   newdata[[name_hypothetical_id]] <- as.factor("tempid")
+  # } else if (!is.null(model$model_info$groupvar)) {
+  #   if(length(newdata[[model$model_info$groupvar]]) == 0) {
+  #     # name_hypothetical_id <- paste0("hy_id", resp_rev_)
+  #     if(length(IDvar) > 1) {
+  #       name_hypothetical_id <- IDvar[1] 
+  #     } else {
+  #       name_hypothetical_id <- IDvar
+  #     }
+  #     model$model_info$groupvar <- name_hypothetical_id
+  #     newdata[[name_hypothetical_id]] <- as.factor("tempid")
+  #   }
+  # }
   
-  
-  
+  newdata <- check_newdata_args(model, newdata, IDvar, resp)
+
   
   if (!is.na(model$model_info$univariate_by)) {
     if (is.symbol(model$model_info$call.bgmfit$y)) {
@@ -677,12 +704,15 @@ get.newdata <- function(model,
               xrange = xrange
             )
         }
+        
       } # end if(idata_method == 'm2') {
       
       
-      
-      if (is.null(ipts))
+
+      if (is.null(ipts)) {
         newdata <- newdata
+      }
+        
       
       
       if (!is.null(ipts)) {
@@ -752,17 +782,40 @@ get.newdata <- function(model,
       )
       
       
+      #         newdata <- check_newdata_args(model, newdata, IDvar, resp)
+      
       j_b_names <- intersect(names(newdata), names(newdata.oo))
       j_b_names__ <- c(j_b_names, cov_numeric_vars)
       j_b_names__ <- unique(j_b_names__)
       
-      newdata <-
-        newdata %>% 
-        dplyr::left_join(., 
-                         newdata.oo %>%
-                           dplyr::select(dplyr::all_of(j_b_names__)),
-                         by = j_b_names)
-      newdata
+      if(idata_method == 'm1') {
+        newdata <-
+          newdata %>% 
+          dplyr::left_join(., 
+                           newdata.oo %>%
+                             dplyr::select(dplyr::all_of(j_b_names__)),
+                           by = j_b_names)
+        
+      } else if(idata_method == 'm2') {
+        if(length(IDvar) > 1) {
+          name_hypothetical_id <- IDvar[1]
+        } else {
+          name_hypothetical_id <- IDvar
+        }
+        if(length(unique(newdata[[name_hypothetical_id]])) > 1) {
+          newdata <-
+            newdata %>% 
+            dplyr::left_join(., 
+                             newdata.oo %>%
+                               dplyr::select(dplyr::all_of(j_b_names__)),
+                             by = j_b_names)
+        } else if(length(unique(newdata[[name_hypothetical_id]])) == 1) {
+          newdata <- newdata
+        }
+      } # else if(idata_method == 'm2') {
+      
+      
+      return(newdata)
     }
   
   
@@ -828,7 +881,8 @@ get.newdata <- function(model,
 #'   dplyr::across the entire sample. Lastly, a paired numeric values can be
 #'   supplied e.g., \code{xrange = c(6, 20)} will set the range between 6 and
 #'   20.
-#'
+#' @param keeplevels A logical in case factor variables other than \code{idVar}
+#'   present
 #' @return A data frame.
 #' 
 #' @author Satpal Sandhu  \email{satpal.sandhu@bristol.ac.uk}
@@ -843,13 +897,21 @@ get_idata <-
            timeVar = NULL,
            times = NULL,
            length.out = 10,
-           xrange = 1) {
+           xrange = 1, 
+           keeplevels = FALSE) {
     
     if (is.null(newdata)) {
       newdata <- model$data
     } else {
       newdata <- newdata
     }
+    
+    
+    if(keeplevels) {
+      is.fact <- names(newdata[, sapply(newdata, is.factor)])
+      cnames  <- colnames(newdata)
+    }
+    
     
     if(is.null(model)) {
       if (is.null(idVar)) stop("Specify model or idVar, both can not be NULL")
@@ -869,7 +931,7 @@ get_idata <-
       }
     }
     
-    
+    `.` <- NULL;
     
     if (is.null(idVar)) {
       idVar <- model$model_info$ids
@@ -907,6 +969,11 @@ get_idata <-
     }
     
     id <- match(newdata[[idVar]], unique(newdata[[idVar]]))
+    
+    if(length( unique(newdata[[idVar]])) == 1) {
+      if(length.out == 1) stop("The argument 'ipts' should be > 1")
+    }
+    
     last_time <- tapply(newdata[[timeVar]], id, max)
     first_time <- tapply(newdata[[timeVar]], id, min)
     
@@ -947,10 +1014,40 @@ get_idata <-
     
     newdata_pred <-
       right_rows(newdata, newdata[[timeVar]], id, times_to_pred)
+    
+    
+    if(keeplevels) {
+      if(length(setdiff(is.fact, idVar)) > 0) {
+        newdata_pred <- newdata_pred %>% droplevels
+        newdata_pred <- newdata_pred %>% 
+          dplyr::select(-dplyr::all_of(setdiff(is.fact, idVar)))
+        
+        newdata_is.factx <- newdata %>% 
+          dplyr::select(dplyr::all_of(is.fact))
+        
+        newdata_pred <- newdata_pred %>% 
+          dplyr::left_join(., newdata_is.factx, by = idVar,
+                    relationship = "many-to-many")
+      }
+    }
+    
+    
+    # for (is.facti in is.fact) {
+    #   print(levels(newdata_pred[[is.facti]]))
+    #   levels(newdata_pred[[is.facti]]) <- levels(newdata[[is.facti]])
+    # }
+    # print(str(newdata_pred %>% droplevels))
+    # print(unique(newdata_pred$class))
+    #stop()
+    
     newdata_pred[[timeVar]] <- unlist(times_to_pred)
+    
+    if(keeplevels) {
+      newdata_pred <- newdata_pred %>% dplyr::select(dplyr::all_of(cnames))
+    }
+    
     newdata_pred
   }
-
 
 
 
@@ -1460,7 +1557,7 @@ evaluate_call_args <- function(cargs = NULL,
   for (fargsi in names(fargs)) {
     if(is.null(cargs[[fargsi]])) cargs[[fargsi]] <- fargs[[fargsi]]
   }
-  cargs$... <- NULL
+ 
   cargs
 }
 
@@ -1644,8 +1741,13 @@ post_processing_checks <- function(model,
   if(!'bgmfit' %in% class(model)) {
     stop("The class of model object should be 'bgmfit' ")
   }
+  
   excall_ <- c("plot_ppc", "loo_validation")
-  if (strsplit(deparse((xcall[1])), "\\.")[[1]][1] %in% excall_) {
+  
+  check_it <- strsplit(deparse((xcall[1])), "\\.")[[1]][1] 
+  check_it <- gsub("\"",  "", check_it)
+  
+  if (check_it %in% excall_) {
     if(is.null(as.list(xcall)[['deriv']])) deriv <- ''
     if (!is.null(as.list(xcall)[['deriv']])) {
       deriv <- ''
@@ -1653,7 +1755,7 @@ post_processing_checks <- function(model,
         message(
           "\nargument 'deriv' is not allowed for the ",
           " post-processing function",  " '",
-          strsplit(deparse((xcall[1])), "\\.")[[1]][1], "'",
+          check_it, "'",
           "\n ",
           "Therefore, it is set to missing i.e., deriv = ''"
         )
@@ -1734,30 +1836,122 @@ post_processing_checks <- function(model,
       ) 
   }
   
-  
   if(all) {
-    # out <-
-    #   list(
-    #     paste0(resp_, model$model_info[['namesexefuns']], ''),
-    #     paste0(resp_, model$model_info[['namesexefuns']], deriv),
-    #     paste0(resp_, model$model_info[['namesexefuns']], '0'),
-    #     paste0(resp_, model$model_info[['namesexefuns']], 'getX')
-    #   ) 
-    # if(model$model_info[['select_model']] == 'sitar' |
-    #    model$model_info[['select_model']] == 'rcs') {
-    #   out <- c(out,
-    #            list(paste0(resp_, model$model_info[['namesexefuns']], 
-    #                        'getKnots')
-    #            )
-    #            )
-    # }
     out <- model$model_info[['exefuns']]
-  } # if(all) {
-  
+  } 
   
   return(out)
 }
 
+
+
+
+#' An internal function to set up exposed functions and their environment
+#'
+#' @param o A logical (default \code{FALSE}) to indicate whether to
+#' return the object as a character string.
+#' @inherit growthparameters.bgmfit params
+#' @param ... Additional arguments. Currently ignored.
+#' @keywords internal
+#' @return A list comprised of exposed functions.
+#' @noRd
+#'
+
+setupfuns <- function(model,
+                      resp = NULL,
+                      o = NULL,
+                      oall = NULL,
+                      usesavedfuns = NULL,
+                      deriv = NULL,
+                      envir = NULL,
+                      deriv_model = NULL,
+                      verbose = FALSE,
+                      ...) {
+  
+  if(is.null(envir)) {
+    envir <- parent.frame()
+  }
+  
+  if (is.null(resp)) {
+    resp_ <- resp
+  } else if (!is.null(resp)) {
+    resp_ <- paste0(resp, "_")
+  }
+  
+  if(is.null(model$xcall)) {
+    xcall <- strsplit( deparse(sys.calls()[[sys.nframe()-1]]) , "\\(")[[1]][1]
+  } else {
+    xcall <- model$xcall
+  }
+  
+  
+  excall_ <- c("plot_ppc", "loo_validation")
+  
+  check_it <- strsplit(deparse((xcall[1])), "\\.")[[1]][1] 
+  check_it <- gsub("\"",  "", check_it)
+  
+  if (check_it %in% excall_) {
+    if(is.null(as.list(xcall)[['deriv']])) deriv <- ''
+    if (!is.null(as.list(xcall)[['deriv']])) {
+      deriv <- ''
+      if(verbose) {
+        message(
+          "\nargument 'deriv' is not allowed for the ",
+          " post-processing function",  " '",
+          check_it, "'",
+          "\n ",
+          "Therefore, it is set to missing i.e., deriv = ''"
+        )
+      }
+    } # if(!is.null(chcallls$idata_method)) {
+  }
+  
+  if(!usesavedfuns) {
+    if(is.null(check_if_functions_exists(model, o, xcall))) {
+      return(invisible(NULL))
+    }
+  }
+  
+  if(usesavedfuns) {
+    if(is.null(check_if_functions_exists(model, o, xcall,
+                                         verbose = F))) {
+      envir <- envir
+    } else {
+      #  envir <- getEnv(o[[1]], geteval = TRUE)
+    }
+    # envir <- getEnv(o[[1]], geteval = TRUE)
+    
+    oall <- model$model_info[['exefuns']]
+    oalli_c <- names(oall)
+    for (oalli in oalli_c) {
+      assign(oalli, oall[[oalli]], envir = envir)
+    }
+  }
+  
+  if(!is.null(deriv)) {
+    if(deriv == 0) {
+      assignfun <- paste0(model$model_info[['namesexefuns']], deriv)
+      assignfun <- paste0(resp_, assignfun)
+      assign(o[[1]], model$model_info[['exefuns']][[assignfun]], envir = envir)
+    } else if(deriv > 0) {
+      if(deriv_model) {
+        assignfun <- paste0(model$model_info[['namesexefuns']], deriv)
+        assignfun <- paste0(resp_, assignfun)
+      } else if(!deriv_model) {
+        assignfun <- paste0(model$model_info[['namesexefuns']], '0')
+        assignfun <- paste0(resp_, assignfun)
+      }
+      assign(o[[1]], model$model_info[['exefuns']][[assignfun]], envir = envir)
+    }
+  }
+  
+  if(is.null(deriv)) {
+    assignfun <- paste0(model$model_info[['namesexefuns']], "")
+    assignfun <- paste0(resp_, assignfun)
+    assign(o[[1]], model$model_info[['exefuns']][[assignfun]], envir = envir)
+  }
+  return(envir)
+}
 
 
 
@@ -3112,6 +3306,138 @@ set_init_gr_effects <- function(xscode,
 }
 
 
+
+
+#' An internal function to get initials from pathfinder algorithm
+#'
+#' @param pthf A pathfinder draw object
+#' @param ndraws An integer specifying the number of paths
+#' @param init_structure A list of initial to set the appropriate dimensions of 
+#'  inits returned from the pathfinder
+#' @param variables A character vector specifying the variable names
+#' @param model An object of class \code{bgmfit}
+#' @param compile_init_model_methods A logical to indicate whether to compile
+#' \code{init_model_methods()}
+#' @param verbose A logical
+#' @keywords internal
+#' @return A named list.
+#' @keywords internal
+#' @noRd
+#'
+get_pathfinder_init <- function(pthf = NULL, 
+                                ndraws = 1, 
+                                init_structure = NULL,
+                                variables = NULL,
+                                model = NULL,
+                                compile_init_model_methods = NULL,
+                                verbose = FALSE) {
+  
+  if(is.null(pthf) & is.null(model)) 
+    stop('Specify at least pthf or model')
+  if(!is.null(pthf) & !is.null(model)) 
+    stop('Specify either least pthf or model')
+  
+  if(!is.null(model)) {
+    mod <- attr(model$fit, "CmdStanModel")
+    dat <- brms::standata(model)
+    ini <- model$stan_args$init
+    threads <- model$threads$threads
+    if(!is.null(threads)) {
+      pth1 <- mod$pathfinder(data = dat, init = ini,  num_threads = threads)
+    } else if(!is.null(threads)) {
+      pth1 <- mod$pathfinder(data = dat, init = ini)
+    }
+    if(is.null(compile_init_model_methods)) compile_init_model_methods <- TRUE
+  } else {
+    if(is.null(compile_init_model_methods)) compile_init_model_methods <- FALSE
+    pthf <- pthf
+  }
+  
+  if(compile_init_model_methods) {
+    pth1$init_model_methods()
+  }
+  
+  lp__ <- NULL;
+  lp_approx__ <- NULL;
+  lw <- NULL;
+  .draw <- NULL;
+  lw.x <- NULL;
+  lp__ <- NULL;
+  
+  
+  as_inits <- function(draws, variable=NULL, ndraws=4) {
+    ndraws <- min(posterior::ndraws(draws),ndraws)
+    if (is.null(draws)) {variable = variables(draws)}
+    draws <- draws  %>%  posterior::as_draws_matrix()
+    inits <- lapply(1:ndraws,
+                    function(drawid) {
+                      sapply(variable,
+                             function(var) {
+                               as.numeric(posterior::subset_draws(draws, 
+                                                                  variable=var, 
+                                                                  draw=drawid))
+                             })
+                    })
+    if (ndraws==1) { inits[[1]] } else { inits }
+  }
+  
+  if (is.null(variables)) {
+    # set variable names to be list of parameter names
+    variables <- names(pthf$variable_skeleton(transformed_parameters = FALSE,
+                                              generated_quantities = FALSE))
+  }
+  draws <- pthf$draws(format="df")
+  draws <- draws %>% 
+    posterior::mutate_variables(lw = lp__ - lp_approx__)
+  ndist <- dplyr::n_distinct(posterior::extract_variable(draws,"lw"))
+  if (ndist < ndraws) {
+    stop(paste0("Not enough distinct draws (", ndist, ") to create inits."))
+  }
+  if (ndist < 0.95*posterior::ndraws(draws)) {
+    # Resampling has been done in Stan, compute weights for distinct draws
+    #these are now non Pareto smoothed as we have lost the original information
+    draws <- draws %>% 
+      dplyr::group_by(lw) %>% 
+      dplyr::summarise(.draw=min(.draw)) %>% 
+      dplyr::left_join(draws, by = ".draw") %>% 
+      posterior::as_draws_df() %>% 
+      posterior::mutate_variables(lw = lw.x,
+                                  w = exp(lw-max(lw)))
+  } else {
+    # Resampling was not done in Stan, compute Pareto smoothed weights
+    draws <- draws %>% 
+      posterior::mutate_variables(w=posterior::pareto_smooth(exp(lw-max(lw)), 
+                                                             tail="right"))
+  }
+  
+  out <- 
+    draws %>% 
+    posterior::weight_draws(weights=posterior::extract_variable(draws,"w"), 
+                            log=FALSE) %>% 
+    posterior::resample_draws(ndraws=ndraws, method = "simple_no_replace") %>% 
+    as_inits(variable=variables, ndraws=ndraws)
+  
+  
+  if(!is.null(init_structure)) {
+    path_inits <- out # inits_pathfinder
+    init_str_x <- init_structure # fit_m$stan_args$init[[1]]
+    for (stri in names(init_str_x)) {
+      if(is.array( init_str_x[[stri]] )) {
+        # print(dim(init_str_x[[stri]]))
+        if(!is.null(path_inits[[stri]])) {
+          path_inits[[stri]] <- array(path_inits[[stri]], dim = dim(init_str_x[[stri]]) )
+        }
+      } else if(is.vector( init_str_x[[stri]] )) {
+        # print(length(init_str_x[[stri]]))
+      } else if(is.numeric( init_str_x[[stri]] )) {
+        # print(length(init_str_x[[stri]]))
+      }
+      out <- path_inits
+    }
+  } # if(!is.null(init_structure)) {
+  
+  return(out)
+}
 
 
 
