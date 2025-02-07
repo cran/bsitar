@@ -2,23 +2,33 @@
 % Please edit documentation in R/check_and_get_object.R
 \name{getNsObject}
 \alias{getNsObject}
-\title{Check and get namespace object if exists}
+\title{Check and Get Namespace Object If Exists}
 \usage{
 getNsObject(object, namespace = NULL, envir = NULL)
 }
 \arguments{
-\item{object}{An object to be retrieved. Note that \code{object} must be a
-symbol and not a character string.}
+\item{object}{A symbol representing the object to be retrieved. The input
+must be a symbol (i.e., not a character string) corresponding to an
+existing object within the specified namespace.}
 
-\item{namespace}{A character string specifying the namespace to be checked.}
+\item{namespace}{A character string specifying the namespace to check for the
+object. If the object exists within the given namespace, it will be
+returned.}
 
-\item{envir}{An environment to be used (default \code{NULL}).}
+\item{envir}{An environment in which to search for the object. If set to
+\code{NULL} (default), the function uses the global environment.}
 }
 \value{
-An object of same class as input \code{object}.
+The object of the same class as the input \code{object}, if it
+exists. If the object doesn't exist in the specified namespace or
+environment, an error is raised.
 }
 \description{
-Check and get namespace object if exists
+This function checks if an object exists within a specified namespace and
+returns the object if it exists. The object must be provided as a symbol
+(not a character string). The function is designed to facilitate the
+retrieval of model or other objects from a specified environment or
+namespace. This function is mainly for internal purposes.
 }
 \examples{
 

@@ -1,14 +1,15 @@
 
 
-#' Add model fit criteria to model
+#' @title Add Model Fit Criteria to Model
 #' 
-#' @description The \strong{add_model_criterion()} is a wrapper around the
-#'   [brms::add_criterion()]. Note that arguments \code{compare} and
-#'   \code{pointwise} are relevant only for [brms::add_loo] whereas arguments
-#'   \code{summary}, \code{robust}, and \code{probs} ignored except for the
-#'   [brms::bayes_R2()].
+#' @description The \strong{add_model_criterion()} function is a wrapper around
+#'   [brms::add_criterion()] that allows adding fit criteria to a model. Note
+#'   that arguments such as \code{compare} and \code{pointwise} are relevant
+#'   only for [brms::add_loo], while \code{summary}, \code{robust}, and
+#'   \code{probs} are ignored except for the [brms::bayes_R2()].
 #' 
-#' @param model An object of class \code{bgmfit}.
+#' @param model An object of class \code{bgmfit} representing the model to which
+#'   the fit criteria will be added.
 #' 
 #' @inheritParams growthparameters.bgmfit
 #' @inherit brms::add_criterion.brmsfit params description return
@@ -16,10 +17,11 @@
 #' @inheritParams brms::waic.brmsfit
 #' @inheritParams fitted_draws.bgmfit
 #'  
-#' @return An object of class class \code{bgmfit} with fit criteria added.
+#' @return An object of class \code{bgmfit} with the specified fit criteria added.
 #' 
 #' @export
-#' @seealso [brms::add_loo] [brms::add_loo] [brms::add_ic()] [brms::add_waic()]
+#' 
+#' @seealso [brms::add_loo], [brms::add_ic()], [brms::add_waic()],
 #'   [brms::bayes_R2()]
 #' 
 #' @inherit berkeley author
@@ -29,14 +31,14 @@
 #' \donttest{
 #' # Fit Bayesian SITAR model 
 #' 
-#' # To avoid mode estimation which takes time, the Bayesian SITAR model fit to 
-#' # the 'berkeley_exdata' has been saved as an example fit ('berkeley_exfit').
+#' # To avoid model estimation which can take time, the Bayesian SITAR model fit
+#' # to the 'berkeley_exdata' has been saved as an example fit ('berkeley_exfit').
 #' # See 'bsitar' function for details on 'berkeley_exdata' and 'berkeley_exfit'.
 #' 
 #' model <- berkeley_exfit
 #' 
+#' # Add model fit criteria (e.g., WAIC)
 #' model <- add_model_criterion(model, criterion = c("waic"))
-#' 
 #' }
 #' 
 add_model_criterion.bgmfit <-
@@ -92,8 +94,6 @@ add_model_criterion.bgmfit <-
       }
     }
     
-    
-    
     if(is.null(ndraws)) {
       ndraws <- brms::ndraws(model)
     }
@@ -101,8 +101,6 @@ add_model_criterion.bgmfit <-
     if(is.null(deriv_model)) {
       deriv_model <- TRUE
     }
-    
-  
     
     full.args <- evaluate_call_args(cargs = as.list(match.call())[-1], 
                                            fargs = formals(), 
@@ -118,7 +116,6 @@ add_model_criterion.bgmfit <-
     } else {
       newdata <- do.call(get.newdata, full.args)
     }
-    
     
     if(!is.null(model$model_info$decomp)) {
       if(model$model_info$decomp == "QR") deriv_model<- FALSE
@@ -144,7 +141,6 @@ add_model_criterion.bgmfit <-
                                    all = TRUE,
                                    verbose = FALSE)
     
-    
     test <- setupfuns(model = model, resp = resp,
                       o = o, oall = oall, 
                       usesavedfuns = usesavedfuns, 
@@ -153,7 +149,6 @@ add_model_criterion.bgmfit <-
                       ...)
     
     if(is.null(test)) return(invisible(NULL))
-    
     
     if(!isTRUE(
       check_pkg_version_exists('brms', minversion = '2.20.17', 
@@ -188,8 +183,6 @@ add_model_criterion.bgmfit <-
       . <- do.call(brms::add_criterion, calling.args)
     })
     
-    
-   
     # Restore function(s)
     assign(o[[1]], model$model_info[['exefuns']][[o[[1]]]], envir = envir)
     
@@ -229,7 +222,6 @@ add_model_criterion.bgmfit <-
         }
       })
     } # if(setcleanup) {
-    
     .
   }
 

@@ -1,15 +1,28 @@
 
 
-#' Check and get namespace object if exists
+#' @title Check and Get Namespace Object If Exists
 #'
-#' @param object An object to be retrieved. Note that \code{object} must be a
-#'   symbol and not a character string.
-#'   
-#' @param namespace A character string specifying the namespace to be checked.
-#' 
-#' @param envir An environment to be used (default \code{NULL}).
-#' 
-#' @return An object of same class as input \code{object}.
+#' @description
+#' This function checks if an object exists within a specified namespace and
+#' returns the object if it exists. The object must be provided as a symbol
+#' (not a character string). The function is designed to facilitate the
+#' retrieval of model or other objects from a specified environment or
+#' namespace. This function is mainly for internal purposes.
+#'
+#' @param object A symbol representing the object to be retrieved. The input
+#'   must be a symbol (i.e., not a character string) corresponding to an
+#'   existing object within the specified namespace.
+#'
+#' @param namespace A character string specifying the namespace to check for the
+#'   object. If the object exists within the given namespace, it will be
+#'   returned.
+#'
+#' @param envir An environment in which to search for the object. If set to
+#'   \code{NULL} (default), the function uses the global environment.
+#'
+#' @return The object of the same class as the input \code{object}, if it
+#'   exists. If the object doesn't exist in the specified namespace or
+#'   environment, an error is raised.
 #'
 #' @export
 #'

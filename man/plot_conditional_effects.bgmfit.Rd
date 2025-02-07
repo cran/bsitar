@@ -15,6 +15,7 @@
   surface = FALSE,
   categorical = FALSE,
   ordinal = FALSE,
+  method = "posterior_epred",
   transform = NULL,
   resolution = 100,
   select_points = 0,
@@ -23,6 +24,7 @@
   robust = TRUE,
   newdata = NULL,
   ndraws = NULL,
+  dpar = NULL,
   draw_ids = NULL,
   levels_id = NULL,
   resp = NULL,
@@ -35,6 +37,7 @@
   expose_function = FALSE,
   usesavedfuns = NULL,
   clearenvfuns = NULL,
+  funlist = NULL,
   envir = NULL,
   ...
 )
@@ -101,6 +104,11 @@ Logical. Indicates if effects in ordinal models
 should be visualized as a raster with the response categories
 on the y-axis. Defaults to \code{FALSE}.}
 
+\item{method}{Method used to obtain predictions. Can be set to
+\code{"posterior_epred"} (the default), \code{"posterior_predict"},
+or \code{"posterior_linpred"}. For more details, see the respective
+function documentations.}
+
 \item{transform}{A function or a character string naming
 a function to be applied on the predicted responses
 before summary statistics are computed. Only allowed
@@ -136,136 +144,138 @@ to be covered by the uncertainty intervals. The default is 0.95.}
 \item{robust}{If \code{TRUE} (the default) the median is used as the
 measure of central tendency. If \code{FALSE} the mean is used instead.}
 
-\item{newdata}{An optional data frame to be used in estimation. If
-\code{NULL} (default), the \code{newdata} is retrieved from the
-\code{model}.}
+\item{newdata}{An optional data frame for estimation. If \code{NULL}
+(default), \code{newdata} is retrieved from the \code{model}.}
 
 \item{ndraws}{A positive integer indicating the number of posterior draws to
-be used in estimation. If \code{NULL} (default), all draws are used.}
+use in estimation. If \code{NULL} (default), all draws are used.}
 
-\item{draw_ids}{An integer indicating the specific posterior draw(s)
-to be used in estimation (default \code{NULL}).}
+\item{dpar}{Optional name of a predicted distributional parameter.
+If specified, expected predictions of this parameters are returned.}
 
-\item{levels_id}{An optional argument to specify the \code{ids} for
-hierarchical model (default \code{NULL}). It is used only when model is
-applied to the data with 3 or more levels of hierarchy. For a two level
-model, the \code{levels_id} is automatically inferred from the model fit.
-Even for 3 or higher level model, the \code{levels_id} is inferred from the
-model fit but under the assumption that hierarchy is specified from lowest
-to upper most level i.e, \code{id} followed by \code{study} where \code{id}
-is nested within the \code{study} Note that it is not guaranteed that the
-\code{levels_id} is sorted correctly, and therefore it is better to set it
-manually when fitting a model with three or more levels of hierarchy.}
+\item{draw_ids}{An integer specifying the specific posterior draw(s) to use
+in estimation (default \code{NULL}).}
 
-\item{resp}{A character string (default \code{NULL}) to specify response
-variable when processing posterior draws for the \code{univariate_by} and
+\item{levels_id}{An optional argument to specify the \code{ids} for the
+hierarchical model (default \code{NULL}). It is used only when the model is
+applied to data with three or more levels of hierarchy. For a two-level
+model, \code{levels_id} is automatically inferred from the model fit. For
+models with three or more levels, \code{levels_id} is inferred from the
+model fit under the assumption that hierarchy is specified from the lowest
+to the uppermost level, i.e., \code{id} followed by \code{study}, where
+\code{id} is nested within \code{study}. However, it is not guaranteed that
+\code{levels_id} is sorted correctly, so it is better to set it manually
+when fitting a model with three or more levels of hierarchy.}
+
+\item{resp}{A character string (default \code{NULL}) to specify the response
+variable when processing posterior draws for \code{univariate_by} and
 \code{multivariate} models. See \code{\link[=bsitar]{bsitar()}} for details on
-\code{univariate_by} and \code{multivariate} models}
+\code{univariate_by} and \code{multivariate} models.}
 
-\item{ipts}{An integer to set the length of the predictor variable to get a
-smooth velocity curve. The \code{NULL} will return original values whereas
-an integer such as \code{ipts = 10} (default) will interpolate the
-predictor. It is important to note that these interpolations do not alter
-the range of predictor when calculating population average and/or the
-individual specific growth curves.}
+\item{ipts}{An integer to set the length of the predictor variable for
+generating a smooth velocity curve. If \code{NULL}, the original values are
+returned. If an integer (e.g., \code{ipts = 10}, default), the predictor is
+interpolated. Note that these interpolations do not alter the range of the
+predictor when calculating population averages and/or individual-specific
+growth curves.}
 
-\item{deriv}{An integer to indicate whether to estimate distance curve or its
-derivative (i.e., velocity curve). The \code{deriv = 0} (default) is for
-the distance curve whereas \code{deriv = 1} for the velocity curve.}
+\item{deriv}{An integer indicating whether to estimate the distance curve
+or its derivative (velocity curve). The default \code{deriv = 0} is for
+the distance curve, while \code{deriv = 1} is for the velocity curve.}
 
-\item{deriv_model}{A logical to specify whether to estimate velocity curve
-from the derivative function, or the differentiation of the distance curve.
-The argument \code{deriv_model} is set to \code{TRUE} for those functions
-which need velocity curve such as \code{growthparameters()} and
-\code{plot_curves()}, and \code{NULL} for functions which explicitly use
-the distance curve (i.e., fitted values) such as \code{loo_validation()}
-and \code{plot_ppc()}.}
+\item{deriv_model}{A logical value specifying whether to estimate the
+velocity curve from the derivative function or by differentiating the
+distance curve. Set \code{deriv_model = TRUE} for functions that require
+the velocity curve, such as \code{growthparameters()} and
+\code{plot_curves()}. Set it to \code{NULL} for functions that use the
+distance curve (i.e., fitted values), such as \code{loo_validation()} and
+\code{plot_ppc()}.}
 
 \item{idata_method}{A character string to indicate the interpolation method.
-The number of of interpolation points is set up the \code{ipts} argument.
-Options available for \code{idata_method} are \emph{method 1} (specified as
-\code{'m1'}) and \emph{method 2} (specified as \code{'m2'}). The
-\emph{method 1} (\code{'m1'}) is adapted from the the \pkg{iapvbs} package
-and is documented here
-\url{https://rdrr.io/github/Zhiqiangcao/iapvbs/src/R/exdata.R}
-whereas \emph{method 2} (\code{'m2'}) is based on the \pkg{JMbayes}
-package as documented here
-\url{https://github.com/drizopoulos/JMbayes/blob/master/R/dynPred_lme.R}.
-The \code{'m1'} method works by internally constructing the data frame based
-on the model configuration whereas the method \code{'m2'} uses the exact
-data frame used in model fit and can be accessed via \code{fit$data}. If
-\code{idata_method = NULL, default}, then method \code{'m2'} is
-automatically set. Note that method \code{'m1'} might fail in some cases
-when model involves covariates particularly when model is fit as
-\code{univariate_by}. Therefore, it is advised to switch to method
-\code{'m2'} in case \code{'m1'} results in error.}
+The number of interpolation points is set by the \code{ipts} argument.
+Available options for \code{idata_method} are \emph{method 1} (specified as
+\code{'m1'}) and \emph{method 2} (specified as \code{'m2'}).
+\itemize{
+\item \emph{Method 1} (\code{'m1'}) is adapted from the \pkg{iapvbs} package
+and is documented
+\href{https://rdrr.io/github/Zhiqiangcao/iapvbs/src/R/exdata.R}{here}.
+\item \emph{Method 2} (\code{'m2'}) is based on the \pkg{JMbayes} package
+and is documented
+\href{https://github.com/drizopoulos/JMbayes/blob/master/R/dynPred_lme.R}{here}.
+The \code{'m1'} method works by internally constructing the data frame
+based on the model configuration, while the \code{'m2'} method uses the
+exact data frame from the model fit, accessible via \code{fit$data}. If
+\code{idata_method = NULL} (default), method \code{'m2'} is automatically
+selected. Note that method \code{'m1'} may fail in certain cases,
+especially when the model includes covariates (particularly in
+\code{univariate_by} models). In such cases, it is recommended to use
+method \code{'m2'}.
+}}
 
-\item{verbose}{An optional argument (logical, default \code{FALSE}) to
-indicate whether to print information collected during setting up the
-object(s).}
+\item{verbose}{A logical argument (default \code{FALSE}) to specify whether
+to print information collected during the setup of the object(s).}
 
-\item{dummy_to_factor}{A named list (default \code{NULL}) that is used to
-convert dummy variables into a factor variable. The named elements are
-\code{factor.dummy}, \code{factor.name}, and \code{factor.level}. The
-\code{factor.dummy} is a vector of character strings that need to be
-converted to a factor variable whereas the \code{factor.name} is a single
-character string that is used to name the newly created factor variable.
-The \code{factor.level} is used to name the levels of newly created factor.
-When \code{factor.name} is \code{NULL}, then the factor name is internally
-set as \code{'factor.var'}. If \code{factor.level} is \code{NULL}, then
-names of factor levels are take from the \code{factor.dummy} i.e., the
-factor levels are assigned same name as \code{factor.dummy}. Note that when
-\code{factor.level} is not \code{NULL}, its length must be same as the
-length of the \code{factor.dummy}.}
+\item{dummy_to_factor}{A named list (default \code{NULL}) to convert dummy
+variables into a factor variable. The list must include the following
+elements:
+\itemize{
+\item \code{factor.dummy}: A character vector of dummy variables to be
+converted to factors.
+\item \code{factor.name}: The name for the newly created factor variable
+(default is \code{'factor.var'} if \code{NULL}).
+\item \code{factor.level}: A vector specifying the factor levels.
+If \code{NULL}, levels are taken from \code{factor.dummy}.
+If \code{factor.level} is provided, its length must match
+\code{factor.dummy}.
+}}
 
-\item{expose_function}{An optional logical argument to indicate whether to
-expose Stan functions (default \code{FALSE}). Note that if user has already
-exposed Stan functions during model fit by setting \code{expose_function =
-  TRUE} in the \code{\link[=bsitar]{bsitar()}}, then those exposed functions are saved and can be
-used during post processing of the posterior draws and therefore
-\code{expose_function} is by default set as \code{FALSE} in all post
-processing functions except \code{\link[=optimize_model]{optimize_model()}}. For \code{\link[=optimize_model]{optimize_model()}}, the
-default setting is \code{expose_function = NULL}. The reason is that each
-optimized model has different Stan function and therefore it need to be re
-exposed and saved. The \code{expose_function = NULL} implies that the
-setting for \code{expose_function} is taken from the original \code{model}
-fit. Note that \code{expose_function} must be set to \code{TRUE} when
-adding \code{fit criteria} and/or \code{bayes_R2} during model
-optimization.}
+\item{expose_function}{A logical argument (default \code{FALSE}) to indicate
+whether Stan functions should be exposed. If \code{TRUE}, any Stan
+functions exposed during the model fit using \code{expose_function = TRUE}
+in the \code{\link[=bsitar]{bsitar()}} function are saved and can be used in post-processing. By
+default, \code{expose_function = FALSE} in post-processing functions,
+except in \code{\link[=optimize_model]{optimize_model()}} where it is set to \code{NULL}. If
+\code{NULL}, the setting is inherited from the original model fit. It must
+be set to \code{TRUE} when adding \code{fit criteria} or \code{bayes_R2}
+during model optimization.}
 
-\item{usesavedfuns}{A logical (default \code{NULL}) to indicate whether to
-use the already exposed and saved \code{Stan} functions. Depending on
-whether the user have exposed Stan functions within the \code{\link[=bsitar]{bsitar()}} call via
-\code{expose_functions} argument in the \code{\link[=bsitar]{bsitar()}}, the \code{usesavedfuns}
-is automatically set to \code{TRUE} (if \code{expose_functions = TRUE}) or
-\code{FALSE} (if \code{expose_functions = FALSE}). Therefore, manual
-setting of \code{usesavedfuns} as \code{TRUE}/\code{FALSE} is rarely
-needed. This is for internal purposes only and mainly used during the
-testing of the functions and therefore should not be used by users as it
-might lead to unreliable estimates.}
+\item{usesavedfuns}{A logical value (default \code{NULL}) indicating whether
+to use already exposed and saved Stan functions. This is typically set
+automatically based on the \code{expose_functions} argument from the
+\code{\link[=bsitar]{bsitar()}} call. Manual specification of \code{usesavedfuns} is rarely
+needed and is intended for internal testing, as improper use can lead to
+unreliable estimates.}
 
-\item{clearenvfuns}{A logical to indicate whether to clear the exposed
-function from the environment (\code{TRUE}) or not (\code{FALSE}). If
-\code{NULL} (default), then \code{clearenvfuns} is set as \code{TRUE} when
-\code{usesavedfuns} is \code{TRUE}, and \code{FALSE} if \code{usesavedfuns}
-is \code{FALSE}.}
+\item{clearenvfuns}{A logical value indicating whether to clear the exposed
+Stan functions from the environment (\code{TRUE}) or not (\code{FALSE}). If
+\code{NULL}, \code{clearenvfuns} is set based on the value of
+\code{usesavedfuns}: \code{TRUE} if \code{usesavedfuns = TRUE}, or
+\code{FALSE} if \code{usesavedfuns = FALSE}.}
 
-\item{envir}{Environment used for function evaluation. The default is
-\code{NULL} which will set \code{parent.frame()} as default environment.
-Note that since most of post processing functions are based on \pkg{brms},
-the functions needed for evaluation should be in the \code{.GlobalEnv}.
-Therefore, it is strongly recommended to set \code{ envir = globalenv()}
-(or \code{envir = .GlobalEnv}). This is particularly true for the
-derivatives such as velocity curve.}
+\item{funlist}{A list (default \code{NULL}) specifying function names. This
+is rarely needed, as required functions are typically retrieved
+automatically. A use case for \code{funlist} is when \code{sigma_formula},
+\code{sigma_formula_gr}, or \code{sigma_formula_gr_str} use an external
+function (e.g., \code{poly(age)}). The \code{funlist} should include
+function names defined in the \code{globalenv()}. For functions needing
+both distance and velocity curves (e.g., \code{plot_curves(..., opt =
+  'dv')}), \code{funlist} must include two functions: one for the distance
+curve and one for the velocity curve.}
+
+\item{envir}{The environment used for function evaluation. The default is
+\code{NULL}, which sets the environment to \code{parent.frame()}. Since
+most post-processing functions rely on \pkg{brms}, it is recommended to set
+\code{envir = globalenv()} or \code{envir = .GlobalEnv}, especially for
+derivatives like velocity curves.}
 
 \item{...}{Additional arguments passed to the \code{\link[brms:conditional_effects.brmsfit]{brms::conditional_effects()}}
 function. Please see \code{\link[brms:conditional_effects.brmsfit]{brms::conditional_effects()}} for details.}
 }
 \value{
-An object of class 'brms_conditional_effects' which is a named list
-with one data.frame per effect containing all information required to
-generate conditional effects plots. See brms::conditional_effects for
-details.
+An object of class \code{'brms_conditional_effects'}, which is a
+named list with one data.frame per effect containing all information
+required to generate conditional effects plots. See
+\code{\link[brms:conditional_effects.brmsfit]{brms::conditional_effects()}} for details.
 }
 \description{
 Display conditional effects of one or more numeric and/or categorical
@@ -274,19 +284,21 @@ predictors including two-way interaction effects.
 \details{
 The \strong{plot_conditional_effects()} is a wrapper around the
 \code{\link[brms:conditional_effects.brmsfit]{brms::conditional_effects()}}. The \code{\link[brms:conditional_effects.brmsfit]{brms::conditional_effects()}} function
-from the \pkg{brms} package can used to plot the fitted (distance) curve
+from the \pkg{brms} package can be used to plot the fitted (distance) curve
 when response (e.g., height) is not transformed. However, when the outcome
 is log or square root transformed, the \code{\link[brms:conditional_effects.brmsfit]{brms::conditional_effects()}} will
-return the fitted curve on the log or square root scale whereas the
+return the fitted curve on the log or square root scale, whereas the
 \strong{plot_conditional_effects()} will return the fitted curve on the
 original scale. Furthermore, the \strong{plot_conditional_effects()} also
-plots the velocity curve on the original scale after making required
+plots the velocity curve on the original scale after making the required
 back-transformation. Apart from these differences, both these functions
-(\link[brms:conditional_effects.brmsfit]{brms::conditional_effects} and \strong{plot_conditional_effects()} work
-in the same manner. In other words, user can specify all the arguments
+(\link[brms:conditional_effects.brmsfit]{brms::conditional_effects} and \strong{plot_conditional_effects()}) work
+in the same manner. In other words, the user can specify all the arguments
 which are available in the \code{\link[brms:conditional_effects.brmsfit]{brms::conditional_effects()}}.
 }
 \examples{
+
+\donttest{
 
 # Fit Bayesian SITAR model 
 
@@ -302,7 +314,6 @@ model <- berkeley_exfit
 # Population average distance curve
 plot_conditional_effects(model, deriv = 0, re_formula = NA)
 
-\donttest{
 # Individual-specific distance curves
 plot_conditional_effects(model, deriv = 0, re_formula = NULL)
 

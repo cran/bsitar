@@ -3,7 +3,7 @@
 \name{add_model_criterion.bgmfit}
 \alias{add_model_criterion.bgmfit}
 \alias{add_model_criterion}
-\title{Add model fit criteria to model}
+\title{Add Model Fit Criteria to Model}
 \usage{
 \method{add_model_criterion}{bgmfit}(
   model,
@@ -31,7 +31,8 @@
 add_model_criterion(model, ...)
 }
 \arguments{
-\item{model}{An object of class \code{bgmfit}.}
+\item{model}{An object of class \code{bgmfit} representing the model to which
+the fit criteria will be added.}
 
 \item{criterion}{Names of model fit criteria
 to compute. Currently supported are \code{"loo"},
@@ -41,10 +42,10 @@ to compute. Currently supported are \code{"loo"},
 \code{"marglik"} (log marginal likelihood).}
 
 \item{ndraws}{A positive integer indicating the number of posterior draws to
-be used in estimation. If \code{NULL} (default), all draws are used.}
+use in estimation. If \code{NULL} (default), all draws are used.}
 
-\item{draw_ids}{An integer indicating the specific posterior draw(s)
-to be used in estimation (default \code{NULL}).}
+\item{draw_ids}{An integer specifying the specific posterior draw(s) to use
+in estimation (default \code{NULL}).}
 
 \item{compare}{A flag indicating if the information criteria
 of the models should be compared to each other
@@ -60,120 +61,107 @@ into memory issues, \code{pointwise = TRUE} is the way to go.}
 derived from deparsing the call. Otherwise will use the passed
 values as model names.}
 
-\item{summary}{A logical indicating whether only the estimate should be
-computed (\code{TRUE}, default), or estimate along with SE and CI should be
-returned (\code{FALSE}). Setting \code{summary} as \code{FALSE} will
-increase the computation time.}
+\item{summary}{A logical value indicating whether only the estimate should be
+computed (\code{TRUE}), or whether the estimate along with SE and CI should
+be returned (\code{FALSE}, default). Setting \code{summary} to \code{FALSE}
+will increase computation time. Note that \code{summary = FALSE} is
+required to obtain correct estimates when \code{re_formula = NULL}.}
 
-\item{robust}{A logical to specify the summarize options. If \code{FALSE}
-(the default) the mean is used as the measure of central tendency and the
+\item{robust}{A logical value to specify the summary options. If \code{FALSE}
+(default), the mean is used as the measure of central tendency and the
 standard deviation as the measure of variability. If \code{TRUE}, the
-median and the median absolute deviation (MAD) are applied instead. Ignored
-if \code{summary} is \code{FALSE}.}
+median and median absolute deviation (MAD) are applied instead. Ignored if
+\code{summary} is \code{FALSE}.}
 
 \item{probs}{The percentiles to be computed by the \code{quantile}
 function. Only used if \code{summary} is \code{TRUE}.}
 
-\item{newdata}{An optional data frame to be used in estimation. If
-\code{NULL} (default), the \code{newdata} is retrieved from the
-\code{model}.}
+\item{newdata}{An optional data frame for estimation. If \code{NULL}
+(default), \code{newdata} is retrieved from the \code{model}.}
 
-\item{resp}{A character string (default \code{NULL}) to specify response
-variable when processing posterior draws for the \code{univariate_by} and
+\item{resp}{A character string (default \code{NULL}) to specify the response
+variable when processing posterior draws for \code{univariate_by} and
 \code{multivariate} models. See \code{\link[=bsitar]{bsitar()}} for details on
-\code{univariate_by} and \code{multivariate} models}
+\code{univariate_by} and \code{multivariate} models.}
 
-\item{cores}{Number of cores to be used when running the parallel
-computations (if \code{future = TRUE}). On non-Windows systems this
-argument can be set globally via the mc.cores option. For the default
-\code{NULL} option, the number of cores are set automatically by calling
-the \code{\link[future:re-exports]{future::availableCores()}}. The number of cores used are the maximum
-number of cores avaialble minus one, i.e., \code{future::availableCores() -
-  1}.}
+\item{cores}{The number of cores to be used for parallel computations if
+\code{future = TRUE}. On non-Windows systems, this argument can be set
+globally via the \code{mc.cores} option. By default, \code{NULL}, the
+number of cores is automatically determined using
+\code{\link[future:re-exports]{future::availableCores()}}, and it will use the maximum number of cores
+available minus one (i.e., \code{future::availableCores() - 1}).}
 
-\item{deriv_model}{A logical to specify whether to estimate velocity curve
-from the derivative function, or the differentiation of the distance curve.
-The argument \code{deriv_model} is set to \code{TRUE} for those functions
-which need velocity curve such as \code{growthparameters()} and
-\code{plot_curves()}, and \code{NULL} for functions which explicitly use
-the distance curve (i.e., fitted values) such as \code{loo_validation()}
-and \code{plot_ppc()}.}
+\item{deriv_model}{A logical value specifying whether to estimate the
+velocity curve from the derivative function or by differentiating the
+distance curve. Set \code{deriv_model = TRUE} for functions that require
+the velocity curve, such as \code{growthparameters()} and
+\code{plot_curves()}. Set it to \code{NULL} for functions that use the
+distance curve (i.e., fitted values), such as \code{loo_validation()} and
+\code{plot_ppc()}.}
 
-\item{verbose}{An optional argument (logical, default \code{FALSE}) to
-indicate whether to print information collected during setting up the
-object(s).}
+\item{verbose}{A logical argument (default \code{FALSE}) to specify whether
+to print information collected during the setup of the object(s).}
 
-\item{expose_function}{An optional logical argument to indicate whether to
-expose Stan functions (default \code{FALSE}). Note that if user has already
-exposed Stan functions during model fit by setting \code{expose_function =
-  TRUE} in the \code{\link[=bsitar]{bsitar()}}, then those exposed functions are saved and can be
-used during post processing of the posterior draws and therefore
-\code{expose_function} is by default set as \code{FALSE} in all post
-processing functions except \code{\link[=optimize_model]{optimize_model()}}. For \code{\link[=optimize_model]{optimize_model()}}, the
-default setting is \code{expose_function = NULL}. The reason is that each
-optimized model has different Stan function and therefore it need to be re
-exposed and saved. The \code{expose_function = NULL} implies that the
-setting for \code{expose_function} is taken from the original \code{model}
-fit. Note that \code{expose_function} must be set to \code{TRUE} when
-adding \code{fit criteria} and/or \code{bayes_R2} during model
-optimization.}
+\item{expose_function}{A logical argument (default \code{FALSE}) to indicate
+whether Stan functions should be exposed. If \code{TRUE}, any Stan
+functions exposed during the model fit using \code{expose_function = TRUE}
+in the \code{\link[=bsitar]{bsitar()}} function are saved and can be used in post-processing. By
+default, \code{expose_function = FALSE} in post-processing functions,
+except in \code{\link[=optimize_model]{optimize_model()}} where it is set to \code{NULL}. If
+\code{NULL}, the setting is inherited from the original model fit. It must
+be set to \code{TRUE} when adding \code{fit criteria} or \code{bayes_R2}
+during model optimization.}
 
-\item{usesavedfuns}{A logical (default \code{NULL}) to indicate whether to
-use the already exposed and saved \code{Stan} functions. Depending on
-whether the user have exposed Stan functions within the \code{\link[=bsitar]{bsitar()}} call via
-\code{expose_functions} argument in the \code{\link[=bsitar]{bsitar()}}, the \code{usesavedfuns}
-is automatically set to \code{TRUE} (if \code{expose_functions = TRUE}) or
-\code{FALSE} (if \code{expose_functions = FALSE}). Therefore, manual
-setting of \code{usesavedfuns} as \code{TRUE}/\code{FALSE} is rarely
-needed. This is for internal purposes only and mainly used during the
-testing of the functions and therefore should not be used by users as it
-might lead to unreliable estimates.}
+\item{usesavedfuns}{A logical value (default \code{NULL}) indicating whether
+to use already exposed and saved Stan functions. This is typically set
+automatically based on the \code{expose_functions} argument from the
+\code{\link[=bsitar]{bsitar()}} call. Manual specification of \code{usesavedfuns} is rarely
+needed and is intended for internal testing, as improper use can lead to
+unreliable estimates.}
 
-\item{clearenvfuns}{A logical to indicate whether to clear the exposed
-function from the environment (\code{TRUE}) or not (\code{FALSE}). If
-\code{NULL} (default), then \code{clearenvfuns} is set as \code{TRUE} when
-\code{usesavedfuns} is \code{TRUE}, and \code{FALSE} if \code{usesavedfuns}
-is \code{FALSE}.}
+\item{clearenvfuns}{A logical value indicating whether to clear the exposed
+Stan functions from the environment (\code{TRUE}) or not (\code{FALSE}). If
+\code{NULL}, \code{clearenvfuns} is set based on the value of
+\code{usesavedfuns}: \code{TRUE} if \code{usesavedfuns = TRUE}, or
+\code{FALSE} if \code{usesavedfuns = FALSE}.}
 
-\item{envir}{Environment used for function evaluation. The default is
-\code{NULL} which will set \code{parent.frame()} as default environment.
-Note that since most of post processing functions are based on \pkg{brms},
-the functions needed for evaluation should be in the \code{.GlobalEnv}.
-Therefore, it is strongly recommended to set \code{ envir = globalenv()}
-(or \code{envir = .GlobalEnv}). This is particularly true for the
-derivatives such as velocity curve.}
+\item{envir}{The environment used for function evaluation. The default is
+\code{NULL}, which sets the environment to \code{parent.frame()}. Since
+most post-processing functions rely on \pkg{brms}, it is recommended to set
+\code{envir = globalenv()} or \code{envir = .GlobalEnv}, especially for
+derivatives like velocity curves.}
 
-\item{...}{Further arguments passed to \code{brms::fitted.brmsfit()} and
-\code{brms::predict()} functions.}
+\item{...}{Additional arguments passed to the \code{brms::fitted.brmsfit()}
+and \code{brms::predict()} functions.}
 }
 \value{
-An object of class class \code{bgmfit} with fit criteria added.
+An object of class \code{bgmfit} with the specified fit criteria added.
 }
 \description{
-The \strong{add_model_criterion()} is a wrapper around the
-\code{\link[brms:add_criterion]{brms::add_criterion()}}. Note that arguments \code{compare} and
-\code{pointwise} are relevant only for \link[brms:add_ic]{brms::add_loo} whereas arguments
-\code{summary}, \code{robust}, and \code{probs} ignored except for the
-\code{\link[brms:bayes_R2.brmsfit]{brms::bayes_R2()}}.
+The \strong{add_model_criterion()} function is a wrapper around
+\code{\link[brms:add_criterion]{brms::add_criterion()}} that allows adding fit criteria to a model. Note
+that arguments such as \code{compare} and \code{pointwise} are relevant
+only for \link[brms:add_ic]{brms::add_loo}, while \code{summary}, \code{robust}, and
+\code{probs} are ignored except for the \code{\link[brms:bayes_R2.brmsfit]{brms::bayes_R2()}}.
 }
 \examples{
 
 \donttest{
 # Fit Bayesian SITAR model 
 
-# To avoid mode estimation which takes time, the Bayesian SITAR model fit to 
-# the 'berkeley_exdata' has been saved as an example fit ('berkeley_exfit').
+# To avoid model estimation which can take time, the Bayesian SITAR model fit
+# to the 'berkeley_exdata' has been saved as an example fit ('berkeley_exfit').
 # See 'bsitar' function for details on 'berkeley_exdata' and 'berkeley_exfit'.
 
 model <- berkeley_exfit
 
+# Add model fit criteria (e.g., WAIC)
 model <- add_model_criterion(model, criterion = c("waic"))
-
 }
 
 }
 \seealso{
-\link[brms:add_ic]{brms::add_loo} \link[brms:add_ic]{brms::add_loo} \code{\link[brms:add_ic]{brms::add_ic()}} \code{\link[brms:add_ic]{brms::add_waic()}}
+\link[brms:add_ic]{brms::add_loo}, \code{\link[brms:add_ic]{brms::add_ic()}}, \code{\link[brms:add_ic]{brms::add_waic()}},
 \code{\link[brms:bayes_R2.brmsfit]{brms::bayes_R2()}}
 }
 \author{

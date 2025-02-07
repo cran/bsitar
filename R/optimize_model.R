@@ -1,116 +1,131 @@
 
 
-#' @title Optimize SITAR model
+#' @title Optimize SITAR Model
 #' 
-#' @description Select the best fitting SITAR model that involves choosing the
-#'   optimum degrees of freedom (\code{df}) for the natural cubic-spline curve
-#'   and the appropriate transformations of the predictor \code{x} and response
-#'   \code{y} variables.
+#' @description The optimization process for selecting the best-fitting SITAR
+#'   model involves choosing the optimal degrees of freedom (\code{df}) for the
+#'   natural cubic spline curve, as well as determining the appropriate
+#'   transformations for the predictor (\code{x}) and/or outcome (\code{y})
+#'   variables.
 #'
-#' @param optimize_df A list of integers specifying the degree of freedom
+#' @param optimize_df A list of integers specifying the degrees of freedom
 #'   (\code{df}) values to be optimized. If \code{NULL} (default), the \code{df}
-#'   is taken from the original model. For optimization over different
-#'   \code{df}, say for example \code{df} 4 and \code{df} 5, the corresponding
-#'   code is \code{optimize_df = list(4,5)}. For \code{univariate_by} and
+#'   is taken from the original model. To optimize over different \code{df}
+#'   values, for example, \code{df} 4 and \code{df} 5, the corresponding code
+#'   would be \code{optimize_df = list(4, 5)}. For \code{univariate_by} and
 #'   \code{multivariate} models, \code{optimize_df} can be a single integer
-#'   (e.g., \code{optimize_df = 4}) or a list (e.g., \code{optimize_df =
-#'   list(4,5)}), or a a list of lists. As an example, consider optimization
-#'   over \code{df} 4 and \code{df} 5 for the first sub model, and \code{df} 5
-#'   and \code{df} 6 for the second sub model, the corresponding code is
-#'   \code{optimize_df = list(list(4,5), list(5,6))}.
+#'   (e.g., \code{optimize_df = 4}), a list (e.g., \code{optimize_df = list(4,
+#'   5)}), or a list of lists. For instance, to optimize over \code{df} 4 and
+#'   \code{df} 5 for the first submodel, and \code{df} 5 and \code{df} 6 for the
+#'   second submodel, the corresponding code would be \code{optimize_df =
+#'   list(list(4, 5), list(5, 6))}.
 #'
-#' @param optimize_x A vector specifying the transformations for the predictor
-#'   variable (i.e., \code{x}). The options available are \code{NULL},
-#'   \code{'log'}, \code{'sqrt'}, or their combinations. Note that user need not
-#'   to enclose these options in a single or double quotes as they are take care
-#'   of internally. The default setting is to explore all possible combination
-#'   i.e., \code{optimize_x = list(NULL, log,  sqrt)}. Similar to the
-#'   \code{optimize_df}, user can specify different \code{optimize_x} for
-#'   \code{univariate_by} and \code{multivariate} sub models.
+#' @param optimize_x A list specifying the transformations for the predictor
+#'   variable (i.e., \code{x}). The available options are \code{NULL},
+#'   \code{'log'}, \code{'sqrt'}, or their combinations. Note that the user need
+#'   not enclose these options in single or double quotes, as they are handled
+#'   internally. The default setting explores all possible combinations, i.e.,
+#'   \code{optimize_x = list(NULL, 'log', 'sqrt')}. Similar to
+#'   \code{optimize_df}, the user can specify different \code{optimize_x} values
+#'   for \code{univariate_by} and \code{multivariate} submodels. Additionally,
+#'   it is possible to pass any primitive function instead of fixed functions
+#'   like \code{log} and \code{sqrt}. This greatly enhances the flexibility of
+#'   model optimization by allowing the search for a wide range of \code{x}
+#'   transformations, such as \code{optimize_x = list(function(x) log(x +
+#'   3/4))}.
 #'
-#' @param optimize_y A vector specifying the transformations of the the response
-#'   variable (i.e., \code{y}). The approach and options available for
-#'   \code{optimize_y} are same as described above for the \code{optimize_x}.
+#' @param optimize_y A list specifying the transformations of the response
+#'   variable (i.e., \code{y}). The approach and available options for
+#'   \code{optimize_y} are the same as described above for \code{optimize_x}.
 #'   
 #' @param transform_prior_class A character vector (default \code{NULL})
-#'   specifying the transformations of location-scale based priors such as
-#'   \code{normal()} when response variable (i.e., \code{y}) is \code{'log'} or
-#'   \code{'sqrt'} transformed. The prior type that could be transformed are
-#'   \code{'beta'}, \code{'sd'}, \code{'rsd'}, \code{'sigma'} and \code{'dpar'}.
-#'   Currently it is available only for \code{'log'} transformed \code{y}. Each
-#'   prior type (i.e., \code{'beta', 'sd', 'rsd', 'sigma', 'dpar'}) specified
-#'   via \code{transform_prior_class} is log transformed as follows: \cr
-#'  \code{log_location = log(location / sqrt(scale^2 / location^2 + 1))}, \cr 
-#'  \code{log_scale = sqrt(log(scale^2 / location^2 + 1))}, \cr 
-#'  where location and scale are the original parameters supplied by the user
-#'  and the log_location and log_scale are the equivalent parameters on the log
-#'  scale. For more details, see \code{a_prior_beta} argument in [bsitar()]
-#'  function. Note that \code{transform_prior_class} is used as an experiment
-#'  and therefore results may not be what user intended. Thus we recommend to
-#'  explicitly set the desired prior and not to use
-#'  \code{transform_prior_class}.
+#'   specifying the parameter classes for which transformations of
+#'   user-specified priors should be performed. The prior classes that can be
+#'   transformed are \code{'beta'}, \code{'sd'}, \code{'rsd'}, \code{'sigma'},
+#'   and \code{'dpar'}, and they can be specified as: \cr
+#'   \code{transform_prior_class = c('beta', 'sd', 'rsd', 'sigma', 'dpar')}.
+#'   Note that transformations can only be applied to location-scale based
+#'   priors (such as \code{normal()}). For example, the \code{'log'}
+#'   transformation of a prior is performed as follows: \cr
+#'   \code{log_location = log(location / sqrt(scale^2 / location^2 + 1))}, \cr
+#'   \code{log_scale = sqrt(log(scale^2 / location^2 + 1))}, \cr where
+#'   \code{location} and \code{scale} are the original parameters supplied by
+#'   the user, and \code{log_location} and \code{log_scale} are the equivalent
+#'   parameters on the log scale. Note that \code{transform_prior_class} is used
+#'   on an experimental basis, and therefore the results may not be as intended.
+#'   We recommend explicitly setting the desired prior for the \code{y} scale.
 #'  
 #' @param transform_beta_coef A character vector (default \code{NULL})
-#'   specifying the transformations of location-scale based priors for specific
-#'   regression coefficient(s) when response variable (i.e., \code{y}) is
-#'   \code{'log'} or \code{'sqrt'} transformed. The coefficient that could be
-#'   transformed are \code{'a'}, \code{'b'}, \code{'c'}, \code{'d'} and
-#'   \code{'s'}. The default is \code{transform_beta_coef = c('b',' b', 'd')}
-#'   which implies that parameters \code{'a'}, \code{'a'} and \code{'a'} will be
-#'   transformed whereas parameter \code{'a'} will be left unchanged because
-#'   default prior for parameter \code{'a'} is based on outcome  \code{y} itself
-#'   (e.g., \code{a_prior_beta = normal(ymean, ysd)}) which has be transformed.
-#'   However, we strongly suggest that user explicitly set the desired prior and
-#'   not to rely on \code{transform_beta_coef} because it is included on
-#'   experimental basis. See \code{transform_prior_class} for details.
+#'   specifying the regression coefficients for which transformations are
+#'   applied. The coefficients that can be transformed are \code{'a'},
+#'   \code{'b'}, \code{'c'}, \code{'d'}, and \code{'s'}. The default is
+#'   \code{transform_beta_coef = c('b', 'c', 'd')}, which implies that the
+#'   parameters \code{'b'}, \code{'c'}, and \code{'d'} will be transformed,
+#'   while parameter \code{'a'} will be left unchanged because the default prior
+#'   for parameter \code{'a'} is based on the outcome \code{y} scale itself
+#'   (e.g., \code{a_prior_beta = normal(ymean, ysd)}), which gets transformed
+#'   automatically. Note that \code{transform_beta_coef} is ignored when
+#'   \code{transform_prior_class = NULL}.
 #' 
 #' @param transform_sd_coef A character vector (default \code{NULL}) specifying
-#'   the transformations of location-scale based priors for specific group level
-#'   coefficient(s) when response variable (i.e., \code{y}) is \code{'log'} or
-#'   \code{'sqrt'} transformed. The coefficient that could be transformed are
-#'   \code{'a'}, \code{'b'}, \code{'c'}, \code{'d'} and \code{'s'}. The default
-#'   is \code{transform_beta_coef = c('b',' b', 'd')}. See
-#'   \code{transform_prior_class} and \code{transform_beta_coef}  for details.
+#'   the \code{sd} parameters for which transformations are applied. The
+#'   coefficients that can be transformed are \code{'a'}, \code{'b'},
+#'   \code{'c'}, \code{'d'}, and \code{'s'}. The default is
+#'   \code{transform_sd_coef = c('b', 'c', 'd')}, which implies that the
+#'   parameters \code{'b'}, \code{'c'}, and \code{'d'} will be transformed,
+#'   while parameter \code{'a'} will be left unchanged because the default prior
+#'   for parameter \code{'a'} is based on the outcome \code{y} scale itself
+#'   (e.g., \code{a_prior_beta = normal(ymean, ysd)}), which gets transformed
+#'   automatically. Note that \code{transform_sd_coef} is ignored when
+#'   \code{transform_prior_class = NULL}.
 #'  
-#' @param exclude_default_funs A logical to indicate whether transformations for
+#' @param exclude_default_funs A logical indicating whether transformations for
 #'   (\code{x} and \code{y}) variables used in the original model fit should be
 #'   excluded. If \code{TRUE} (default), the transformations specified for the
 #'   \code{x} and \code{y} variables in the original model fit are excluded from
-#'   the \code{optimize_x} and \code{optimize_y}. From example, if original
-#'   model is fit with \code{xvar = log} and \code{yvar = NULL}, then
+#'   \code{optimize_x} and \code{optimize_y}. For example, if the original model
+#'   is fit with \code{xvar = log} and \code{yvar = NULL}, then
 #'   \code{optimize_x} is translated into \code{optimize_x = list(NULL, sqrt)},
-#'   and similarly \code{optimize_y} is reset as \code{optimize_y = list(log,
-#'   sqrt)}.
+#'   and \code{optimize_y} is reset as \code{optimize_y = list(log, sqrt)}.
 #'
 #' @param add_fit_criteria An optional argument (default \code{NULL}) to
-#'   indicate whether to add fit criteria to the returned model fit. Options
-#'   available are \code{'loo'} and \code{'waic'}. Please see
-#'   [brms::add_criterion()] for details.
+#'   indicate whether to add fit criteria to the returned model fit. Available
+#'   options are \code{'loo'}, \code{'waic'}, and \code{'bayes_R2'}. Please see
+#'   \code{[brms::add_criterion()]} for details.
 #'
-#' @param add_bayes_R An optional argument (default \code{NULL}) to indicate
-#'   whether to add Bayesian R square to the returned model fit. To estimate and
-#'   add \code{bayes_R2} to the model fit, the argument \code{add_bayes_R} is
-#'   set as \code{add_bayes_R = 'bayes_R2'}.
-#'
-#' @param byresp A logical (default \code{FALSE}) to indicate if response wise
-#'   fit criteria to be calculated. This argument is evaluated only for the
-#'   \code{multivariate} model in which user can select whether to get joint
-#'   calculation of point wise log likelihood (\code{byresp = FALSE}) or
-#'   response specific (\code{byresp = TRUE}). For, \code{univariate_by} model,
-#'   the only option available is to calculate separate point wise log
-#'   likelihood for each sub-model, i.e., \code{byresp = TRUE}.
-#'
-#' @param cores The number of cores to used in parallel processing (default
-#'   \code{1}). The argument \code{cores} is passed to the
-#'   [brms::add_criterion()].
+#' @param byresp A logical (default \code{FALSE}) indicating whether
+#'   response-wise fit criteria should be calculated. This argument is evaluated
+#'   only for the \code{multivariate} model, where the user can select whether
+#'   to get a joint calculation of point-wise log likelihood (\code{byresp =
+#'   FALSE}) or response-specific calculations (\code{byresp = TRUE}). For the
+#'   \code{univariate_by} model, the only available option is to calculate
+#'   separate point-wise log likelihood for each submodel, i.e., \code{byresp =
+#'   TRUE}.
+#'   
+#' @param save_each A logical (default \code{FALSE}) indicating whether to save
+#'   each model (as a \code{.rds} file) when running the loop. Note that the
+#'   user can also specify \code{save_each} as a named list to pass the
+#'   following information when saving each model: \cr
+#'   \code{'prefix'} a character string (default \code{NULL}), \cr
+#'   \code{'suffix'} a character string (default \code{NULL}), \cr
+#'   \code{'extension'} a character string, either \code{.rds} or 
+#'   \code{.RData} (default \code{.rds}), \cr
+#'   \code{'compress'} a character string, either \code{'xz'}, \code{'gzip'}, or
+#'   \code{'bzip2'} (default \code{'xz'}). These options are set as follows: \cr
+#'   \code{save_each = list(prefix = '', suffix = '', extension = 'rds',
+#'   compress = 'xz')}.
+#'   
+#' @param cores The number of cores to use in parallel processing (default
+#'   \code{1}). The argument \code{cores} is passed to
+#'   \code{[brms::add_criterion()]}.
 #' 
 #' @param ... Other arguments passed to \code{\link{update_model}}.
 #' 
 #' @inheritParams growthparameters.bgmfit
+#' @inheritParams brms::add_criterion
 #'
 #' @return A list containing the optimized models of class \code{bgmfit}, and
-#'   the the summary statistics if \code{add_fit_criteria} and/or
-#'   \code{add_bayes_R} are specified.
+#'   the the summary statistics if \code{add_fit_criteria} are specified.
 #'  
 #' @export optimize_model.bgmfit
 #' @export
@@ -127,22 +142,23 @@
 #' 
 #' # Fit Bayesian SITAR model 
 #' 
-#' # To avoid mode estimation which takes time, the Bayesian SITAR model fit to 
-#' # the 'berkeley_exdata' has been saved as an example fit ('berkeley_exfit').
+#' # To avoid model estimation, which takes time, the Bayesian SITAR model fit  
+#' # to the 'berkeley_exdata' has been saved as an example fit ('berkeley_exfit').
 #' # See 'bsitar' function for details on 'berkeley_exdata' and 'berkeley_exfit'.
 #' 
-#' # Check and confirm whether model fit object 'berkeley_exfit' exists
+#' # Check and confirm whether the model fit object 'berkeley_exfit' exists
 #'  berkeley_exfit <- getNsObject(berkeley_exfit)
 #' 
 #' model <- berkeley_exfit
 #' 
-#' # Below example shows dummy call to optimization to save time. 
-#' # Note that in case degree of freedom and both  optimize_x and optimize_y are
-#' # NULL (i.e., nothing to optimize), the original model object is returned.   
-#' # To explicitly get this information whether model is being optimized or not, 
-#' # user can set verbose = TRUE. The verbose = TRUE also useful in getting the
-#' # information regarding what all arguments have been changed as compared to
-#' # the original model.
+#' # The following example shows a dummy call for optimization to save time. 
+#' # Note that if the degree of freedom, and both the \code{optimize_x} and 
+#' # \code{optimize_y} are \code{NULL} (i.e., nothing to optimize), the original 
+#' # model object is returned.   
+#' # To explicitly check whether the model is being optimized or not, 
+#' # the user can set \code{verbose = TRUE}. This is useful for getting
+#' # information about what arguments have changed compared to the 
+#' # original model.
 #' 
 #' model2 <- optimize_model(model, 
 #'   optimize_df = NULL, 
@@ -157,14 +173,17 @@ optimize_model.bgmfit <- function(model,
                                   optimize_df = NULL,
                                   optimize_x = list(NULL, log,  sqrt),
                                   optimize_y = list(NULL, log,  sqrt),
-                                  transform_prior_class = c('beta', 'sd', 
-                                                       'rsd', 'sigma', 'dpar'),
-                                  transform_beta_coef = c('b', 'c', 'd'),
-                                  transform_sd_coef = c('b', 'c', 'd'),
+                                  transform_prior_class = NULL,
+                                  transform_beta_coef = NULL,
+                                  transform_sd_coef = NULL,
                                   exclude_default_funs = TRUE,
                                   add_fit_criteria = NULL,
-                                  add_bayes_R = NULL,
                                   byresp = FALSE,
+                                  model_name = NULL,
+                                  overwrite = FALSE,
+                                  file = NULL,
+                                  force_save = FALSE,
+                                  save_each = FALSE,
                                   digits = 2,
                                   cores = 1,
                                   verbose = FALSE,
@@ -195,6 +214,7 @@ optimize_model.bgmfit <- function(model,
   
   if (is.null(newdata)) {
     newdata <- model$model_info$bgmfit.data
+    if(verbose) message("data used in the original model fit set as 'newdata'")
   } else {
     newdata <- newdata
   }
@@ -227,8 +247,35 @@ optimize_model.bgmfit <- function(model,
     }
   }
   
+  # Do some checks on save_each at the beginning and not to wait for model fit
+  if(is.list(save_each)) {
+    if(!is.null(save_each[['prefix']])) {
+      if(!is.character(save_each[['prefix']])) 
+        stop(paste0(save_each[['prefix']], " must be a character"))
+    }
+    if(!is.null(save_each[['suffix']])) {
+      if(!is.character(save_each[['suffix']])) 
+        stop(paste0(save_each[['suffix']], " must be a character"))
+    }
+    if(!is.null(save_each[['extension']])) {
+      if(!is.character(save_each[['extension']])) 
+        stop(paste0(save_each[['extension']], " must be a character"))
+    }
+    if(!is.null(save_each[['compress']])) {
+      if(!is.character(save_each[['compress']])) 
+        stop(paste0(save_each[['compress']], " must be a character"))
+    }
+    # if empty list then at least specify 'rds' extension
+    if(length(save_each) == 0) {
+      save_each[['extension']] <- 'rds'
+      if(verbose) 
+        message("extension 'rds' added to empty list specified via save_each")
+    }
+  } # else if(is.list(save_each)) {
   
   
+  
+
   # This to evaluate T/F to TRUE/FALSE
   for (i in names(args_o)) {
     if (is.symbol(args_o[[i]])) {
@@ -240,16 +287,25 @@ optimize_model.bgmfit <- function(model,
   }
   
   for (add_fit_criteriai in add_fit_criteria) {
-    if (!add_fit_criteriai %in% c("loo", "waic")) {
-      stop("only loo and waic criteria are supported")
+    if (!add_fit_criteriai %in% c("loo", "waic", "bayes_R2")) {
+      stop("only loo, waic and bayes_R2 criteria are supported")
     }
   }
   
-  for (bayes_Ri in add_bayes_R) {
-    if (!bayes_Ri %in% c("bayes_R2")) {
-      stop("only bayes_R2 as R square measure is supported")
-    }
+  
+  if("bayes_R2" %in% add_fit_criteria) {
+    add_bayes_R <- "bayes_R2"
+  } else {
+    add_bayes_R <- NULL
   }
+  
+  
+  # for (bayes_Ri in add_bayes_R) {
+  #   if (!bayes_Ri %in% c("bayes_R2")) {
+  #     stop("only bayes_R2 as R square measure is supported")
+  #   }
+  # }
+  
   
   
   need_exposed_function <- FALSE
@@ -257,16 +313,17 @@ optimize_model.bgmfit <- function(model,
     need_exposed_function <- TRUE
   } else if(is.list(add_fit_criteria)) {
     if(!any(is.null(add_fit_criteria[[1]]))) need_exposed_function <- TRUE
-  } else if(!is.null(add_bayes_R)) {
-    need_exposed_function <- TRUE
-  } else if(is.list(add_bayes_R)) {
-    if(!any(is.null(add_bayes_R[[1]]))) need_exposed_function <- TRUE
-  }
+  } 
+  
+  # else if(!is.null(add_bayes_R)) {
+  #   need_exposed_function <- TRUE
+  # } else if(is.list(add_bayes_R)) {
+  #   if(!any(is.null(add_bayes_R[[1]]))) need_exposed_function <- TRUE
+  # }
 
   
   
-  
-  # The 'expose_function' must TRUE when adding fit criteria or bayes R2
+  # The 'expose_function' must be TRUE when adding fit criteria or bayes R2
   if (need_exposed_function) {
     if(is.null(expose_function)) {
       args_o$expose_function <- expose_function <- TRUE
@@ -274,12 +331,14 @@ optimize_model.bgmfit <- function(model,
         message("Argument 'expose_function' set to TRUE for fit criteria")
     } else if(!is.null(expose_function)) {
       if (!args_o$expose_function) {
-        stop(
-          "Argument 'expose_function' must be set to TRUE ",
-          "\n ",
-          " when adding 'fit criteria' or 'bayes_R'"
-        )
-      }
+        if(is.null(model$model_info$exefuns )) {
+          stop(
+            "Argument 'expose_function' must be set to TRUE ",
+            "\n ",
+            " when adding 'fit criteria' or 'bayes_R'"
+          )
+        } # if(is.null(model$model_info$exefuns )) {
+      } # if (!args_o$expose_function) {
     } # if(is.null(expose_function)) {
   } # if (need_exposed_function) {
   
@@ -287,6 +346,7 @@ optimize_model.bgmfit <- function(model,
   
   if(!is.null(call_o_args$expose_function)) {
     args_o$expose_function <- call_o_args$expose_function
+    args_o$expose_function <- eval(args_o$expose_function)
   }
   
   
@@ -314,7 +374,6 @@ optimize_model.bgmfit <- function(model,
       }
     
     xxo <- gsub("[[:space:]]", "", xo)
-    
     xxo_g <- gsub('\"', "", xxo)
     xxo_g2 <- 
       grepl(
@@ -350,9 +409,6 @@ optimize_model.bgmfit <- function(model,
   
   
   optimize_df <- as.factor(optimize_df)
-  
-  # optimize_df <- get_args_opt(deparse(substitute(optimize_df)))
-  
   optimize_x  <- get_args_opt(deparse(substitute(optimize_x)))
   optimize_y  <- get_args_opt(deparse(substitute(optimize_y)))
   
@@ -365,6 +421,21 @@ optimize_model.bgmfit <- function(model,
     if (identical(optimize_y, character(0)))
       optimize_y <- "NULL"
   }
+  
+  
+  
+  
+  if(grepl("function(", optimize_x, fixed = T)) {
+    optimize_x <- remove_between_first_last_parnth(optimize_x, splitat = ",")
+  }
+  if(grepl("function(", optimize_y, fixed = T)) {
+    optimize_y <- remove_between_first_last_parnth(optimize_y, splitat = ",")
+  }
+  
+  # expand.grid(optimize_dfx, optimize_x2, optimize_yx) %>% print()
+  # stop()
+  
+  
   
   optimize_df_x_y <-
     expand.grid(optimize_df, optimize_x, optimize_y)
@@ -397,6 +468,10 @@ optimize_model.bgmfit <- function(model,
 
   add_citeria_fun <- function(fit,
                               add_fit_criteria = NULL,
+                              model_name = NULL,
+                              overwrite = FALSE,
+                              file = NULL,
+                              force_save = FALSE,
                               add_bayes_R = NULL,
                               resp = NULL,
                               digits = 2,
@@ -412,28 +487,42 @@ optimize_model.bgmfit <- function(model,
    
     if (!is.null(add_fit_criteria)) {
       what_ <- paste(add_fit_criteria, collapse = ", ")
-      message(" Adding", " ", what_, " ", "...")
+      if(verbose) message(" Adding", " ", what_, " ", "...")
       if(verbose) cat("\n")
       if (is.na(fit$model_info$univariate_by) |
           !fit$model_info$multivariate) {
         if (!fit$model_info$multivariate) {
-          suppressWarnings(fit <- brms::add_criterion(fit,
-                                                      add_fit_criteria, 
-                                                      cores = cores))
+          suppressWarnings(fit <- brms::add_criterion(
+            x = fit,
+            criterion = add_fit_criteria,
+            model_name = model_name,
+            overwrite = overwrite,
+            file = file,
+            force_save = force_save,
+            cores = cores))
         }
         if (fit$model_info$multivariate) {
           if (is.null(resp)) {
-            suppressWarnings(fit <- brms::add_criterion(fit,
-                                                        add_fit_criteria, 
-                                                        cores = cores))
+            suppressWarnings(fit <- brms::add_criterion(
+              x = fit,
+              criterion = add_fit_criteria,
+              model_name = model_name,
+              overwrite = overwrite,
+              file = file,
+              force_save = force_save,
+              cores = cores))
           }
           if (!is.null(resp)) {
             for (aci in fit$model_info$ys) {
               suppressWarnings(fit <- brms::add_criterion(
-                fit,
-                add_fit_criteria,
-                resp = aci,
-                cores = cores
+                x = fit,
+                criterion = add_fit_criteria,
+                model_name = model_name,
+                overwrite = overwrite,
+                file = file,
+                force_save = force_save,
+                cores = cores,
+                resp = aci
               ))
               aci_names <- paste0(names(fit$criteria), aci)
               names(fit$criteria) <- aci_names
@@ -447,13 +536,18 @@ optimize_model.bgmfit <- function(model,
         }
       }
       
+      
       if (!is.na(fit$model_info$univariate_by)) {
         for (aci in fit$model_info$ys) {
           suppressWarnings(fit <- brms::add_criterion(
-            fit,
-            add_fit_criteria,
-            resp = aci,
-            cores = cores
+            x = fit,
+            criterion = add_fit_criteria,
+            model_name = model_name,
+            overwrite = overwrite,
+            file = file,
+            force_save = force_save,
+            cores = cores,
+            resp = aci
           ))
           aci_names <- paste0(names(fit$criteria), aci)
           names(fit$criteria) <- aci_names
@@ -469,7 +563,7 @@ optimize_model.bgmfit <- function(model,
     
     if (!is.null(add_bayes_R)) {
       what_ <- paste(add_bayes_R, collapse = ", ")
-      if(verbose) message(" Adding", " ", what_, " ", "...")
+    #  if(verbose) message(" Adding", " ", what_, " ", "...")
       if(verbose) cat("\n")
       if (is.na(fit$model_info$univariate_by)) {
         if (!fit$model_info$multivariate) {
@@ -603,7 +697,6 @@ optimize_model.bgmfit <- function(model,
     
     
     if ('waic' %in% add_fit_criteria) {
-      # enverr. <- parent.frame()
       enverr. <- environment()
       assign('err.', FALSE, envir = enverr.)
       tryCatch(
@@ -649,6 +742,9 @@ optimize_model.bgmfit <- function(model,
         },
         error = function(e) {
           assign('err.', TRUE, envir = enverr.)
+          # message(paste("Computation of criterias failed:", add_fit_criteria))
+          # message("Below is the returned original error message:")
+          # message(conditionMessage(e))
         }
       )
       err. <- get('err.', envir = enverr.)
@@ -665,7 +761,6 @@ optimize_model.bgmfit <- function(model,
     
     
     if ('bayes_R2' %in% add_bayes_R) {
-      # enverr. <- parent.frame()
       enverr. <- environment()
       assign('err.', FALSE, envir = enverr.)
       tryCatch(
@@ -713,6 +808,9 @@ optimize_model.bgmfit <- function(model,
         },
         error = function(e) {
           assign('err.', TRUE, envir = enverr.)
+          # message(paste("Computation of criterias failed:", add_fit_criteria))
+          # message("Below is the returned original error message:")
+          # message(conditionMessage(e))
         }
       )
       err. <- get('err.', envir = enverr.)
@@ -729,7 +827,6 @@ optimize_model.bgmfit <- function(model,
     
     if ('loo' %in% add_fit_criteria) {
       if ('loo' %in% add_fit_criteria) {
-        # enverr. <- parent.frame()
         enverr. <- environment()
         assign('err.', FALSE, envir = enverr.)
         tryCatch(
@@ -778,6 +875,9 @@ optimize_model.bgmfit <- function(model,
           },
           error = function(e) {
             assign('err.', TRUE, envir = enverr.)
+            # message(paste("Computation of criterias failed:", add_fit_criteria))
+            # message("Below is the returned original error message:")
+            # message(conditionMessage(e))
           }
         )
         err. <- get('err.', envir = enverr.)
@@ -790,7 +890,6 @@ optimize_model.bgmfit <- function(model,
       }
       
       if ('loo' %in% add_fit_criteria) {
-        # enverr. <- parent.frame()
         enverr. <- environment()
         assign('err.', FALSE, envir = enverr.)
         tryCatch(
@@ -839,6 +938,10 @@ optimize_model.bgmfit <- function(model,
           },
           error = function(e) {
             assign('err.', TRUE, envir = enverr.)
+            # message(paste("Computation of criterias failed:",
+            # add_fit_criteria))
+            # message("Below is the returned original error message:")
+            # message(conditionMessage(e))
           }
         )
         err. <- get('err.', envir = enverr.)
@@ -972,13 +1075,22 @@ optimize_model.bgmfit <- function(model,
       user_call   <- rlang::call_match(user_call, bsitar::bsitar)
       newargs     <- all_same_args_c_diffs
       for (newargsi in names(newargs)) {
-        user_call[[newargsi]] <- NULL
+        if(!is.null(user_call[[newargsi]])) user_call[[newargsi]] <- NULL
       }
-      user_call_data_name <- user_call$data
-      assign(deparse(user_call_data_name), newdata)
+      
+      
+      
+      # changed -> 21.07.2024
+      
+      # user_call_data_name <- user_call$data
+      # assign(deparse(user_call_data_name), newdata)
+      
+      newargs[['data']] <- base::str2lang("newdata")
       user_call <- rlang::call_modify(user_call, !!!newargs)
+      
       # Setting it to FALSE because we are exposing it anyways below
       user_call$expose_function <- FALSE
+      
       ####
       # Modify priors for log transformed outcome y
       transform_allowed_dist <- 
@@ -1357,7 +1469,26 @@ optimize_model.bgmfit <- function(model,
       
       
       
-  
+      
+      if(check_if_arg_set(user_call$xfun)) {
+        if(grepl("^list", user_call$xfun)) {
+          user_call$xfun <- ept(user_call$xfun)
+        }
+      }
+      
+      if(check_if_arg_set(user_call$yfun)) {
+        if(grepl("^list", user_call$yfun)) {
+          user_call$yfun <- ept(user_call$yfun)
+        }
+      }
+      
+      if(check_if_arg_set(user_call$sigmaxfun)) {
+        if(grepl("^list", user_call$sigmaxfun)) {
+          user_call$sigmaxfun <- ept(user_call$sigmaxfun)
+        }
+      }
+    
+     
       ###
       fit <- eval(user_call)
   
@@ -1430,6 +1561,8 @@ optimize_model.bgmfit <- function(model,
     } # else if(!all_same_args) {
     
     
+    
+    
     if(!is.null(fit)) {
       fit$model_info$optimization_info <- optimization_info
       fit$model_info$optimize_df <- df_print
@@ -1438,7 +1571,6 @@ optimize_model.bgmfit <- function(model,
       
       # Add fit_criteria and bares_R to the fit
       # Also, add summary data frames for criteria and R square
-      
       # 'setresp' to anything so that even multivariate will be response wise
       # if desired, this behavior
       # if(length(fit$model_info$ys) == 1) setresp <- NULL
@@ -1462,6 +1594,10 @@ optimize_model.bgmfit <- function(model,
             fit_ac <- add_citeria_fun(
               fit,
               add_fit_criteria = add_fit_criteria,
+              model_name = model_name,
+              overwrite = overwrite,
+              file = file,
+              force_save = force_save,
               add_bayes_R =  NULL,
               resp = setresp,
               digits = digits,
@@ -1475,27 +1611,21 @@ optimize_model.bgmfit <- function(model,
           },
           error = function(e) {
             assign('err.', TRUE, envir = enverr.)
+            message(paste("Computation of criterias failed:", 
+                          paste(add_fit_criteria, collapse = ", ")
+                          )
+                    )
+            message("Below is the returned original error message:")
+            message(conditionMessage(e))
           }
         )
+        
         err. <- get('err.', envir = enverr.)
         if (err.) {
           fit <- fit
         } else {
           fit <- fit_ac
         } # tryCatch
-        # fit <- add_citeria_fun(
-        #   fit,
-        #   add_fit_criteria = add_fit_criteria,
-        #   add_bayes_R =  NULL,
-        #   resp = setresp,
-        #   digits = digits,
-        #   df = df,
-        #   xfun_print = xfun_print,
-        #   yfun_print = yfun_print,
-        #   usesavedfuns = usesavedfuns,
-        #   clearenvfuns = clearenvfuns,
-        #   envir = envir
-        # )
       } # if (!is.null(add_fit_criteria)) {
       
       if (!is.null(add_bayes_R)) {
@@ -1506,6 +1636,10 @@ optimize_model.bgmfit <- function(model,
             fit_rs <- add_citeria_fun(
               fit,
               add_fit_criteria = NULL,
+              model_name = model_name,
+              overwrite = overwrite,
+              file = file,
+              force_save = force_save,
               add_bayes_R =  add_bayes_R,
               resp = setresp,
               digits = digits,
@@ -1519,29 +1653,101 @@ optimize_model.bgmfit <- function(model,
           },
           error = function(e) {
             assign('err.', TRUE, envir = enverr.)
+            message(paste("Computation of criterias failed:", 
+                          paste(add_bayes_R, collapse = ", ")
+                          )
+                    )
+            message("Below is the returned original error message:")
+            message(conditionMessage(e))
           }
         )
+        
         err. <- get('err.', envir = enverr.)
         if (err.) {
           fit <- fit
         } else {
           fit <- fit_rs
         } # tryCatch
-        # fit <- add_citeria_fun(
-        #   fit,
-        #   add_fit_criteria = NULL,
-        #   add_bayes_R =  add_bayes_R,
-        #   resp = setresp,
-        #   digits = digits,
-        #   df = df,
-        #   xfun_print = xfun_print,
-        #   yfun_print = yfun_print,
-        #   usesavedfuns = usesavedfuns,
-        #   clearenvfuns = clearenvfuns,
-        #   envir = envir
-        # )
       } # if (!is.null(add_bayes_R)) {
     } # if(!is.null(fit)) {
+    
+    
+    
+    sanitize_string_for_valid <- function(x, parnthesis_to_underscrore = F) {
+      tempx <- x
+      if(parnthesis_to_underscrore) {
+        tempx <- gsub("(", "_", tempx, fixed = T)
+        tempx <- gsub(")", "_", tempx, fixed = T)
+      }
+      tempx <- gsub("([._])|[[:punct:]]", "\\1", tempx)
+      tempx
+    }
+    
+    
+    
+    if(!is.null(save_each)) {
+      if(!is.list(save_each)) {
+        if(!isFALSE(save_each)) {
+          string_saving <- gsub_space(optimization_info)
+          string_saving <- gsub(";", "_", string_saving, fixed = T)
+          string_saving <- gsub("=", "_", string_saving, fixed = T)
+          if(is.character(save_each)) {
+            string_saving <- paste0(save_each, "", string_saving)
+          }
+          extension_is <- "rds"
+          compress_is <- 'xz'
+          string_saving <- paste0(string_saving, ".", extension_is)  
+          string_saving <- sanitize_string_for_valid(string_saving)
+          if(verbose) message(paste0("Saving model file as: ", string_saving))
+          saveRDS(fit, file = string_saving, compress = compress_is)
+        }
+      } else if(is.list(save_each)) {
+        string_saving <- gsub_space(optimization_info)
+        string_saving <- gsub(";", "_", string_saving, fixed = T)
+        string_saving <- gsub("=", "_", string_saving, fixed = T)
+        if(!is.null(save_each[['prefix']])) {
+          if(!is.character(save_each[['prefix']])) {
+            stop(paste0(save_each[['prefix']], " must be a character"))
+          }
+          string_saving <- paste0(save_each[['prefix']], "", string_saving)                                              
+        }
+        if(!is.null(save_each[['suffix']])) {
+          if(!is.character(save_each[['suffix']])) {
+            stop(paste0(save_each[['suffix']], " must be a character"))
+          }
+          string_saving <- paste0(string_saving,  "", save_each[['suffix']])                                              
+        }
+        if(!is.null(save_each[['extension']])) {
+          if(!is.character(save_each[['extension']])) {
+            stop(paste0(save_each[['extension']], " must be a character"))
+          }
+          extension_is <- save_each[['extension']]
+        }
+        if(is.null(save_each[['extension']])) {
+          extension_is <- 'rds'
+        }
+        if(!is.null(save_each[['compress']])) {
+          if(!is.character(save_each[['compress']])) {
+            stop(paste0(save_each[['compress']], " must be a character"))
+          }
+          compress_is <- save_each[['compress']]
+        }
+        if(is.null(save_each[['extension']])) {
+          compress_is <- 'xz'
+        }
+        extension_is <- gsub(".", "", extension_is, fixed = T)
+        string_saving <- paste0(string_saving,  ".", extension_is)
+        tring_saving <- sanitize_string_for_valid(string_saving)
+        if(verbose) message(paste0("Saving model file as: ", string_saving))
+        if(extension_is == 'rds') {
+          saveRDS(fit, file = string_saving, compress = compress_is)
+        }
+        if(extension_is == 'RDATA') {
+          save(fit, file = string_saving, compress = compress_is)
+        }
+
+      } # else if(is.list(save_each)) {
+    } # if(!is.null(save_each)) {
     
     return(fit)
   }
@@ -1558,6 +1764,8 @@ optimize_model.bgmfit <- function(model,
      args_o$get_init_eval) {
     exe_model_fit <- FALSE
   }
+  
+  
   
   optimize_list <- lapply(1:nrow(optimize_df_x_y), function(.x)
     optimize_fun(.x, model, exe_model_fit))
@@ -1585,20 +1793,7 @@ optimize_model.bgmfit <- function(model,
     }
     
     
-    ########################
-    
-    
-    
-    
-    
-    ########################
-    
-    
-    
-    # loo_fitx <<- loo_fit
-    # loo_diagnostic_fitx <<- loo_diagnostic_fit
-    # waic_fitx <<- waic_fit
-    # bayes_R2_fitx <<- bayes_R2_fit
+   ###########################################
     
     
     attributes(optimize_list) <- NULL
@@ -1658,10 +1853,7 @@ optimize_model.bgmfit <- function(model,
         dplyr::bind_rows(., bayes_R2_fit)
     }
     
-    
-    # optimize_summary <- optimize_summary %>%
-    #   dplyr::mutate(dplyr::across(dplyr::where(is.numeric),
-    #                               ~ round(., digits = digits)))
+   ########################################
     
     
     if(nrow(optimize_summary) > 0) {
@@ -1685,9 +1877,9 @@ optimize_model.bgmfit <- function(model,
     
     return(out)
   } # if(!is.null(optimize_list[[1]])) {
- 
   
 }
+
 
 
 

@@ -23,60 +23,52 @@ update_model(model, ...)
 
 \item{newdata}{An optional \code{data.frame} to be used when updating the
 model. If \code{NULL} (default), the data used in the original model fit is
-re used. Note that data-dependent default priors are not updated
-automatically.}
+reused. Note that data-dependent default priors are not automatically updated.}
 
-\item{recompile}{A logical to indicate whether the Stan model should be
+\item{recompile}{A logical value indicating whether the Stan model should be
 recompiled. When \code{NULL} (default), \strong{update_model()} tries to
-figure out internally whether recompilation is required or not. Setting
-\code{recompile} to \code{FALSE} will ignore Stan code changing arguments.}
+internally determine whether recompilation is required. Setting
+\code{recompile} to \code{FALSE} will ignore any changes in the Stan code.}
 
-\item{expose_function}{An optional logical argument to indicate whether to
-expose Stan functions (default \code{FALSE}). Note that if user has already
-exposed Stan functions during model fit by setting \code{expose_function =
-  TRUE} in the \code{\link[=bsitar]{bsitar()}}, then those exposed functions are saved and can be
-used during post processing of the posterior draws and therefore
-\code{expose_function} is by default set as \code{FALSE} in all post
-processing functions except \code{\link[=optimize_model]{optimize_model()}}. For \code{\link[=optimize_model]{optimize_model()}}, the
-default setting is \code{expose_function = NULL}. The reason is that each
-optimized model has different Stan function and therefore it need to be re
-exposed and saved. The \code{expose_function = NULL} implies that the
-setting for \code{expose_function} is taken from the original \code{model}
-fit. Note that \code{expose_function} must be set to \code{TRUE} when
-adding \code{fit criteria} and/or \code{bayes_R2} during model
-optimization.}
+\item{expose_function}{A logical argument (default \code{FALSE}) to indicate
+whether Stan functions should be exposed. If \code{TRUE}, any Stan
+functions exposed during the model fit using \code{expose_function = TRUE}
+in the \code{\link[=bsitar]{bsitar()}} function are saved and can be used in post-processing. By
+default, \code{expose_function = FALSE} in post-processing functions,
+except in \code{\link[=optimize_model]{optimize_model()}} where it is set to \code{NULL}. If
+\code{NULL}, the setting is inherited from the original model fit. It must
+be set to \code{TRUE} when adding \code{fit criteria} or \code{bayes_R2}
+during model optimization.}
 
-\item{verbose}{An optional argument (logical, default \code{FALSE}) to
-indicate whether to print information collected during setting up the
-object(s).}
+\item{verbose}{A logical argument (default \code{FALSE}) to specify whether
+to print information collected during the setup of the object(s).}
 
-\item{check_newargs}{A logical (default \code{FALSE}) to check whether
-arguments in the original \code{model} fit and the \code{update_model} are
-same. When \code{check_newargs = TRUE} and arguments are same, it implies
-that update is not needed and hence the original \code{model} object is
-returned along with the message if \code{verbose = TRUE}.}
+\item{check_newargs}{A logical value (default \code{FALSE}) indicating whether
+to check if the arguments in the original \code{model} fit and the
+\code{update_model} are identical. When \code{check_newargs = TRUE} and the
+arguments are identical, it indicates that an update is unnecessary. In this
+case, the original \code{model} object is returned, along with a message if
+\code{verbose = TRUE}.}
 
-\item{envir}{Environment used for function evaluation. The default is
-\code{NULL} which will set \code{parent.frame()} as default environment.
-Note that since most of post processing functions are based on \pkg{brms},
-the functions needed for evaluation should be in the \code{.GlobalEnv}.
-Therefore, it is strongly recommended to set \code{ envir = globalenv()}
-(or \code{envir = .GlobalEnv}). This is particularly true for the
-derivatives such as velocity curve.}
+\item{envir}{The environment used for function evaluation. The default is
+\code{NULL}, which sets the environment to \code{parent.frame()}. Since
+most post-processing functions rely on \pkg{brms}, it is recommended to set
+\code{envir = globalenv()} or \code{envir = .GlobalEnv}, especially for
+derivatives like velocity curves.}
 
-\item{...}{Other arguments passed to \code{\link{brms}}.}
+\item{...}{Other arguments passed to \code{[brms::brm()]}.}
 }
 \value{
 An updated object of class \code{brmsfit}.
 }
 \description{
-The \strong{update_model()} is a wrapper around the
-\code{update()} function in the \pkg{brms} package which refits the model
-as per the user specified updated arguments.
+The \strong{update_model()} function is a wrapper around the
+\code{update()} function from the \pkg{brms} package, which refits the model
+based on the user-specified updated arguments.
 }
 \details{
-This is an adapted version of the \strong{update()} function from
-available the the\pkg{brms} package.
+This function is an adapted version of the \strong{update()} function
+from the \pkg{brms} package.
 }
 \examples{
 

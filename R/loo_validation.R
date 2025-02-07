@@ -1,33 +1,33 @@
 
 
-#' Perform leave-one-out (loo) cross-validation
+#' @title Perform leave-one-out (LOO) cross-validation
 #' 
-#' @description The \strong{loo_validation()} is a wrapper around the
-#'   [brms::loo()] function to perform approximate leave-one-out
-#'   cross-validation based on the posterior likelihood. See [brms::loo()] for
-#'   more details.
+#' @description The \strong{loo_validation()} function is a wrapper around the
+#'   [brms::loo()] function to perform approximate leave-one-out cross-validation
+#'   based on the posterior likelihood. See [brms::loo()] for more details.
 #'   
-#' @details See [loo::loo_compare()] for details on model comparisons. For
-#'   \code{bgmfit} objects, \code{LOO} is an alias of \code{loo}. Use method
-#'   [brms::add_criterion()]  to store information criteria in the fitted model
-#'   object for later usage.
+#' @details The function supports model comparisons using [loo::loo_compare()]
+#'   for comparing information criteria across models. For \code{bgmfit}
+#'   objects, \code{LOO} is simply an alias for \code{loo}. Additionally, you
+#'   can use [brms::add_criterion()] to store information criteria in the fitted
+#'   model object for later use.
 #' 
-#' @param compare A flag indicating if the information criteria of the models
-#'   should be compared to each other via [loo::loo_compare()].
+#' @param compare A logical flag indicating if the information criteria of the
+#'   models should be compared using [loo::loo_compare()].
 #'   
-#' @param moment_match A logical argument to indicate whether
-#'   [loo::loo_moment_match()] should be applied on problematic observations.
+#' @param moment_match A logical flag to indicate whether
+#'   [loo::loo_moment_match()] should be applied to problematic observations.
 #'   Defaults to \code{FALSE}. For most models, moment matching will only work
-#'   if you have set \code{save_pars = save_pars(all = TRUE)} when fitting the
-#'   model with [brms::brm()]. See [brms::loo_moment_match()] for more details.
-#'
-#' @param reloo A logical argument to indicate whether [brms::reloo()] should be
-#'   applied on problematic observations. Defaults to \code{FALSE}.
+#'   if \code{save_pars = save_pars(all = TRUE)} was set when fitting the model
+#'   with [brms::brm()]. See [brms::loo_moment_match()] for more details.
+#' 
+#' @param reloo A logical flag indicating whether [brms::reloo()] should be
+#'   applied to problematic observations. Defaults to \code{FALSE}.
 #'
 #' @param moment_match_args An optional \code{list} of additional arguments
 #'   passed to [loo::loo_moment_match()].
 #'
-#' @param reloo_args  An optional \code{list} of additional arguments passed to
+#' @param reloo_args An optional \code{list} of additional arguments passed to
 #'   [brms::reloo()].
 #' 
 #' @inherit brms::loo params 
@@ -35,11 +35,11 @@
 #' @inheritParams plot_ppc.bgmfit
 #' 
 #' @param ... Additional arguments passed to the [brms::loo()] function. 
-#' Please see \code{brms::loo} for details on various options available.
+#'   Please see \code{brms::loo} for details on various options available.
 #' 
-#' @return If only one model object is provided, then an object of class
-#'   \code{loo} is returned. If multiple objects are provided, an object of
-#'   class \code{loolist}.
+#' @return If only one model object is provided, an object of class \code{loo}
+#'   is returned. If multiple objects are provided, an object of class
+#'   \code{loolist} is returned.
 #' 
 #' @export loo_validation.bgmfit
 #' @export
@@ -50,6 +50,8 @@
 #'
 #' @examples
 #' 
+#' \donttest{
+#' 
 #' # Fit Bayesian SITAR model 
 #' 
 #' # To avoid mode estimation which takes time, the Bayesian SITAR model fit to 
@@ -57,19 +59,19 @@
 #' # See 'bsitar' function for details on 'berkeley_exdata' and 'berkeley_exfit'.
 #' 
 #' # Check and confirm whether model fit object 'berkeley_exfit' exists
-#'  berkeley_exfit <- getNsObject(berkeley_exfit)
+#' berkeley_exfit <- getNsObject(berkeley_exfit)
 #' 
 #' model <- berkeley_exfit
 #' 
-#' \donttest{
+#' # Perform leave-one-out cross-validation
 #' loo_validation(model, cores = 1)
 #' }
-#' 
 #' 
 loo_validation.bgmfit <-
   function(model,
            compare = TRUE,
            resp = NULL,
+           dpar = NULL,
            pointwise = FALSE,
            moment_match = FALSE,
            reloo = FALSE,
@@ -96,7 +98,10 @@ loo_validation.bgmfit <-
       envir <- parent.frame()
     }
     
+    # Depending on dpar 'mu' or 'sigma', subset model_info
+    model <- getmodel_info(model = model, dpar = dpar)
 
+    
     if(is.null(usesavedfuns)) {
       if(!is.null(model$model_info$exefuns[[1]])) {
         usesavedfuns <- TRUE
@@ -189,7 +194,7 @@ loo_validation.bgmfit <-
     
     if(!isTRUE(
       check_pkg_version_exists('brms', 
-                               minversion = get_package_minversion('brms'),
+                               minimum_version = get_package_minversion('brms'),
                                prompt = FALSE,
                                stop = FALSE,
                                verbose = FALSE))) {

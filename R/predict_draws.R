@@ -1,61 +1,65 @@
 
 
-#' Predicted values from the posterior predictive distribution
-#' 
-#' @description The \strong{predict_draws()} is a wrapper around the
-#'   [brms::predict.brmsfit()] function to obtain predicted values (and their
-#'   summary) from the posterior distribution. See [brms::predict.brmsfit()] for
-#'   details.
-#' 
-#' @details The \strong{predict_draws()} function computed the fitted values
+
+
+#' @title Predicted values from the posterior predictive distribution
+#'
+#' @description The \strong{predict_draws()} function is a wrapper around the
+#'   [brms::predict.brmsfit()] function, which obtains predicted values (and
+#'   their summary) from the posterior distribution. See
+#'   [brms::predict.brmsfit()] for details.
+#'
+#' @details The \strong{predict_draws()} function computes the fitted values
 #'   from the posterior distribution. The [brms::predict.brmsfit()] function
-#'   from the \pkg{brms} package can used to get the predicted (distance) values
-#'   when outcome (e.g., height) is untransformed. However, when the outcome is
-#'   log or square root transformed, the [brms::predict.brmsfit()] function will
-#'   return the fitted curve on the log or square root scale whereas the
-#'   \strong{predict_draws()} function returns the fitted values on the original
-#'   scale. Furthermore, the \strong{predict_draws()} also compute the first
-#'   derivative of (velocity) that too on the original scale after making
-#'   required back-transformation. Except for these differences, both these
-#'   functions (i.e., [brms::predict.brmsfit()] and [predict_draws()]) work in
-#'   the same manner. In other words, user can specify all the options available
-#'   in the [brms::predict.brmsfit()].
-#' 
+#'   from the \pkg{brms} package can be used to obtain predicted (distance)
+#'   values when the outcome (e.g., height) is untransformed. However, when the
+#'   outcome is log or square root transformed, the [brms::predict.brmsfit()]
+#'   function will return the fitted curve on the log or square root scale. In
+#'   contrast, the \strong{predict_draws()} function returns the fitted values
+#'   on the original scale. Furthermore, \strong{predict_draws()} also computes
+#'   the first derivative (velocity), again on the original scale, after making
+#'   the necessary back-transformation. Aside from these differences, both
+#'   functions ([brms::predict.brmsfit()] and \strong{predict_draws()}) work
+#'   similarly. In other words, the user can specify all the options available
+#'   in [brms::predict.brmsfit()].
+#'
 #' @param ... Additional arguments passed to the [brms::predict.brmsfit()]
-#'   function. Please see [brms::predict.brmsfit()] for details on various
+#'   function. Please see [brms::predict.brmsfit()] for details on the various
 #'   options available.
-#' 
+#'
 #' @return An array of predicted response values. See [brms::predict.brmsfit()]
 #'   for details.
-#' 
+#'
 #' @inherit growthparameters.bgmfit params
 #' @inherit fitted_draws.bgmfit params
 #' @inherit brms::predict.brmsfit params
-#' 
+#'
 #' @export predict_draws.bgmfit
 #' @export
-#' 
-#' @seealso [brms::predict.brmsfit()] 
-#' 
+#'
+#' @seealso [brms::predict.brmsfit()]
+#'
 #' @inherit berkeley author
 #'
 #' @examples
 #' 
-#' # Fit Bayesian SITAR model 
-#' 
-#' # To avoid mode estimation which takes time, the Bayesian SITAR model fit to 
-#' # the 'berkeley_exdata' has been saved as an example fit ('berkeley_exfit').
-#' # See 'bsitar' function for details on 'berkeley_exdata' and 'berkeley_exfit'.
-#' 
-#' # Check and confirm whether model fit object 'berkeley_exfit' exists
+#' \donttest{
+#'
+#' # Fit Bayesian SITAR model
+#'
+#' # To avoid mode estimation, which takes time, the Bayesian SITAR model is fit 
+#' # to the 'berkeley_exdata' and saved as an example fit ('berkeley_exfit').
+#' # See the 'bsitar' function for details on 'berkeley_exdata' and 
+#' # berkeley_exfit'.
+#'
+#' # Check and confirm whether the model fit object 'berkeley_exfit' exists
 #'  berkeley_exfit <- getNsObject(berkeley_exfit)
-#' 
+#'
 #' model <- berkeley_exfit
 #' 
 #' # Population average distance curve
 #' predict_draws(model, deriv = 0, re_formula = NA)
 #' 
-#' \donttest{
 #' # Individual-specific distance curves
 #' predict_draws(model, deriv = 0, re_formula = NULL)
 #' 
@@ -65,11 +69,12 @@
 #' # Individual-specific velocity curves
 #' predict_draws(model, deriv = 1, re_formula = NULL)
 #'  }
-#' 
+#'  
 predict_draws.bgmfit <-
   function(model,
            newdata = NULL,
            resp = NULL,
+           dpar = NULL,
            ndraws = NULL,
            draw_ids = NULL,
            re_formula = NA,
@@ -85,6 +90,7 @@ predict_draws.bgmfit <-
            deriv_model = TRUE,
            summary = TRUE,
            robust = FALSE,
+           transform = NULL,
            probs = c(0.025, 0.975),
            xrange = NULL,
            xrange_search = NULL,
@@ -97,6 +103,7 @@ predict_draws.bgmfit <-
            expose_function = FALSE,
            usesavedfuns = NULL,
            clearenvfuns = NULL,
+           funlist = NULL,
            envir = NULL,
            ...) {
     
@@ -105,6 +112,10 @@ predict_draws.bgmfit <-
     } else {
       envir <- parent.frame()
     }
+    
+    
+    # Depending on dpar 'mu' or 'sigma', subset model_info
+    model <- getmodel_info(model = model, dpar = dpar)
     
 
     if(is.null(usesavedfuns)) {
@@ -219,6 +230,14 @@ predict_draws.bgmfit <-
                                    all = TRUE,
                                    verbose = FALSE)
     
+    if(!is.null(funlist)) {
+      if(!is.list(funlist)) {
+        stop("funlist must be a list")
+      } else {
+        o <- funlist
+      }
+    }
+    
     
     test <- setupfuns(model = model, resp = resp,
                       o = o, oall = oall, 
@@ -232,7 +251,7 @@ predict_draws.bgmfit <-
     
     if(!isTRUE(
       check_pkg_version_exists('brms', 
-                               minversion = get_package_minversion('brms'), 
+                               minimum_version = get_package_minversion('brms'), 
                                prompt = FALSE,
                                stop = FALSE,
                                verbose = FALSE))) {
@@ -263,6 +282,24 @@ predict_draws.bgmfit <-
     if(is.null(calling.args$newdata)) {
       if(!is.null(newdata)) calling.args$newdata <- newdata
     }
+    
+    
+    growthparameters_calling <- FALSE
+    syscalls1 <- sys.calls()[[1]]
+    syscallsall <- paste(deparse(syscalls1), collapse = "\n")
+    for (xc in 1:length(syscallsall)) {
+      if(any(grepl('growthparameters', syscallsall[[xc]]))) {
+        growthparameters_calling <- TRUE
+      }
+    }
+    if(growthparameters_calling) {
+      if(calling.args$re_formula_opt == "V") {
+        calling.args$re_formula <- NULL
+      } else if(calling.args$re_formula_opt == "v") {
+        calling.args$re_formula <- NA
+      }
+    }
+    
     
     
     . <- do.call(predict, calling.args)

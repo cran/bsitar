@@ -898,7 +898,8 @@ get_idata <-
            times = NULL,
            length.out = 10,
            xrange = 1, 
-           keeplevels = FALSE) {
+           keeplevels = FALSE, 
+           asdf = FALSE) {
     
     if (is.null(newdata)) {
       newdata <- model$data
@@ -906,6 +907,12 @@ get_idata <-
       newdata <- newdata
     }
     
+    if(data.table::is.data.table(newdata)) {
+      setasdt <- TRUE 
+      newdata <- as.data.frame(newdata)
+    } else {
+      setasdt <- FALSE
+    }
     
     if(keeplevels) {
       is.fact <- names(newdata[, sapply(newdata, is.factor)])
@@ -1031,22 +1038,17 @@ get_idata <-
       }
     }
     
-    
-    # for (is.facti in is.fact) {
-    #   print(levels(newdata_pred[[is.facti]]))
-    #   levels(newdata_pred[[is.facti]]) <- levels(newdata[[is.facti]])
-    # }
-    # print(str(newdata_pred %>% droplevels))
-    # print(unique(newdata_pred$class))
-    #stop()
+   
     
     newdata_pred[[timeVar]] <- unlist(times_to_pred)
     
     if(keeplevels) {
       newdata_pred <- newdata_pred %>% dplyr::select(dplyr::all_of(cnames))
     }
-    
-    newdata_pred
+    if(setasdt) newdata_pred <- data.table::as.data.table(newdata_pred)
+    if(asdf) out <- as.data.frame(newdata_pred) else out <- newdata_pred 
+    # newdata_pred
+    out
   }
 
 
@@ -3319,7 +3321,6 @@ set_init_gr_effects <- function(xscode,
 #' @param compile_init_model_methods A logical to indicate whether to compile
 #' \code{init_model_methods()}
 #' @param verbose A logical
-#' @keywords internal
 #' @return A named list.
 #' @keywords internal
 #' @noRd
@@ -3365,7 +3366,7 @@ get_pathfinder_init <- function(pthf = NULL,
   lp__ <- NULL;
   
   
-  as_inits <- function(draws, variable=NULL, ndraws=4) {
+  as_inits <- function(draws, variable=NULL, ndraws=ndraws) {
     ndraws <- min(posterior::ndraws(draws),ndraws)
     if (is.null(draws)) {variable = variables(draws)}
     draws <- draws  %>%  posterior::as_draws_matrix()
@@ -3423,14 +3424,11 @@ get_pathfinder_init <- function(pthf = NULL,
     init_str_x <- init_structure # fit_m$stan_args$init[[1]]
     for (stri in names(init_str_x)) {
       if(is.array( init_str_x[[stri]] )) {
-        # print(dim(init_str_x[[stri]]))
         if(!is.null(path_inits[[stri]])) {
           path_inits[[stri]] <- array(path_inits[[stri]], dim = dim(init_str_x[[stri]]) )
         }
       } else if(is.vector( init_str_x[[stri]] )) {
-        # print(length(init_str_x[[stri]]))
       } else if(is.numeric( init_str_x[[stri]] )) {
-        # print(length(init_str_x[[stri]]))
       }
       out <- path_inits
     }
@@ -3439,5 +3437,223 @@ get_pathfinder_init <- function(pthf = NULL,
   return(out)
 }
 
+
+
+
+# check if a str obj is actually numeric
+# @description check if a str obj is actually numeric
+# https://stackoverflow.com/questions/13638377/test-for-numeric-elements-in-a-character-string
+# is.numeric.like -> changed to check_is_numeric_like -> is called in bsitar.R only
+# Thid because of notes in rmd check which says 
+# Mismatches for apparent methods not registered
+# This perhaps because is.numeric.like sound like is.numeric
+#' @param x a str vector, or a factor of str vector, or numeric vector. x will
+#'   be coerced and trimws.
+#' @param na.strings case sensitive strings that will be treated to NA.
+#' @param naAsTrue whether NA (including actual NA and na.strings) will be
+#'   treated as numeric like
+#' @return a logical vector (vectorized).
+#' @note Using regular expression
+#' \cr TRUE for any actual numeric c(3,4,5,9.9) or c("-3","+4.4",
+#' "-42","4L","9L",   "1.36e4","1.36E4",    NA, "NA", "","NaN", NaN):
+#' \cr positive or negative numbers with no more than one decimal c("-3","+4.4")
+#' OR
+#' \cr positive or negative integers (e.g., c("-42","4L","39L")) OR
+#' \cr positive or negative numbers in scientific notation c("1.36e4","1.36E4")
+#' \cr NA, or na.strings
+#' @keywords internal
+#' @noRd
+#'
+check_is_numeric_like <- function(x, 
+                            naAsTrue = TRUE, 
+                            na.strings = 
+                              c('','.','NA','na','N/A','n/a','NaN','nan')
+                            ){
+  x = trimws(x,'both')
+  x[x %in% na.strings] = NA
+  # https://stackoverflow.com/a/21154566/2292993
+  result = grepl("^[\\-\\+]?[0-9]+[\\.]?[0-9]*$|^[\\-\\+]?[0-9]+[L]?$|^[\\-\\+]?[0-9]+[\\.]?[0-9]*[eE][0-9]+$",x,perl=TRUE)
+  if (naAsTrue) result = result | is.na(x)
+  return((result))
+}
+
+
+
+
+#' Title
+#'
+#' @param data data frame
+#' @param id id
+#' @param outcome outcome
+#' @param time time variable such as age
+#' @param timeval the value of time beyound which changes made
+#' @param nset number of last time point to be flattened
+#' @param inc increment for last n time point.
+#'
+#' @keywords internal
+#' @noRd
+#' 
+flattten_last_time <-
+  function (data,
+            id,
+            outcome,
+            time,
+            timeval = NULL,
+            nset = 1,
+            inc = NULL) {
+    occtemp <- NULL;
+    temdata <-
+      data %>% dplyr::group_by_at(id) %>% 
+      dplyr::mutate(`:=`("occtemp",
+                         dplyr::row_number())) %>% 
+      dplyr::mutate(`:=`("nocctemp",
+                         max(.data[["occtemp"]])))
+    setseq <- seq(1, nset, 1) - 1
+    inc <- rev(inc)
+    if (is.null(inc)) {
+      inc <- 0
+      inc <- rep(inc, length(nset))
+    }
+    else if (length(inc) == 1) {
+      inc <- rep(inc, nset)
+    }
+    else if (length(inc) != nset) {
+      stop("lenhth of 'inc' must be either 1 or same as the 'nset'")
+    }
+    if (is.null(timeval))
+      settime <- min(.data[[time]])
+    else
+      settime <- timeval
+    if (nset == 1) {
+      j = 0
+      for (i in setseq) {
+        j <- j + 1
+        addinc <- inc[j]
+        temdata <- temdata %>% dplyr::group_by_at(id) %>%
+          dplyr::mutate(`:=`(
+            !!base::as.symbol(outcome),
+            dplyr::if_else(
+              .data[[time]] > settime & occtemp ==
+                max(.data[["occtemp"]]) - i,
+              (.data[[outcome]] +
+                 addinc),
+              .data[[outcome]]
+            )
+          ))
+      }
+    }
+    else {
+      j = 0
+      for (i in setseq) {
+        j <- j + 1
+        addinc <- inc[j]
+        temdata <- temdata %>% dplyr::group_by_at(id) %>%
+          dplyr::mutate(`:=`(
+            !!base::as.symbol(outcome),
+            dplyr::if_else(
+              .data[[time]] > settime & occtemp ==
+                max(.data[["occtemp"]]) - i,
+              cummax(.data[[outcome]] +
+                       addinc),
+              .data[[outcome]]
+            )
+          ))
+      }
+    }
+    temdata2 <- temdata %>% dplyr::select(-c("occtemp",
+                                             "nocctemp"))
+    return(temdata2)
+  }
+
+
+
+
+#' Save list of ggplot2 objects to single pdf
+#'
+#' @param list A list of ggplot2 objects.
+#' @param filename A character string to name the pdf filr.
+#'
+#' @return Invisible NULL.
+#' @keywords internal
+#' @noRd
+#'
+#' @examples
+#' #plot histogram of each numeric variable in iris
+#' list_iris = map(names(iris[-5]), ~ggplot(iris, aes_string(.)) + geom_histogram())
+#' #save to a single pdf
+#' GG_save_pdf(list_iris, "test.pdf")
+GG_save_pdf = function(list, filename, 
+                       width = 10, height = 7,
+                       onefile = TRUE, compress = TRUE) {
+  #start pdf
+  filename <- paste0(filename, ".", "pdf")
+  grDevices::pdf(filename, width = width, height = height,
+      onefile = onefile, compress = compress)
+  #loop
+  for (p in list) {
+    print(p)
+  }
+  #end pdf
+  grDevices::dev.off()
+  invisible(NULL)
+}
+
+
+
+
+#' An internal to check if 'bsitar' argument such as xfun is set or NULL
+#'
+#' @param x A symbol or a character string 
+#'
+#' @return A logical TRUE/FALSE
+#' @keywords internal
+#' @noRd
+#'
+check_if_arg_set <- function(x) {
+  if(is.null(x)) {
+    set_x <- FALSE
+  } else if(is.character(x)) {
+    if(x == "NULL") {
+      set_x <- FALSE
+    } else {
+      set_x <- TRUE
+    }
+  } else if(is.list(x)) {
+    if(length(x) == 1) {
+      if(is.null(x[[1]])) {
+        set_x <- FALSE
+      } else {
+        set_x <- TRUE
+      }
+    } else if(length(x) > 1) {
+      if(is.null(x[[1]][1])) {
+        set_x <- FALSE
+      } else {
+        set_x <- TRUE
+      }
+    }
+  }
+  return(set_x)
+}
+
+
+
+#' Check if 'bsitar' argument such as xfun is set or NULL
+#'
+#' @param x A character string 
+#' @param splitat A character at which string to be split default (\code{NULL}) 
+#'
+#' @return A logical TRUE/FALSE
+#' @keywords internal
+#' @noRd
+#'
+remove_between_first_last_parnth <- function(x, splitat = NULL) {
+  a <- sub("^.*?\\(", "", x)
+  b <- sub(")\\s*$", "", a)
+  if(!is.null(splitat)) {
+    b <- strsplit(b, splitat)[[1]]
+  }
+  b
+}
 
 

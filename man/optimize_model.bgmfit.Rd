@@ -3,7 +3,7 @@
 \name{optimize_model.bgmfit}
 \alias{optimize_model.bgmfit}
 \alias{optimize_model}
-\title{Optimize SITAR model}
+\title{Optimize SITAR Model}
 \usage{
 \method{optimize_model}{bgmfit}(
   model,
@@ -11,13 +11,17 @@
   optimize_df = NULL,
   optimize_x = list(NULL, log, sqrt),
   optimize_y = list(NULL, log, sqrt),
-  transform_prior_class = c("beta", "sd", "rsd", "sigma", "dpar"),
-  transform_beta_coef = c("b", "c", "d"),
-  transform_sd_coef = c("b", "c", "d"),
+  transform_prior_class = NULL,
+  transform_beta_coef = NULL,
+  transform_sd_coef = NULL,
   exclude_default_funs = TRUE,
   add_fit_criteria = NULL,
-  add_bayes_R = NULL,
   byresp = FALSE,
+  model_name = NULL,
+  overwrite = FALSE,
+  file = NULL,
+  force_save = FALSE,
+  save_each = FALSE,
   digits = 2,
   cores = 1,
   verbose = FALSE,
@@ -33,166 +37,188 @@ optimize_model(model, ...)
 \arguments{
 \item{model}{An object of class \code{bgmfit}.}
 
-\item{newdata}{An optional data frame to be used in estimation. If
-\code{NULL} (default), the \code{newdata} is retrieved from the
-\code{model}.}
+\item{newdata}{An optional data frame for estimation. If \code{NULL}
+(default), \code{newdata} is retrieved from the \code{model}.}
 
-\item{optimize_df}{A list of integers specifying the degree of freedom
+\item{optimize_df}{A list of integers specifying the degrees of freedom
 (\code{df}) values to be optimized. If \code{NULL} (default), the \code{df}
-is taken from the original model. For optimization over different
-\code{df}, say for example \code{df} 4 and \code{df} 5, the corresponding
-code is \code{optimize_df = list(4,5)}. For \code{univariate_by} and
+is taken from the original model. To optimize over different \code{df}
+values, for example, \code{df} 4 and \code{df} 5, the corresponding code
+would be \code{optimize_df = list(4, 5)}. For \code{univariate_by} and
 \code{multivariate} models, \code{optimize_df} can be a single integer
-(e.g., \code{optimize_df = 4}) or a list (e.g., \code{optimize_df =
-  list(4,5)}), or a a list of lists. As an example, consider optimization
-over \code{df} 4 and \code{df} 5 for the first sub model, and \code{df} 5
-and \code{df} 6 for the second sub model, the corresponding code is
-\code{optimize_df = list(list(4,5), list(5,6))}.}
+(e.g., \code{optimize_df = 4}), a list (e.g., \code{optimize_df = list(4,
+  5)}), or a list of lists. For instance, to optimize over \code{df} 4 and
+\code{df} 5 for the first submodel, and \code{df} 5 and \code{df} 6 for the
+second submodel, the corresponding code would be \code{optimize_df =
+  list(list(4, 5), list(5, 6))}.}
 
-\item{optimize_x}{A vector specifying the transformations for the predictor
-variable (i.e., \code{x}). The options available are \code{NULL},
-\code{'log'}, \code{'sqrt'}, or their combinations. Note that user need not
-to enclose these options in a single or double quotes as they are take care
-of internally. The default setting is to explore all possible combination
-i.e., \code{optimize_x = list(NULL, log,  sqrt)}. Similar to the
-\code{optimize_df}, user can specify different \code{optimize_x} for
-\code{univariate_by} and \code{multivariate} sub models.}
+\item{optimize_x}{A list specifying the transformations for the predictor
+variable (i.e., \code{x}). The available options are \code{NULL},
+\code{'log'}, \code{'sqrt'}, or their combinations. Note that the user need
+not enclose these options in single or double quotes, as they are handled
+internally. The default setting explores all possible combinations, i.e.,
+\code{optimize_x = list(NULL, 'log', 'sqrt')}. Similar to
+\code{optimize_df}, the user can specify different \code{optimize_x} values
+for \code{univariate_by} and \code{multivariate} submodels. Additionally,
+it is possible to pass any primitive function instead of fixed functions
+like \code{log} and \code{sqrt}. This greatly enhances the flexibility of
+model optimization by allowing the search for a wide range of \code{x}
+transformations, such as \code{optimize_x = list(function(x) log(x +
+  3/4))}.}
 
-\item{optimize_y}{A vector specifying the transformations of the the response
-variable (i.e., \code{y}). The approach and options available for
-\code{optimize_y} are same as described above for the \code{optimize_x}.}
+\item{optimize_y}{A list specifying the transformations of the response
+variable (i.e., \code{y}). The approach and available options for
+\code{optimize_y} are the same as described above for \code{optimize_x}.}
 
 \item{transform_prior_class}{A character vector (default \code{NULL})
-specifying the transformations of location-scale based priors such as
-\code{normal()} when response variable (i.e., \code{y}) is \code{'log'} or
-\code{'sqrt'} transformed. The prior type that could be transformed are
-\code{'beta'}, \code{'sd'}, \code{'rsd'}, \code{'sigma'} and \code{'dpar'}.
-Currently it is available only for \code{'log'} transformed \code{y}. Each
-prior type (i.e., \code{'beta', 'sd', 'rsd', 'sigma', 'dpar'}) specified
-via \code{transform_prior_class} is log transformed as follows: \cr
+specifying the parameter classes for which transformations of
+user-specified priors should be performed. The prior classes that can be
+transformed are \code{'beta'}, \code{'sd'}, \code{'rsd'}, \code{'sigma'},
+and \code{'dpar'}, and they can be specified as: \cr
+\code{transform_prior_class = c('beta', 'sd', 'rsd', 'sigma', 'dpar')}.
+Note that transformations can only be applied to location-scale based
+priors (such as \code{normal()}). For example, the \code{'log'}
+transformation of a prior is performed as follows: \cr
 \code{log_location = log(location / sqrt(scale^2 / location^2 + 1))}, \cr
-\code{log_scale = sqrt(log(scale^2 / location^2 + 1))}, \cr
-where location and scale are the original parameters supplied by the user
-and the log_location and log_scale are the equivalent parameters on the log
-scale. For more details, see \code{a_prior_beta} argument in \code{\link[=bsitar]{bsitar()}}
-function. Note that \code{transform_prior_class} is used as an experiment
-and therefore results may not be what user intended. Thus we recommend to
-explicitly set the desired prior and not to use
-\code{transform_prior_class}.}
+\code{log_scale = sqrt(log(scale^2 / location^2 + 1))}, \cr where
+\code{location} and \code{scale} are the original parameters supplied by
+the user, and \code{log_location} and \code{log_scale} are the equivalent
+parameters on the log scale. Note that \code{transform_prior_class} is used
+on an experimental basis, and therefore the results may not be as intended.
+We recommend explicitly setting the desired prior for the \code{y} scale.}
 
 \item{transform_beta_coef}{A character vector (default \code{NULL})
-specifying the transformations of location-scale based priors for specific
-regression coefficient(s) when response variable (i.e., \code{y}) is
-\code{'log'} or \code{'sqrt'} transformed. The coefficient that could be
-transformed are \code{'a'}, \code{'b'}, \code{'c'}, \code{'d'} and
-\code{'s'}. The default is \code{transform_beta_coef = c('b',' b', 'd')}
-which implies that parameters \code{'a'}, \code{'a'} and \code{'a'} will be
-transformed whereas parameter \code{'a'} will be left unchanged because
-default prior for parameter \code{'a'} is based on outcome  \code{y} itself
-(e.g., \code{a_prior_beta = normal(ymean, ysd)}) which has be transformed.
-However, we strongly suggest that user explicitly set the desired prior and
-not to rely on \code{transform_beta_coef} because it is included on
-experimental basis. See \code{transform_prior_class} for details.}
+specifying the regression coefficients for which transformations are
+applied. The coefficients that can be transformed are \code{'a'},
+\code{'b'}, \code{'c'}, \code{'d'}, and \code{'s'}. The default is
+\code{transform_beta_coef = c('b', 'c', 'd')}, which implies that the
+parameters \code{'b'}, \code{'c'}, and \code{'d'} will be transformed,
+while parameter \code{'a'} will be left unchanged because the default prior
+for parameter \code{'a'} is based on the outcome \code{y} scale itself
+(e.g., \code{a_prior_beta = normal(ymean, ysd)}), which gets transformed
+automatically. Note that \code{transform_beta_coef} is ignored when
+\code{transform_prior_class = NULL}.}
 
 \item{transform_sd_coef}{A character vector (default \code{NULL}) specifying
-the transformations of location-scale based priors for specific group level
-coefficient(s) when response variable (i.e., \code{y}) is \code{'log'} or
-\code{'sqrt'} transformed. The coefficient that could be transformed are
-\code{'a'}, \code{'b'}, \code{'c'}, \code{'d'} and \code{'s'}. The default
-is \code{transform_beta_coef = c('b',' b', 'd')}. See
-\code{transform_prior_class} and \code{transform_beta_coef}  for details.}
+the \code{sd} parameters for which transformations are applied. The
+coefficients that can be transformed are \code{'a'}, \code{'b'},
+\code{'c'}, \code{'d'}, and \code{'s'}. The default is
+\code{transform_sd_coef = c('b', 'c', 'd')}, which implies that the
+parameters \code{'b'}, \code{'c'}, and \code{'d'} will be transformed,
+while parameter \code{'a'} will be left unchanged because the default prior
+for parameter \code{'a'} is based on the outcome \code{y} scale itself
+(e.g., \code{a_prior_beta = normal(ymean, ysd)}), which gets transformed
+automatically. Note that \code{transform_sd_coef} is ignored when
+\code{transform_prior_class = NULL}.}
 
-\item{exclude_default_funs}{A logical to indicate whether transformations for
+\item{exclude_default_funs}{A logical indicating whether transformations for
 (\code{x} and \code{y}) variables used in the original model fit should be
 excluded. If \code{TRUE} (default), the transformations specified for the
 \code{x} and \code{y} variables in the original model fit are excluded from
-the \code{optimize_x} and \code{optimize_y}. From example, if original
-model is fit with \code{xvar = log} and \code{yvar = NULL}, then
+\code{optimize_x} and \code{optimize_y}. For example, if the original model
+is fit with \code{xvar = log} and \code{yvar = NULL}, then
 \code{optimize_x} is translated into \code{optimize_x = list(NULL, sqrt)},
-and similarly \code{optimize_y} is reset as \code{optimize_y = list(log,
-  sqrt)}.}
+and \code{optimize_y} is reset as \code{optimize_y = list(log, sqrt)}.}
 
 \item{add_fit_criteria}{An optional argument (default \code{NULL}) to
-indicate whether to add fit criteria to the returned model fit. Options
-available are \code{'loo'} and \code{'waic'}. Please see
-\code{\link[brms:add_criterion]{brms::add_criterion()}} for details.}
+indicate whether to add fit criteria to the returned model fit. Available
+options are \code{'loo'}, \code{'waic'}, and \code{'bayes_R2'}. Please see
+\code{[brms::add_criterion()]} for details.}
 
-\item{add_bayes_R}{An optional argument (default \code{NULL}) to indicate
-whether to add Bayesian R square to the returned model fit. To estimate and
-add \code{bayes_R2} to the model fit, the argument \code{add_bayes_R} is
-set as \code{add_bayes_R = 'bayes_R2'}.}
+\item{byresp}{A logical (default \code{FALSE}) indicating whether
+response-wise fit criteria should be calculated. This argument is evaluated
+only for the \code{multivariate} model, where the user can select whether
+to get a joint calculation of point-wise log likelihood (\code{byresp =
+  FALSE}) or response-specific calculations (\code{byresp = TRUE}). For the
+\code{univariate_by} model, the only available option is to calculate
+separate point-wise log likelihood for each submodel, i.e., \code{byresp =
+  TRUE}.}
 
-\item{byresp}{A logical (default \code{FALSE}) to indicate if response wise
-fit criteria to be calculated. This argument is evaluated only for the
-\code{multivariate} model in which user can select whether to get joint
-calculation of point wise log likelihood (\code{byresp = FALSE}) or
-response specific (\code{byresp = TRUE}). For, \code{univariate_by} model,
-the only option available is to calculate separate point wise log
-likelihood for each sub-model, i.e., \code{byresp = TRUE}.}
+\item{model_name}{Optional name of the model. If \code{NULL}
+(the default) the name is taken from the call to \code{x}.}
 
-\item{digits}{An integer (default \code{2}) to set the decimal argument for
-the \code{\link[base:Round]{base::round()}} function.}
+\item{overwrite}{Logical; Indicates if already stored fit
+indices should be overwritten. Defaults to \code{FALSE}.
+Setting it to \code{TRUE} is useful for example when changing
+additional arguments of an already stored criterion.}
 
-\item{cores}{The number of cores to used in parallel processing (default
-\code{1}). The argument \code{cores} is passed to the
-\code{\link[brms:add_criterion]{brms::add_criterion()}}.}
+\item{file}{Either \code{NULL} or a character string. In the latter case, the
+fitted model object including the newly added criterion values is saved via
+\code{\link{saveRDS}} in a file named after the string supplied in
+\code{file}. The \code{.rds} extension is added automatically. If \code{x}
+was already stored in a file before, the file name will be reused
+automatically (with a message) unless overwritten by \code{file}. In any
+case, \code{file} only applies if new criteria were actually added via
+\code{add_criterion} or if \code{force_save} was set to \code{TRUE}.}
 
-\item{verbose}{An optional argument (logical, default \code{FALSE}) to
-indicate whether to print information collected during setting up the
-object(s).}
+\item{force_save}{Logical; only relevant if \code{file} is specified and
+ignored otherwise. If \code{TRUE}, the fitted model object will be saved
+regardless of whether new criteria were added via \code{add_criterion}.}
 
-\item{expose_function}{An optional logical argument to indicate whether to
-expose Stan functions (default \code{FALSE}). Note that if user has already
-exposed Stan functions during model fit by setting \code{expose_function =
-  TRUE} in the \code{\link[=bsitar]{bsitar()}}, then those exposed functions are saved and can be
-used during post processing of the posterior draws and therefore
-\code{expose_function} is by default set as \code{FALSE} in all post
-processing functions except \code{\link[=optimize_model]{optimize_model()}}. For \code{\link[=optimize_model]{optimize_model()}}, the
-default setting is \code{expose_function = NULL}. The reason is that each
-optimized model has different Stan function and therefore it need to be re
-exposed and saved. The \code{expose_function = NULL} implies that the
-setting for \code{expose_function} is taken from the original \code{model}
-fit. Note that \code{expose_function} must be set to \code{TRUE} when
-adding \code{fit criteria} and/or \code{bayes_R2} during model
-optimization.}
+\item{save_each}{A logical (default \code{FALSE}) indicating whether to save
+each model (as a \code{.rds} file) when running the loop. Note that the
+user can also specify \code{save_each} as a named list to pass the
+following information when saving each model: \cr
+\code{'prefix'} a character string (default \code{NULL}), \cr
+\code{'suffix'} a character string (default \code{NULL}), \cr
+\code{'extension'} a character string, either \code{.rds} or
+\code{.RData} (default \code{.rds}), \cr
+\code{'compress'} a character string, either \code{'xz'}, \code{'gzip'}, or
+\code{'bzip2'} (default \code{'xz'}). These options are set as follows: \cr
+\code{save_each = list(prefix = '', suffix = '', extension = 'rds',
+  compress = 'xz')}.}
 
-\item{usesavedfuns}{A logical (default \code{NULL}) to indicate whether to
-use the already exposed and saved \code{Stan} functions. Depending on
-whether the user have exposed Stan functions within the \code{\link[=bsitar]{bsitar()}} call via
-\code{expose_functions} argument in the \code{\link[=bsitar]{bsitar()}}, the \code{usesavedfuns}
-is automatically set to \code{TRUE} (if \code{expose_functions = TRUE}) or
-\code{FALSE} (if \code{expose_functions = FALSE}). Therefore, manual
-setting of \code{usesavedfuns} as \code{TRUE}/\code{FALSE} is rarely
-needed. This is for internal purposes only and mainly used during the
-testing of the functions and therefore should not be used by users as it
-might lead to unreliable estimates.}
+\item{digits}{An integer (default \code{2}) to set the decimal places for
+rounding the results using the \code{\link[base:Round]{base::round()}} function.}
 
-\item{clearenvfuns}{A logical to indicate whether to clear the exposed
-function from the environment (\code{TRUE}) or not (\code{FALSE}). If
-\code{NULL} (default), then \code{clearenvfuns} is set as \code{TRUE} when
-\code{usesavedfuns} is \code{TRUE}, and \code{FALSE} if \code{usesavedfuns}
-is \code{FALSE}.}
+\item{cores}{The number of cores to use in parallel processing (default
+\code{1}). The argument \code{cores} is passed to
+\code{[brms::add_criterion()]}.}
 
-\item{envir}{Environment used for function evaluation. The default is
-\code{NULL} which will set \code{parent.frame()} as default environment.
-Note that since most of post processing functions are based on \pkg{brms},
-the functions needed for evaluation should be in the \code{.GlobalEnv}.
-Therefore, it is strongly recommended to set \code{ envir = globalenv()}
-(or \code{envir = .GlobalEnv}). This is particularly true for the
-derivatives such as velocity curve.}
+\item{verbose}{A logical argument (default \code{FALSE}) to specify whether
+to print information collected during the setup of the object(s).}
+
+\item{expose_function}{A logical argument (default \code{FALSE}) to indicate
+whether Stan functions should be exposed. If \code{TRUE}, any Stan
+functions exposed during the model fit using \code{expose_function = TRUE}
+in the \code{\link[=bsitar]{bsitar()}} function are saved and can be used in post-processing. By
+default, \code{expose_function = FALSE} in post-processing functions,
+except in \code{\link[=optimize_model]{optimize_model()}} where it is set to \code{NULL}. If
+\code{NULL}, the setting is inherited from the original model fit. It must
+be set to \code{TRUE} when adding \code{fit criteria} or \code{bayes_R2}
+during model optimization.}
+
+\item{usesavedfuns}{A logical value (default \code{NULL}) indicating whether
+to use already exposed and saved Stan functions. This is typically set
+automatically based on the \code{expose_functions} argument from the
+\code{\link[=bsitar]{bsitar()}} call. Manual specification of \code{usesavedfuns} is rarely
+needed and is intended for internal testing, as improper use can lead to
+unreliable estimates.}
+
+\item{clearenvfuns}{A logical value indicating whether to clear the exposed
+Stan functions from the environment (\code{TRUE}) or not (\code{FALSE}). If
+\code{NULL}, \code{clearenvfuns} is set based on the value of
+\code{usesavedfuns}: \code{TRUE} if \code{usesavedfuns = TRUE}, or
+\code{FALSE} if \code{usesavedfuns = FALSE}.}
+
+\item{envir}{The environment used for function evaluation. The default is
+\code{NULL}, which sets the environment to \code{parent.frame()}. Since
+most post-processing functions rely on \pkg{brms}, it is recommended to set
+\code{envir = globalenv()} or \code{envir = .GlobalEnv}, especially for
+derivatives like velocity curves.}
 
 \item{...}{Other arguments passed to \code{\link{update_model}}.}
 }
 \value{
 A list containing the optimized models of class \code{bgmfit}, and
-the the summary statistics if \code{add_fit_criteria} and/or
-\code{add_bayes_R} are specified.
+the the summary statistics if \code{add_fit_criteria} are specified.
 }
 \description{
-Select the best fitting SITAR model that involves choosing the
-optimum degrees of freedom (\code{df}) for the natural cubic-spline curve
-and the appropriate transformations of the predictor \code{x} and response
-\code{y} variables.
+The optimization process for selecting the best-fitting SITAR
+model involves choosing the optimal degrees of freedom (\code{df}) for the
+natural cubic spline curve, as well as determining the appropriate
+transformations for the predictor (\code{x}) and/or outcome (\code{y})
+variables.
 }
 \examples{
 
@@ -200,22 +226,23 @@ and the appropriate transformations of the predictor \code{x} and response
 
 # Fit Bayesian SITAR model 
 
-# To avoid mode estimation which takes time, the Bayesian SITAR model fit to 
-# the 'berkeley_exdata' has been saved as an example fit ('berkeley_exfit').
+# To avoid model estimation, which takes time, the Bayesian SITAR model fit  
+# to the 'berkeley_exdata' has been saved as an example fit ('berkeley_exfit').
 # See 'bsitar' function for details on 'berkeley_exdata' and 'berkeley_exfit'.
 
-# Check and confirm whether model fit object 'berkeley_exfit' exists
+# Check and confirm whether the model fit object 'berkeley_exfit' exists
  berkeley_exfit <- getNsObject(berkeley_exfit)
 
 model <- berkeley_exfit
 
-# Below example shows dummy call to optimization to save time. 
-# Note that in case degree of freedom and both  optimize_x and optimize_y are
-# NULL (i.e., nothing to optimize), the original model object is returned.   
-# To explicitly get this information whether model is being optimized or not, 
-# user can set verbose = TRUE. The verbose = TRUE also useful in getting the
-# information regarding what all arguments have been changed as compared to
-# the original model.
+# The following example shows a dummy call for optimization to save time. 
+# Note that if the degree of freedom, and both the \code{optimize_x} and 
+# \code{optimize_y} are \code{NULL} (i.e., nothing to optimize), the original 
+# model object is returned.   
+# To explicitly check whether the model is being optimized or not, 
+# the user can set \code{verbose = TRUE}. This is useful for getting
+# information about what arguments have changed compared to the 
+# original model.
 
 model2 <- optimize_model(model, 
   optimize_df = NULL, 

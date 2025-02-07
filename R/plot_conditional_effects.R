@@ -1,19 +1,19 @@
 
 
-#' Visualize conditional effects of predictor
+#' @title Visualize conditional effects of predictor
 #'
 #' @details The \strong{plot_conditional_effects()} is a wrapper around the
 #'   [brms::conditional_effects()]. The [brms::conditional_effects()] function
-#'   from the \pkg{brms} package can used to plot the fitted (distance) curve
+#'   from the \pkg{brms} package can be used to plot the fitted (distance) curve
 #'   when response (e.g., height) is not transformed. However, when the outcome
 #'   is log or square root transformed, the [brms::conditional_effects()] will
-#'   return the fitted curve on the log or square root scale whereas the
+#'   return the fitted curve on the log or square root scale, whereas the
 #'   \strong{plot_conditional_effects()} will return the fitted curve on the
 #'   original scale. Furthermore, the \strong{plot_conditional_effects()} also
-#'   plots the velocity curve on the original scale after making required
+#'   plots the velocity curve on the original scale after making the required
 #'   back-transformation. Apart from these differences, both these functions
-#'   ([brms::conditional_effects] and \strong{plot_conditional_effects()} work
-#'   in the same manner. In other words, user can specify all the arguments
+#'   ([brms::conditional_effects] and \strong{plot_conditional_effects()}) work
+#'   in the same manner. In other words, the user can specify all the arguments
 #'   which are available in the [brms::conditional_effects()].
 #' 
 #' @inherit brms::conditional_effects params description
@@ -24,10 +24,10 @@
 #' @param ... Additional arguments passed to the [brms::conditional_effects()]
 #'   function. Please see [brms::conditional_effects()] for details.
 #'
-#' @return An object of class 'brms_conditional_effects' which is a named list
-#'   with one data.frame per effect containing all information required to
-#'   generate conditional effects plots. See brms::conditional_effects for
-#'   details.
+#' @return An object of class \code{'brms_conditional_effects'}, which is a
+#'   named list with one data.frame per effect containing all information
+#'   required to generate conditional effects plots. See
+#'   [brms::conditional_effects()] for details.
 #'
 #' @export plot_conditional_effects.bgmfit
 #' @export
@@ -37,6 +37,8 @@
 #' @inherit berkeley author
 #'
 #' @examples
+#' 
+#' \donttest{
 #' 
 #' # Fit Bayesian SITAR model 
 #' 
@@ -52,7 +54,6 @@
 #' # Population average distance curve
 #' plot_conditional_effects(model, deriv = 0, re_formula = NA)
 #' 
-#' \donttest{
 #' # Individual-specific distance curves
 #' plot_conditional_effects(model, deriv = 0, re_formula = NULL)
 #' 
@@ -73,6 +74,7 @@ plot_conditional_effects.bgmfit <-
            surface = FALSE,
            categorical = FALSE,
            ordinal = FALSE,
+           method = 'posterior_epred',
            transform = NULL,
            resolution = 100,
            select_points = 0,
@@ -81,6 +83,7 @@ plot_conditional_effects.bgmfit <-
            robust = TRUE,
            newdata = NULL,
            ndraws = NULL,
+           dpar = NULL,
            draw_ids = NULL,
            levels_id = NULL,
            resp = NULL,
@@ -93,6 +96,7 @@ plot_conditional_effects.bgmfit <-
            expose_function = FALSE,
            usesavedfuns = NULL,
            clearenvfuns = NULL,
+           funlist = NULL,
            envir = NULL,
            ...) {
     
@@ -101,6 +105,10 @@ plot_conditional_effects.bgmfit <-
     } else {
       envir <- parent.frame()
     }
+    
+    
+    # Depending on dpar 'mu' or 'sigma', subset model_info
+    model <- getmodel_info(model = model, dpar = dpar)
     
 
     if(is.null(usesavedfuns)) {
@@ -184,6 +192,15 @@ plot_conditional_effects.bgmfit <-
                                    verbose = FALSE)
     
     
+    if(!is.null(funlist)) {
+      if(!is.list(funlist)) {
+        stop("funlist must be a list")
+      } else {
+        o <- funlist
+      }
+    }
+    
+    
     test <- setupfuns(model = model, resp = resp,
                       o = o, oall = oall, 
                       usesavedfuns = usesavedfuns, 
@@ -196,7 +213,7 @@ plot_conditional_effects.bgmfit <-
     
     if(!isTRUE(
       check_pkg_version_exists('brms', 
-                               minversion = get_package_minversion('brms'), 
+                               minimum_version = get_package_minversion('brms'), 
                                prompt = FALSE,
                                stop = FALSE,
                                verbose = FALSE))) {

@@ -35,6 +35,8 @@
 #'   fit and \code{subset = FALSE} during post processing of each sub model. The
 #'   argument \code{subset} is ignored when \code{univariate_by} is \code{NA} or
 #'   \code{NULL}.
+#'   
+#' @param envir A logical (default \code{TRUE})
 #'
 #' @return A data frame with necessary information added a attributes.
 #'
@@ -52,10 +54,17 @@ prepare_data <- function(data,
                          xfuns = NULL,
                          yfuns = NULL,
                          outliers = NULL,
-                         subset = TRUE) {
+                         subset = TRUE,
+                         envir = NULL) {
 
   . <- NULL;
   data <- data %>% droplevels()
+  
+  if(is.null(envir)) {
+    enverr. <- parent.frame()
+  } else {
+    enverr. <- envir
+  }
   
   if (!is.null(outliers)) {
     remove_ <- outliers$remove
@@ -125,27 +134,65 @@ prepare_data <- function(data,
   
   org.data <- data
 
-  # Note that x tarnsformation is done within the prepare_function
+  # # Note that x transformation is done within the prepare_function
+  # transform_y <- function(y, yfuns) {
+  #   for (myfunsi in 1:length(y)) {
+  #     mysi <- y[[myfunsi]]
+  #     myfunsi <- yfuns[[myfunsi]]
+  #     if (grepl('.Primitive', myfunsi, fixed = T) &
+  #         grepl('log', myfunsi, fixed = T)) {
+  #       myfunsi <- 'log'
+  #     }
+  #     if (grepl('.Primitive', myfunsi, fixed = T) &
+  #         grepl('sqrt', myfunsi, fixed = T)) {
+  #       myfunsi <- 'sqrt'
+  #     }
+  #     if (myfunsi == 'log')
+  #       if(!is.null(data[[mysi]])) data[[mysi]] <- log(data[[mysi]])
+  #     if (myfunsi == 'sqrt')
+  #       if(!is.null(data[[mysi]])) data[[mysi]] <- sqrt(data[[mysi]])
+  #   }
+  #   return(data)
+  # }
+
+  
+  
+  # Note that x transformation is done within the prepare_function
   transform_y <- function(y, yfuns) {
     for (myfunsi in 1:length(y)) {
-      mysi <- y[[myfunsi]]
-      myfunsi <- yfuns[[myfunsi]]
-      if (grepl('.Primitive', myfunsi, fixed = T) &
-          grepl('log', myfunsi, fixed = T)) {
-        myfunsi <- 'log'
+      mysi   <- y[[myfunsi]]
+      yfunsi <- yfuns[[myfunsi]]
+      # This is same as yfunsi, re create here
+      ################################
+      # Check if yfunsi set
+      set_yfunsi <- check_if_arg_set(yfunsi)
+      if (!set_yfunsi) {
+        yfuntransformsi <- function(x)x
+        assign('yfuntransformsi', yfuntransformsi, envir = enverr.)
       }
-      if (grepl('.Primitive', myfunsi, fixed = T) &
-          grepl('sqrt', myfunsi, fixed = T)) {
-        myfunsi <- 'sqrt'
+      if (set_yfunsi) {
+        if(yfunsi == "log") {
+          yfuntransformsi <- function(x)log(x)
+        } else if(yfunsi == "sqrt") {
+          yfuntransformsi <- function(x)sqrt(x)
+        } else  if(is.function(ept(yfunsi))) {
+          yfuntransformsi <- ept(yfunsi)
+        } else {
+          stop(paste0("The yfun argument must be either a string ('log' or 'sqrt'),", 
+                      "\n  ",
+                      "or a function such as function(x)log(x)"))
+        }
+        assign('yfuntransformsi', yfuntransformsi, envir = enverr.)
       }
-      if (myfunsi == 'log')
-        if(!is.null(data[[mysi]])) data[[mysi]] <- log(data[[mysi]])
-      if (myfunsi == 'sqrt')
-        if(!is.null(data[[mysi]])) data[[mysi]] <- sqrt(data[[mysi]])
-    }
+      ################################
+      if(!is.null(data[[mysi]])) {
+        data[[mysi]] <- yfuntransformsi(data[[mysi]])
+      }
+    } # for (myfunsi in 1:length(y)) {
     return(data)
-  }
-
+  } # transform_y <- function(y, yfuns) {
+  
+  
   if (!(is.na(uvarby) | uvarby == "NA")) {
     if (!uvarby %in% colnames(data)) {
       stop(paste(

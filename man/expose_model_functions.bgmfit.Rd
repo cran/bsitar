@@ -3,7 +3,7 @@
 \name{expose_model_functions.bgmfit}
 \alias{expose_model_functions.bgmfit}
 \alias{expose_model_functions}
-\title{Expose user defined Stan function for post-processing}
+\title{Expose User-Defined Stan Functions for Post-Processing}
 \usage{
 \method{expose_model_functions}{bgmfit}(
   model,
@@ -22,66 +22,71 @@ expose_model_functions(model, ...)
 \arguments{
 \item{model}{An object of class \code{bgmfit}.}
 
-\item{scode}{A character string (\code{Stan code}) containing the
-user-defined Stan function(s). If \code{NULL} (default), the \code{scode}
-is retrieved from the \code{model}.}
+\item{scode}{A character string containing the user-defined Stan function(s)
+in \code{Stan} code. If \code{NULL} (the default), the \code{scode} will be
+retrieved from the \code{model}.}
 
 \item{expose}{A logical (default \code{TRUE}) to indicate whether to expose
-functions and add them to the \code{model} as an attribute.}
+the functions and add them as an attribute to the \code{model}.}
 
-\item{select_model}{A character string (default \code{NULL}) to indicate the
-model name. This is for internal use only.}
+\item{select_model}{A character string (default \code{NULL}) to specify the
+model name. This parameter is for internal use only.}
 
-\item{returnobj}{A logical (default \code{TRUE}) to indicate whether to
-return the model object. When \code{expose = TRUE}, then it is advisable to
-set \code{returnobj = TRUE} too.}
+\item{returnobj}{A logical (default \code{TRUE}) to specify whether to return
+the model object. If \code{expose = TRUE}, it is advisable to set
+\code{returnobj = TRUE}.}
 
 \item{vectorize}{A logical (default \code{FALSE}) to indicate whether the
-exposed functions should be vectorized via \code{\link[base:Vectorize]{base::Vectorize()}}. Note that
-currently \code{vectorize} should be set to \code{FALSE} because setting it
+exposed functions should be vectorized using \code{\link[base:Vectorize]{base::Vectorize()}}. Note that
+currently, \code{vectorize} should be set to \code{FALSE}, as setting it to
 \code{TRUE} may not work as expected.}
 
-\item{verbose}{An optional argument (logical, default \code{FALSE}) to
-indicate whether to print information collected during setting up the
-object(s).}
+\item{verbose}{A logical argument (default \code{FALSE}) to specify whether
+to print information collected during the setup of the object(s).}
 
-\item{envir}{Environment used for function evaluation. The default is
-\code{NULL} which will set \code{parent.frame()} as default environment.
-Note that since most of post processing functions are based on \pkg{brms},
-the functions needed for evaluation should be in the \code{.GlobalEnv}.
-Therefore, it is strongly recommended to set \code{ envir = globalenv()}
-(or \code{envir = .GlobalEnv}). This is particularly true for the
-derivatives such as velocity curve.}
+\item{envir}{The environment used for function evaluation. The default is
+\code{NULL}, which sets the environment to \code{parent.frame()}. Since
+most post-processing functions rely on \pkg{brms}, it is recommended to set
+\code{envir = globalenv()} or \code{envir = .GlobalEnv}, especially for
+derivatives like velocity curves.}
 
 \item{...}{Additional arguments passed to the
-\code{\link[rstan:expose_stan_functions]{rstan::expose_stan_functions()}} function.}
+\code{\link[rstan:expose_stan_functions]{rstan::expose_stan_functions()}} function. The "..." can be used to set the
+compiler, which can be either \code{\link[rstan:stanc]{rstan::stanc()}} or \code{\link[rstan:stan_model]{rstan::stan_model()}}.
+You can also pass other compiler-specific arguments such as \code{save_dso}
+for \code{\link[rstan:stan_model]{rstan::stan_model()}}. Note that while both \code{\link[rstan:stanc]{rstan::stanc()}} and
+\code{\link[rstan:stan_model]{rstan::stan_model()}} can be used as compilers before calling
+\code{\link[rstan:expose_stan_functions]{rstan::expose_stan_functions()}}, it is important to note that the
+execution time for \code{\link[rstan:stan_model]{rstan::stan_model()}} is approximately twice as long as
+\code{\link[rstan:stanc]{rstan::stanc()}}.}
 }
 \value{
-An object of class \code{bgmfit} if \code{returnobj=TRUE}, otherwise
-invisible \code{NULL}.
+An object of class \code{bgmfit} if \code{returnobj = TRUE};
+otherwise, it returns \code{NULL} invisibly.
 }
 \description{
-The \strong{expose_model_functions()} is a wrapper around the
-\code{\link[rstan:expose_stan_functions]{rstan::expose_stan_functions()}} to expose user defined
-\code{Stan} function(s). These exposed functions are needed during the
-post-processing of the posterior draws.
+The \strong{expose_model_functions()} function is a wrapper
+around \code{\link[rstan:expose_stan_functions]{rstan::expose_stan_functions()}} that exposes user-defined Stan
+function(s). These functions are necessary for post-processing the
+posterior draws.
 }
 \examples{
 
 \donttest{
+
 # Fit Bayesian SITAR model 
 
 # To avoid mode estimation which takes time, the Bayesian SITAR model fit to 
 # the 'berkeley_exdata' has been saved as an example fit ('berkeley_exfit').
 # See 'bsitar' function for details on 'berkeley_exdata' and 'berkeley_exfit'.
 
-# Check and confirm whether model fit object 'berkeley_exfit' exists
+# Check and confirm whether the model fit object 'berkeley_exfit' exists
  berkeley_exfit <- getNsObject(berkeley_exfit)
 
 model <- berkeley_exfit
 
-# To save time, argument expose is set as FALSE which runs a dummy test 
-# and avoid model compilation which often takes time
+# To save time, argument expose is set as FALSE, which runs a dummy test 
+# and avoids model compilation that often takes time.
 
 expose_model_functions(model, expose = FALSE)
 }

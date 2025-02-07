@@ -1,223 +1,195 @@
 
 
-
-#'Plot growth curves
+#' @title Plot Growth Curves
 #'
-#'@description The \strong{plot_curves()} provides visualization of six
-#'  different types of growth curves that are plotted by using the \pkg{ggplot2}
-#'  package. The \strong{plot_curves()} also allows users to make their own
-#'  detailed plots from the data returned as a \code{data.frame}.
+#' @description The \strong{plot_curves()} function visualizes six different
+#'   types of growth curves using the \pkg{ggplot2} package. Additionally, it
+#'   allows users to create customized plots from the data returned as a
+#'   \code{data.frame}. For an alternative approach, the [marginal_draws()]
+#'   function can be used, which not only estimates adjusted curves but also
+#'   enables comparison across groups using the \code{hypotheses} argument.
 #'
-#'@details The \strong{plot_curves()} is a generic function that allows
-#'  visualization of following six curves: population average distance curve,
-#'  population average velocity curve, individual-specific distance curves,
-#'  individual-specific velocity curves, unadjusted individual growth curves
-#'  (i.e, observed growth curves), and the adjusted individual growth curves
-#'  (adjusted for the model estimated random effects). The
-#'  \strong{plot_curves()} internally calls the [growthparameters()] function to
-#'  estimate and summaries the distance and velocity curves and to estimate
-#'  growth parameters such as the age at peak growth velocity (APGV). The
-#'  \strong{plot_curves()} in turn calls the [fitted_draws()] or the
-#'  [predict_draws()] functions to make inference from the posterior draws.
-#'  Thus, \strong{plot_curves()} allows plotting fitted or predicted curves. See
-#'  [fitted_draws()] and [predict_draws()] for details on these functions and
-#'  the difference between fitted and predicted values.
+#' @details The \strong{plot_curves()} function is a generic tool for
+#'   visualizing the following six curves:
+#'   - Population average distance curve
+#'   - Population average velocity curve
+#'   - Individual-specific distance curves
+#'   - Individual-specific velocity curves
+#'   - Unadjusted individual growth curves (i.e., observed growth curves)
+#'   - Adjusted individual growth curves (adjusted for the model-estimated 
+#'   random effects)
+#'   
+#'   Internally, \strong{plot_curves()} calls the [growthparameters()] function
+#'   to estimate and summarize the distance and velocity curves, as well as to
+#'   compute growth parameters such as the age at peak growth velocity (APGV).
+#'   The function also calls [fitted_draws()] or [predict_draws()] to make
+#'   inferences based on posterior draws. As a result, \strong{plot_curves()}
+#'   can plot either fitted or predicted curves. For more details, see
+#'   [fitted_draws()] and [predict_draws()] to understand the difference between
+#'   fitted and predicted values.
 #'
-#'@param model An object of class \code{bgmfit}.
+#' @param model An object of class \code{bgmfit}.
 #'
-#'@param opt A character string containing letter(s) corresponding to the
-#'  following plotting options: 'd' for population average distance curve, 'v'
-#'  for population average velocity curve, 'D' for individual-specific distance
-#'  curves, 'V' for individual-specific velocity curves, 'u' for unadjusted
-#'  individual-specific distance curves, and 'a' for adjusted
-#'  individual-specific distance curves (adjusted for the random effects).
-#'  Options 'd' and 'D' can not be specified simultaneously. Likewise, Options
-#'  'v' and 'V' can not be specified simultaneously. All other combinations are
-#'  allowed. For example, dvau', Dvau', dVau', DVau', or dvau'.
+#' @param opt A character string containing one or more of the following
+#'   plotting options:
+#'   - 'd': Population average distance curve
+#'   - 'v': Population average velocity curve
+#'   - 'D': Individual-specific distance curves
+#'   - 'V': Individual-specific velocity curves
+#'   - 'u': Unadjusted individual-specific distance curves
+#'   - 'a': Adjusted individual-specific distance curves (adjusted for 
+#'   random effects)
+#'   
+#'   Note that 'd' and 'D' cannot be specified simultaneously, nor can 'v' and
+#'   'V'. Other combinations are allowed, e.g., 'dvau', 'Dvau', 'dVau', etc.
+#'
+#' @param apv A logical value (default \code{FALSE}) indicating whether to
+#'   calculate and plot the age at peak velocity (APGV) when \code{opt} includes
+#'   'v' or 'V'.
 #'  
-#'@param apv An optional logical (default \code{FALSE}) specifying whether or
-#'  not to calculate and plot the age at peak velocity (APGV) when \code{opt})
-#'  includes 'v' or 'V'.
+#' @param bands A character string containing one or more of the following
+#'   options, or \code{NULL} (default), indicating if CI bands should be plotted
+#'   around the curves:
+#'   - 'd': Band around the distance curve
+#'   - 'v': Band around the velocity curve
+#'   - 'p': Band around the vertical line denoting the APGV parameter
+#'   
+#'   The \code{'dvp'} option will include CI bands for distance and velocity
+#'   curves, and the APGV.
 #'  
-#'@param bands A character string containing letter(s), or \code{NULL} (default)
-#'  to indicate if CI bands to be plotted around the distance and velocity
-#'  curves (and also the APGV). If \code{NULL}, no band plotted. Alternatively,
-#'  user can specify a string with any one of the following or their
-#'  combination(s): \code{'d'} for band around the distance curve, \code{'v} for
-#'  band around the velocity curve, and \code{'p} for band around the the
-#'  vertical line denoting the APGV parameter. The \code{'dvp'} will include CI
-#'  bands for distance and velocity curves, and the APGV.
-#'  
-#'@param conf A numeric value (default \code{0.95}) to be used to compute the CI
-#'  and hence the width of the \code{bands}. See [bsitar::growthparameters()]
-#'  for further details.
+#' @param conf A numeric value (default \code{0.95}) specifying the confidence
+#'   interval (CI) level for the bands. See [bsitar::growthparameters()] for
+#'   more details.
 #'
-#'@param trim A number (default 0) of long line segments to be excluded from
-#'  plot with option 'u' or 'a'. See [sitar::plot.sitar] for details.
+#' @param trim A numeric value (default \code{0}) indicating the number of long
+#'   line segments to be excluded from the plot when the option 'u' or 'a' is
+#'   selected. See [sitar::plot.sitar] for further details.
 #'
-#'@param layout A character string defining the layout structure of the plot. A
-#'  \code{'single'} (default) layout provides overlaid distance and velocity
-#'  curves on a single plot when opt includes \code{'dv'}, \code{'Dv'},
-#'  \code{'dV'} or \code{'DV'} options.  Similarly, when opt includes
-#'  \code{'au'}, the adjusted and unadjusted curves are plotted as a single
-#'  plot. When opt is a single letter (e.g., \code{'d'}. \code{'v'} \code{'D'},
-#'  \code{'V'}, \code{'a'}, \code{'u'}), the \code{'single'} optiion is ignored.
-#'  The alternative layout option, the \code{'facet'} uses the \code{facet_wrap}
-#'  from the \code{ggplot2}. to map and draw plot when \code{opt} include two or
-#'  more letters.
+#' @param layout A character string defining the plot layout. The default
+#'   \code{'single'} layout overlays distance and velocity curves on a single
+#'   plot when \code{opt} includes combinations like \code{'dv'}, \code{'Dv'},
+#'   \code{'dV'}, or \code{'DV'}. The alternative layout option \code{'facet'}
+#'   uses \code{facet_wrap} from \pkg{ggplot2} to map and draw plots when
+#'   \code{opt} includes two or more letters.
 #'
-#'@param linecolor The color of line used when layout is \code{'facet'}. The
-#'  default is \code{NULL} which internally set the \code{linecolor} as
-#'  \code{'grey50'}.
+#' @param linecolor The color of the lines when the layout is \code{'facet'}.
+#'   The default is \code{NULL}, which sets the line color to \code{'grey50'}.
 #'
-#'@param linecolor1 The color of first line when layout is \code{'single'}. For
-#'  example, for \code{opt = 'dv'}, the color of distance line is controlled by
-#'  the \code{linecolor1}. Default \code{NULL} will internally set
-#'  \code{linecolor1} as \code{'orange2'}.
+#' @param linecolor1 The color of the first line when the layout is
+#'   \code{'single'}. For example, in \code{opt = 'dv'}, the distance line is
+#'   controlled by \code{linecolor1}. The default \code{NULL} sets
+#'   \code{linecolor1} to \code{'orange2'}.
 #'
-#'@param linecolor2 The color of second line when layout is \code{'single'}. For
-#'  example, for \code{opt = 'dv'}, the color of velocity line is controlled by
-#'  the \code{linecolor2}. Default \code{NULL} sets the color \code{'green4'}
-#'  for \code{linecolor2}.
+#' @param linecolor2 The color of the second line when the layout is
+#'   \code{'single'}. For example, in \code{opt = 'dv'}, the velocity line is
+#'   controlled by \code{linecolor2}. The default \code{NULL} sets
+#'   \code{linecolor2} to \code{'green4'}.
 #'
-#'@param label.x An optional character string to label the x axis. When
-#'  \code{NULL} (default), the x axis label is taken from the predictor (e.g.,
-#'  age).
+#' @param label.x An optional character string to label the x-axis. If
+#'   \code{NULL} (default), the x-axis label will be taken from the predictor
+#'   (e.g., age).
 #'
-#'@param label.y An optional character string to label the y axis. When
-#'  \code{NULL} (default), the y axis label is taken from the type of plot
-#'  (e.g., distance, velocity etc.). Note that when layout option is
-#'  \code{'facet'}, then y axis label is removed and instead the same label is
-#'  used as a title.
+#' @param label.y An optional character string to label the y-axis. If
+#'   \code{NULL} (default), the y-axis label will be taken from the plot type
+#'   (e.g., distance, velocity). When \code{layout = 'facet'}, the label is
+#'   removed, and the same label is used as the title.
 #'
-#'@param legendpos An optional character string to specify the position of
-#'  legends. When \code{NULL} (default), the legend position is set as 'bottom'
-#'  for distance and velocity curves with \code{'single'} layout option for the
-#'  population average curves, and \code{'none'} for the individual specific
-#'  curves. The \code{'none'} suppress all legends that helps in avoiding
-#'  printing legends for each individual.
+#' @param legendpos A character string to specify the position of the legend. If
+#'   \code{NULL} (default), the legend position is set to 'bottom' for distance
+#'   and velocity curves in the \code{'single'} layout. For individual-specific
+#'   curves, the legend position is set to \code{'none'} to suppress the legend.
 #'
-#'@param linetype.apv An optional character string to specify the type of the
-#'  vertical line drawn to mark the APGV. Default \code{NULL} sets the linetype
-#'  as \code{dotted}.
+#' @param linetype.apv A character string to specify the type of the vertical
+#'   line marking the APGV. Default \code{NULL} sets the linetype to
+#'   \code{dotted}.
 #'
-#'@param linewidth.main An optional character string to specify the width of the
-#'  the line for the distance and velocity curves. The default \code{NULL} will
-#'  set it as 0.35.
+#' @param linewidth.main A numeric value to specify the line width for distance
+#'   and velocity curves. The default \code{NULL} sets the width to 0.35.
 #'
-#'@param linewidth.apv An optional character string to specify the width of the
-#'  the vertical line drawn to mark the APGV. The default \code{NULL} will set
-#'  it as 0.25.
+#' @param linewidth.apv A numeric value to specify the width of the vertical
+#'   line marking the APGV. The default \code{NULL} sets the width to 0.25.
 #'
-#'@param linetype.groupby An optional argument to specify the line type for the
-#'  distance and velocity curves when drawing plots for a model that includes
-#'  factor covariate(s) or when visualising individual specific
-#'  distance/velocity curves (default \code{NA}). Setting it to \code{NULL} will
-#'  automatically sets the linetype for each factor level or individual This
-#'  will also add legends for the factor level covariate or individuals whereas
-#'  \code{NA} will set a 'solid' line type and suppress legends. It is
-#'  recommended to keep the default \code{NULL} option when plotting population
-#'  average curves for when model included factor covariates because this would
-#'  appropriately set the legends otherwise it is difficult to differentiate
-#'  which curve belongs to which level of factor. For individual specific
-#'  curves, the line type can be set to \code{NULL} when the number of
-#'  individuals is small. However, when the number of individuals is large,
-#'  \code{NA} is a better choice which prevents printing a large number of
-#'  legends for each individual.
+#' @param linetype.groupby A character string specifying the line type for
+#'   distance and velocity curves when drawing plots for a model with factor
+#'   covariates or individual-specific curves. The default is \code{NA}, which
+#'   sets the line type to 'solid' and suppresses legends.
 #'
-#'@param color.groupby An optional argument to specify the line color for
-#'  distance and velocity curves when drawing plots for a model that includes
-#'  factor covariate(s), or when visualising individual specific
-#'  distance/velocity curves (default \code{NA}). Setting it to \code{NULL} will
-#'  automatically sets the line color for each factor level or individual. This
-#'  will also add legends for the factor level covariate or individuals.
-#'  However, setting it as \code{NA} will set a 'solid' line type and suppress
-#'  legends. It is recommended to keep the default \code{NULL} option when
-#'  plotting population average curves for factor covariates because this would
-#'  appropriately set the legends otherwise it is difficult to differentiate
-#'  which curve belongs to which level of the factor. For individual specific
-#'  curves, the line color can be set to \code{NULL} when the number of
-#'  individuals is small. However, when the number of individuals is large,
-#'  \code{NA} is a better choice which prevents printing a large number of
-#'  legends for each individual.
+#' @param color.groupby A character string specifying the line color for
+#'   distance and velocity curves when drawing plots for a model with factor
+#'   covariates or individual-specific curves. The default is \code{NA}, which
+#'   suppresses legends.
 #'
-#'@param band.alpha An optional numeric value to specify the transparency of the
-#'  CI band(s) around the distance curve, velocity curve and the line indicating
-#'  the APGV. The default \code{NULL} will set this value to 0.4.
+#' @param band.alpha A numeric value to specify the transparency of the CI bands
+#'   around the curves. The default \code{NULL} sets the transparency to 0.4.
 #'
-#'@param show_age_takeoff A logical (default \code{TRUE}) to indicate whether to
-#'  display the ATGV line(s) on the plot.
+#' @param show_age_takeoff A logical value (default \code{TRUE}) to indicate
+#'   whether to display the ATGV line(s) on the plot.
 #'
-#'@param show_age_peak A logical (default \code{TRUE}) to indicate whether to
-#'  display the APGV line(s) on the plot.
+#' @param show_age_peak A logical value (default \code{TRUE}) to indicate
+#'   whether to display the APGV line(s) on the plot.
 #'
-#'@param show_age_cessation A logical (default \code{TRUE}) to indicate whether
-#'  to display the ACGV line(s) on the plot.
+#' @param show_age_cessation A logical value (default \code{TRUE}) to indicate
+#'   whether to display the ACGV line(s) on the plot.
 #'
-#'@param show_vel_takeoff A logical (default \code{FALSE}) to indicate whether
-#'  to display the TGV line(s) on the plot.
+#' @param show_vel_takeoff A logical value (default \code{FALSE}) to indicate
+#'   whether to display the TGV line(s) on the plot.
 #'
-#'@param show_vel_peak A logical (default \code{FALSE}) to indicate whether to
-#'  display the PGV line(s) on the plot.
+#' @param show_vel_peak A logical value (default \code{FALSE}) to indicate
+#'   whether to display the PGV line(s) on the plot.
 #'
-#'@param show_vel_cessation A logical (default \code{FALSE}) to indicate whether
-#'  to display the CGV line(s) on the plot.
+#' @param show_vel_cessation A logical value (default \code{FALSE}) to indicate
+#'   whether to display the CGV line(s) on the plot.
 #'
-#'@param returndata A logical (default \code{FALSE}) indicating whether to plot
-#'  the data or return the data. If \code{TRUE}, the data is returned as a
-#'  \code{data.frame}.
-#'  
-#' @param returndata_add_parms A logical (default \code{FALSE}) indicating
-#'   whether add growth parameters to the \code{returndata}. The
-#'   \code{returndata_add_parms} is ignored when \code{returndata = FALSE}. If
-#'   \code{TRUE}, the growth parameters such as \code{APGV} and \code{PGV} are
-#'   added to the returned \code{data.frame}. Note that growth parameters are
-#'   estimated only when \code{'opt'} argument include either \code{'v'} or
-#'   \code{'V'} option and the argument \code{'apv'} is set to \code{TRUE}. If
-#'   any of these conditions are missing, then \code{returndata_add_parms} will
-#'   ignored ignored.
-#' 
-#'@param aux_variables An optional argument to specify the variables to be
-#'  passed to the \code{ipts} argument. This is useful when fitting location
-#'  scale models and the measurement error models.
+#' @param returndata A logical value (default \code{FALSE}) to indicate whether
+#'   to plot the data or return it as a \code{data.frame}.
 #'
-#'@inheritParams  growthparameters.bgmfit
+#' @param returndata_add_parms A logical value (default \code{FALSE}) to specify
+#'   whether to add growth parameters to the returned \code{data.frame}. Ignored
+#'   when \code{returndata = FALSE}. Growth parameters are added when the
+#'   \code{opt} argument includes 'v' or 'V' and \code{apv = TRUE}.
 #'
-#'@inherit brms::prepare_predictions.brmsfit params
+#' @param aux_variables An optional argument to specify variables passed to the
+#'   \code{ipts} argument, useful when fitting location-scale or measurement
+#'   error models.
 #'
-#'@return A plot object (default), or a \code{data.frame} when 
-#' \code{returndata = TRUE}.
-#' 
+#' @inheritParams growthparameters.bgmfit
+#' @inherit brms::fitted.brmsfit params
+#' @inherit brms::prepare_predictions.brmsfit params
+#'
+#' @return A plot object (default) or a \code{data.frame} when \code{returndata
+#'   = TRUE}.
+#'
 #' @export plot_curves.bgmfit
 #' @export
 #' 
-#'@importFrom rlang .data
-#'@importFrom graphics curve
+#' @importFrom rlang .data
+#' @importFrom graphics curve
 #'
-#'@seealso [growthparameters()] [fitted_draws] [predict_draws()]
+#' @seealso [growthparameters()] [fitted_draws()] [predict_draws()]
 #'
 #' @inherit berkeley author
 #'
 #' @examples
 #' 
+#' \donttest{
+#' 
 #' # Fit Bayesian SITAR model 
 #' 
-#' # To avoid mode estimation which takes time, the Bayesian SITAR model fit to 
-#' # the 'berkeley_exdata' has been saved as an example fit ('berkeley_exfit').
+#' # To avoid mode estimation which takes time, the Bayesian SITAR model is fit to 
+#' # the 'berkeley_exdata' and saved as an example fit ('berkeley_exfit').
 #' # See 'bsitar' function for details on 'berkeley_exdata' and 'berkeley_exfit'.
 #' 
-#' # Check and confirm whether model fit object 'berkeley_exfit' exists
-#'  berkeley_exfit <- getNsObject(berkeley_exfit)
+#' # Check and confirm whether the model fit object 'berkeley_exfit' exists
+#' berkeley_exfit <- getNsObject(berkeley_exfit)
 #' 
 #' model <- berkeley_exfit
 #' 
 #' # Population average distance and velocity curves with default options
 #' plot_curves(model, opt = 'dv')
 #' 
-#' \donttest{
 #' # Individual-specific distance and velocity curves with default options
-#' # Note that legendpos = 'none' will suppress the legend positions. This   
-#' # suppression is useful when plotting individual-specific curves
+#' # Note that \code{legendpos = 'none'} will suppress the legend positions. 
+#' # This suppression is useful when plotting individual-specific curves
 #' 
 #' plot_curves(model, opt = 'DV')
 #' 
@@ -259,10 +231,11 @@ plot_curves.bgmfit <- function(model,
                                bands = NULL,
                                conf = 0.95,
                                resp = NULL,
+                               dpar = NULL,
                                ndraws = NULL,
                                draw_ids = NULL,
                                newdata = NULL,
-                               summary = TRUE,
+                               summary = FALSE,
                                digits = 2,
                                re_formula = NULL,
                                numeric_cov_at = NULL,
@@ -283,6 +256,7 @@ plot_curves.bgmfit <- function(model,
                                sample_new_levels = "uncertainty",
                                incl_autocor = TRUE,
                                robust = FALSE,
+                               transform = NULL,
                                future = FALSE,
                                future_session = 'multisession',
                                cores = NULL,
@@ -317,6 +291,7 @@ plot_curves.bgmfit <- function(model,
                                expose_function = FALSE,
                                usesavedfuns = NULL,
                                clearenvfuns = NULL,
+                               funlist = NULL,
                                envir = NULL,
                                ...) {
   
@@ -325,6 +300,10 @@ plot_curves.bgmfit <- function(model,
   } else {
     envir <- parent.frame()
   }
+  
+  
+  # Depending on dpar 'mu' or 'sigma', subset model_info
+  model <- getmodel_info(model = model, dpar = dpar)
   
 
   if(is.null(usesavedfuns)) {
@@ -398,12 +377,10 @@ plot_curves.bgmfit <- function(model,
     }
   }
   
-  
   o <- post_processing_checks(model = model,
                               xcall = xcall,
                               resp = resp,
                               envir = envir)
-  
   
   xcall <- strsplit(deparse(sys.calls()[[1]]), "\\(")[[1]][1]
   scall <- sys.calls()
@@ -448,7 +425,6 @@ plot_curves.bgmfit <- function(model,
   if (is.null(idata_method)) {
     arguments$idata_method <- idata_method <- 'm2'
   }
-  
   
   
   # Remove argument 'deriv' if user specified it by mistake. 

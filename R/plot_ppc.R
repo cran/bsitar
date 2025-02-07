@@ -1,8 +1,11 @@
 
 
-#' Perform posterior predictive distribution checks
+
+#' @title Perform posterior predictive distribution checks
 #' 
-#' @details The \strong{plot_ppc()} is a wrapper around the [brms::pp_check()].
+#' @details The \strong{plot_ppc()} function is a wrapper around the
+#'   [brms::pp_check()] function, which allows for the visualization of
+#'   posterior predictive checks.
 #' 
 #' @param model An object of class \code{bgmfit}.
 #' 
@@ -17,10 +20,10 @@
 #' @inherit brms::pp_check.brmsfit description
 #' 
 #' @param ... Additional arguments passed to the [brms::pp_check.brmsfit()] 
-#' function. Please see [brms::pp_check.brmsfit()] for details.
+#'   function. Please refer to [brms::pp_check.brmsfit()] for details.
 #' 
-#' @return A ggplot object that can be further customized using the
-#' ggplot2 package.
+#' @return A \code{ggplot} object that can be further customized using the 
+#'   \pkg{ggplot2} package.
 #' 
 #' @export
 #' 
@@ -28,23 +31,27 @@
 #'
 #' @examples
 #' 
+#' \donttest{
+#' 
 #' # Fit Bayesian SITAR model 
 #' 
-#' # To avoid mode estimation which takes time, the Bayesian SITAR model fit to 
-#' # the 'berkeley_exdata' has been saved as an example fit ('berkeley_exfit').
-#' # See 'bsitar' function for details on 'berkeley_exdata' and 'berkeley_exfit'.
+#' # To avoid mode estimation, which takes time, the Bayesian SITAR model is fit to 
+#' # the 'berkeley_exdata' and saved as an example fit ('berkeley_exfit').
+#' # See the 'bsitar' function for details on 'berkeley_exdata' and 'berkeley_exfit'.
 #' 
-#' # Check and confirm whether model fit object 'berkeley_exfit' exists
+#' # Check and confirm whether the model fit object 'berkeley_exfit' exists
 #'  berkeley_exfit <- getNsObject(berkeley_exfit)
 #' 
 #' model <- berkeley_exfit
 #' 
 #' plot_ppc(model, ndraws = 100)
+#' }
 #' 
 plot_ppc.bgmfit <-
   function(model,
            type,
            ndraws = NULL,
+           dpar = NULL,
            draw_ids = NULL,
            prefix = c("ppc", "ppd"),
            group = NULL,
@@ -82,6 +89,9 @@ plot_ppc.bgmfit <-
     } else {
       envir <- parent.frame()
     }
+    
+    # Depending on dpar 'mu' or 'sigma', subset model_info
+    model <- getmodel_info(model = model, dpar = dpar)
     
 
     if(is.null(usesavedfuns)) {
@@ -174,7 +184,7 @@ plot_ppc.bgmfit <-
     
     if(!isTRUE(
       check_pkg_version_exists('brms', 
-                               minversion = get_package_minversion('brms'), 
+                               minimum_version = get_package_minversion('brms'), 
                                prompt = FALSE,
                                stop = FALSE,
                                verbose = FALSE))) {

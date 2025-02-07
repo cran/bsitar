@@ -641,8 +641,9 @@ prepare_priors <- function(prior_argument,
       } else if (check_for_autoscale &
                  !is.numeric(check_for_autoscale)) {
         scale_factor <- 2.5
-        if (verbose)
-          message("scale factor for autoscale option set to 2.5")
+        if (verbose) {
+          # if(i == 1) message("scale factor for autoscale option set to 2.5")
+        }
       } else if (is.numeric(check_for_autoscale)) {
         scale_factor <- check_for_autoscale
       }
@@ -5924,8 +5925,7 @@ prepare_priors <- function(prior_argument,
         
       } # end if(method_location_scale == "original" )
         
-        # print(pname_)
-        
+
         # if(method_location_scale == "via_functions") {
         #   list_objs <- mget(ls())
         #   if (grepl("^location$", pname_)) {
@@ -6494,7 +6494,7 @@ prepare_priors <- function(prior_argument,
           add_cla_to_name <- paste0(sep_indicator, class)
         }
         
-        
+       
         
         # This is required to set unique stanvar names for higher level sd 
         
@@ -6532,6 +6532,7 @@ prepare_priors <- function(prior_argument,
                  resp_)
         
         # name_parameter <- paste0(name_parameter, add_gr_id)
+        
        
         assign(name_parameter, evaluated_parameter)
         
@@ -6722,7 +6723,6 @@ prepare_priors <- function(prior_argument,
     
     # After exiting the loop for (i in 1:length(x)), execute transformation of 
     # location scale parameters for log transformed 
-    # print(fxls)
 
     # if fxls = 'log', then assign them 
     dont_allow_0 <- FALSE
@@ -7839,7 +7839,7 @@ prepare_priors <- function(prior_argument,
     
   } # end if(dist != 'flat') 
   
-  
+
   if(dist == 'flat') {
     prior_str_arg_out <- ""
     lowerbound <- NA
@@ -7901,6 +7901,9 @@ prepare_priors <- function(prior_argument,
     initial_out <- NULL
   }
   
+  # stanvars_datax <<- stanvars_data
+  # 
+  # stanvars_data %>% names() %>% print()
   
   return(
     list(

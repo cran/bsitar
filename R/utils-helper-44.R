@@ -1,14 +1,14 @@
 
 
-#' An internal function to prepare formula
+#' An internal function to prepare formula for sigma (distributional) parameter
 #' 
-#' The \code{prepare_formula}) prepares \code{brms::brmsformual} which is  
-#' passed on to the [bsitar::bsitar()] function. For univariate-by-
-#' subgroup model (specified by using the \code{univariate_by}) and 
-#' multivariate model (specified by using the \code{multivariate}),
-#' the \code{x}, \code{y}, \code{id}, \code{knots}, \code{nknots}, are 
-#' automatically set to match the sub-model(s). See \code{brms::brmsformual} 
-#' for details. 
+#' The \code{prepare_formula_sigma}) prepares \code{brms::brmsformual} for the
+#' \code{sigma} structure  which is passed on to the [bsitar::bsitar()]
+#' function. For univariate-by- subgroup model (specified by using the
+#' \code{univariate_by}) and multivariate model (specified by using the
+#' \code{multivariate}), the \code{x}, \code{y}, \code{id}, \code{knots},
+#' \code{nknots}, are automatically set to match the sub-model(s). See
+#' \code{brms::brmsformual} for details.
 #'
 #' @param x vector of predictor (typically age in years).
 #' 
@@ -23,7 +23,7 @@
 #' @param data data frame containing variables \code{x}, \code{y} and \code{id}.
 #' 
 #' @param internal_formula_args Other internal arguments passed from the 
-#' [bsitar::bsitar()] to the \code{prepare_formula}).
+#' [bsitar::bsitar()] to the \code{prepare_formula_sigma}).
 #'
 #' @return An object of class \code{brmsformula}, which is a \code{list} 
 #'   containing formulas.
@@ -33,7 +33,7 @@
 #' @keywords internal
 #' @noRd
 #' 
-prepare_formula <- function(x,
+prepare_formula_sigma <- function(x,
                             y,
                             id,
                             knots,
@@ -101,6 +101,7 @@ prepare_formula <- function(x,
   autocor_formi <- NULL;
   unusedsi <- NULL;
   familysi <- NULL;
+  # custom_family <- NULL;
   mat_s <- NULL;
   ancov_gr_str <- NULL;
   bncov_gr_str <- NULL;
@@ -137,20 +138,8 @@ prepare_formula <- function(x,
   sigmacovcoefnames_gr_str_id <- NULL;
   sigmacovcoefnames_gr_str_form <- NULL;
   brms_arguments <- NULL;
-  d_adjustedsi <- NULL;
-  acovcoefnames_gr_str <- NULL;
-  bcovcoefnames_gr_str <- NULL;
-  ccovcoefnames_gr_str <- NULL;
-  dcovcoefnames_gr_str <- NULL;
-  ecovcoefnames_gr_str <- NULL;
-  fcovcoefnames_gr_str <- NULL;
-  gcovcoefnames_gr_str <- NULL;
-  hcovcoefnames_gr_str <- NULL;
-  icovcoefnames_gr_str <- NULL;
-  scovcoefnames_gr_str <- NULL;
   
-  smat <- NULL;
-  smat_intercept <- NULL;
+  d_adjustedsi <- NULL;
   
   
   
@@ -177,7 +166,7 @@ prepare_formula <- function(x,
   }
   
   
-  # Need separate TRUE FALSE for random effects and sigma
+  # Need separate true false for random effects and sigma
   
   # First assign all FALSE
   # This to ignore _str formulae even if present when parmare not random
@@ -246,7 +235,6 @@ prepare_formula <- function(x,
       
       get_gr_str_coef_id_it   <- get_gr_str_coef_id(ept(in_gr_strsi),
                                                     data = data)
-  
       assign(paste0(set_nlpar_what, 'covcoefnames_gr_str'),
              get_gr_str_coef_id_it[['tsx_c_coef']])
       assign(paste0(set_nlpar_what, 'covcoefnames_gr_str_id'),
@@ -316,7 +304,6 @@ prepare_formula <- function(x,
     } # if(ept(paste0(set_nlpar_what, '_formula_gr_strsi_present'))) {
     if(!ept(paste0(set_nlpar_what, '_formula_gr_strsi_present'))) {
       asin_all_null <- NULL
-      
       assign(paste0(set_nlpar_what, 'covcoefnames_gr_str'),
              asin_all_null)
       assign(paste0(set_nlpar_what, 'covcoefnames_gr_str_id'),
@@ -1823,51 +1810,15 @@ prepare_formula <- function(x,
     gr_varss
   }
   
-  
-  ##########################
-  
-  getforvasasits <-  function(xform, x_formula_gr_strsi, 
-                              setparantopen = NULL,
-                              setparantclose = NULL) {
-    xform <- xform %>% gsub_space()
-    xform_temp <- xform
-    if(is.null(setparantopen)) setparantopen <- "("
-    if(is.null(setparantclose)) setparantclose <- ")"
-    xform_temp <- gsub("(", setparantopen, xform_temp, fixed = T)
-    xform_temp <- gsub(")", setparantclose, xform_temp, fixed = T)
-    xform_temp <- add_higher_level_str(xform_temp, x_formula_gr_strsi)
-    xform_temp <- restore_paranthese_grgr_str_form(xform_temp)
-    # xform_gr_names        <- lapply(xform_temp, get_x_random2)[[1]]
-    xform_gr_names        <- lapply(xform_temp, 
-                                    get_x_random2_new, 
-                                    gsubit = setparantclose)[[1]]
-    xform_gr_names_asitis <- lapply(xform_temp, get_x_random2_asitis)[[1]]
-    xform <- add_higher_level_str(xform, x_formula_gr_strsi)
-    xform <- restore_paranthese_grgr_str_form(xform)
-    xform <- xform %>% gsub_space()
-    xgr_varss <- add_higher_level_str_id(x_formula_gr_strsi)
-    
-    list(varss = xgr_varss, gr_names = xform_gr_names,
-         gr_names_asitis = xform_gr_names_asitis)
-  }
-  
-  #########################
  
   
   if(set_higher_levels) {
     if(a_formula_gr_strsi_present) {
       aform <- add_higher_level_str(aform, a_formula_gr_strsi)
       aform <- restore_paranthese_grgr_str_form(aform)
-      # agr_varss             <- add_higher_level_str_id(a_formula_gr_strsi)
-      # aform_gr_names        <- lapply(aform, get_x_random2)[[1]]
-      # aform_gr_names_asitis <- lapply(aform, get_x_random2_asitis)[[1]]
-      getvassetc <- getforvasasits(aform, a_formula_gr_strsi,
-                                   setparantopen = "(", 
-                                   setparantclose = ")"
-                                   )
-      agr_varss             <- getvassetc[['varss']]
-      aform_gr_names        <- getvassetc[['gr_names']]
-      aform_gr_names_asitis <- getvassetc[['gr_names_asitis']]
+      agr_varss             <- add_higher_level_str_id(a_formula_gr_strsi)
+      aform_gr_names        <- lapply(aform, get_x_random2)[[1]]
+      aform_gr_names_asitis <- lapply(aform, get_x_random2_asitis)[[1]]
     } else {
       agr_varss <- aform_gr_names <- aform_gr_names_asitis <- NULL
     }
@@ -1875,16 +1826,9 @@ prepare_formula <- function(x,
     if(b_formula_gr_strsi_present) {
       bform <- add_higher_level_str(bform, b_formula_gr_strsi)
       bform <- restore_paranthese_grgr_str_form(bform)
-      # bgr_varss             <- add_higher_level_str_id(b_formula_gr_strsi)
-      # bform_gr_names        <- lapply(bform, get_x_random2)[[1]]
-      # bform_gr_names_asitis <- lapply(bform, get_x_random2_asitis)[[1]]
-      getvassetc <- getforvasasits(bform, b_formula_gr_strsi,
-                                   setparantopen = "(", 
-                                   setparantclose = ")"
-      )
-      bgr_varss             <- getvassetc[['varss']]
-      bform_gr_names        <- getvassetc[['gr_names']]
-      bform_gr_names_asitis <- getvassetc[['gr_names_asitis']]
+      bgr_varss             <- add_higher_level_str_id(b_formula_gr_strsi)
+      bform_gr_names        <- lapply(bform, get_x_random2)[[1]]
+      bform_gr_names_asitis <- lapply(bform, get_x_random2_asitis)[[1]]
     } else {
       bgr_varss <- bform_gr_names <- bform_gr_names_asitis <- NULL
     }
@@ -1892,16 +1836,9 @@ prepare_formula <- function(x,
     if(c_formula_gr_strsi_present) {
       cform <- add_higher_level_str(cform, c_formula_gr_strsi)
       cform <- restore_paranthese_grgr_str_form(cform)
-      # cgr_varss             <- add_higher_level_str_id(c_formula_gr_strsi)
-      # cform_gr_names        <- lapply(cform, get_x_random2)[[1]]
-      # cform_gr_names_asitis <- lapply(cform, get_x_random2_asitis)[[1]]
-      getvassetc <- getforvasasits(cform, c_formula_gr_strsi,
-                                   setparantopen = "(", 
-                                   setparantclose = ")"
-      )
-      cgr_varss             <- getvassetc[['varss']]
-      cform_gr_names        <- getvassetc[['gr_names']]
-      cform_gr_names_asitis <- getvassetc[['gr_names_asitis']]
+      cgr_varss             <- add_higher_level_str_id(c_formula_gr_strsi)
+      cform_gr_names        <- lapply(cform, get_x_random2)[[1]]
+      cform_gr_names_asitis <- lapply(cform, get_x_random2_asitis)[[1]]
     } else {
       cgr_varss <- cform_gr_names <- cform_gr_names_asitis <- NULL
     }
@@ -1909,16 +1846,9 @@ prepare_formula <- function(x,
     if(d_formula_gr_strsi_present) {
       dform <- add_higher_level_str(dform, d_formula_gr_strsi)
       dform <- restore_paranthese_grgr_str_form(dform)
-      # dgr_varss             <- add_higher_level_str_id(d_formula_gr_strsi)
-      # dform_gr_names        <- lapply(dform, get_x_random2)[[1]]
-      # dform_gr_names_asitis <- lapply(dform, get_x_random2_asitis)[[1]]
-      getvassetc <- getforvasasits(dform, d_formula_gr_strsi,
-                                   setparantopen = "(", 
-                                   setparantclose = ")"
-      )
-      dgr_varss             <- getvassetc[['varss']]
-      dform_gr_names        <- getvassetc[['gr_names']]
-      dform_gr_names_asitis <- getvassetc[['gr_names_asitis']]
+      dgr_varss             <- add_higher_level_str_id(d_formula_gr_strsi)
+      dform_gr_names        <- lapply(dform, get_x_random2)[[1]]
+      dform_gr_names_asitis <- lapply(dform, get_x_random2_asitis)[[1]]
     } else {
       dgr_varss <- dform_gr_names <- dform_gr_names_asitis <- NULL
     }
@@ -1926,16 +1856,9 @@ prepare_formula <- function(x,
     if(e_formula_gr_strsi_present) {
       eform <- add_higher_level_str(eform, e_formula_gr_strsi)
       eform <- restore_paranthese_grgr_str_form(eform)
-      # egr_varss             <- add_higher_level_str_id(e_formula_gr_strsi)
-      # eform_gr_names        <- lapply(eform, get_x_random2)[[1]]
-      # eform_gr_names_asitis <- lapply(eform, get_x_random2_asitis)[[1]]
-      getvassetc <- getforvasasits(eform, e_formula_gr_strsi,
-                                   setparantopen = "(", 
-                                   setparantclose = ")"
-      )
-      egr_varss             <- getvassetc[['varss']]
-      eform_gr_names        <- getvassetc[['gr_names']]
-      eform_gr_names_asitis <- getvassetc[['gr_names_asitis']]
+      egr_varss             <- add_higher_level_str_id(e_formula_gr_strsi)
+      eform_gr_names        <- lapply(eform, get_x_random2)[[1]]
+      eform_gr_names_asitis <- lapply(eform, get_x_random2_asitis)[[1]]
     } else {
       egr_varss <- eform_gr_names <- eform_gr_names_asitis <- NULL
     }
@@ -1943,16 +1866,9 @@ prepare_formula <- function(x,
     if(f_formula_gr_strsi_present) {
       fform <- add_higher_level_str(fform, f_formula_gr_strsi)
       fform <- restore_paranthese_grgr_str_form(fform)
-      # fgr_varss             <- add_higher_level_str_id(f_formula_gr_strsi)
-      # fform_gr_names        <- lapply(fform, get_x_random2)[[1]]
-      # fform_gr_names_asitis <- lapply(fform, get_x_random2_asitis)[[1]]
-      getvassetc <- getforvasasits(fform, f_formula_gr_strsi,
-                                   setparantopen = "(", 
-                                   setparantclose = ")"
-      )
-      fgr_varss             <- getvassetc[['varss']]
-      fform_gr_names        <- getvassetc[['gr_names']]
-      fform_gr_names_asitis <- getvassetc[['gr_names_asitis']]
+      fgr_varss             <- add_higher_level_str_id(f_formula_gr_strsi)
+      fform_gr_names        <- lapply(fform, get_x_random2)[[1]]
+      fform_gr_names_asitis <- lapply(fform, get_x_random2_asitis)[[1]]
     } else {
       fgr_varss <- fform_gr_names <- fform_gr_names_asitis <- NULL
     }
@@ -1961,16 +1877,9 @@ prepare_formula <- function(x,
     if(g_formula_gr_strsi_present) {
       gform <- add_higher_level_str(gform, g_formula_gr_strsi)
       gform <- restore_paranthese_grgr_str_form(gform)
-      # ggr_varss             <- add_higher_level_str_id(g_formula_gr_strsi)
-      # gform_gr_names        <- lapply(gform, get_x_random2)[[1]]
-      # gform_gr_names_asitis <- lapply(gform, get_x_random2_asitis)[[1]]
-      getvassetc <- getforvasasits(gform, g_formula_gr_strsi,
-                                   setparantopen = "(", 
-                                   setparantclose = ")"
-      )
-      ggr_varss             <- getvassetc[['varss']]
-      gform_gr_names        <- getvassetc[['gr_names']]
-      gform_gr_names_asitis <- getvassetc[['gr_names_asitis']]
+      ggr_varss             <- add_higher_level_str_id(g_formula_gr_strsi)
+      gform_gr_names        <- lapply(gform, get_x_random2)[[1]]
+      gform_gr_names_asitis <- lapply(gform, get_x_random2_asitis)[[1]]
     } else {
       ggr_varss <- gform_gr_names <- gform_gr_names_asitis <- NULL
     }
@@ -1978,16 +1887,9 @@ prepare_formula <- function(x,
     if(h_formula_gr_strsi_present) {
       hform <- add_higher_level_str(hform, h_formula_gr_strsi)
       hform <- restore_paranthese_grgr_str_form(hform)
-      # hgr_varss             <- add_higher_level_str_id(h_formula_gr_strsi)
-      # hform_gr_names        <- lapply(hform, get_x_random2)[[1]]
-      # hform_gr_names_asitis <- lapply(hform, get_x_random2_asitis)[[1]]
-      getvassetc <- getforvasasits(hform, h_formula_gr_strsi,
-                                   setparantopen = "(", 
-                                   setparantclose = ")"
-      )
-      hgr_varss             <- getvassetc[['varss']]
-      hform_gr_names        <- getvassetc[['gr_names']]
-      hform_gr_names_asitis <- getvassetc[['gr_names_asitis']]
+      hgr_varss             <- add_higher_level_str_id(h_formula_gr_strsi)
+      hform_gr_names        <- lapply(hform, get_x_random2)[[1]]
+      hform_gr_names_asitis <- lapply(hform, get_x_random2_asitis)[[1]]
     } else {
       hgr_varss <- hform_gr_names <- hform_gr_names_asitis <- NULL
     }
@@ -1995,16 +1897,9 @@ prepare_formula <- function(x,
     if(i_formula_gr_strsi_present) {
       iform <- add_higher_level_str(iform, i_formula_gr_strsi)
       iform <- restore_paranthese_grgr_str_form(iform)
-      # igr_varss             <- add_higher_level_str_id(i_formula_gr_strsi)
-      # iform_gr_names        <- lapply(iform, get_x_random2)[[1]]
-      # iform_gr_names_asitis <- lapply(iform, get_x_random2_asitis)[[1]]
-      getvassetc <- getforvasasits(iform, i_formula_gr_strsi,
-                                   setparantopen = "(", 
-                                   setparantclose = ")"
-      )
-      igr_varss             <- getvassetc[['varss']]
-      iform_gr_names        <- getvassetc[['gr_names']]
-      iform_gr_names_asitis <- getvassetc[['gr_names_asitis']]
+      igr_varss             <- add_higher_level_str_id(i_formula_gr_strsi)
+      iform_gr_names        <- lapply(iform, get_x_random2)[[1]]
+      iform_gr_names_asitis <- lapply(iform, get_x_random2_asitis)[[1]]
     } else {
       igr_varss <- iform_gr_names <- iform_gr_names_asitis <- NULL
     }
@@ -2012,32 +1907,12 @@ prepare_formula <- function(x,
     if(s_formula_gr_strsi_present) {
       sform <- add_higher_level_str(sform, s_formula_gr_strsi)
       sform <- restore_paranthese_grgr_str_form(sform)
-      # sgr_varss             <- add_higher_level_str_id(s_formula_gr_strsi)
-      # sform_gr_names        <- lapply(sform, get_x_random2)[[1]]
-      # sform_gr_names_asitis <- lapply(sform, get_x_random2_asitis)[[1]]
-      getvassetc <- getforvasasits(sform, s_formula_gr_strsi,
-                                   setparantopen = "(", 
-                                   setparantclose = ")"
-      )
-      sgr_varss             <- getvassetc[['varss']]
-      sform_gr_names        <- getvassetc[['gr_names']]
-      sform_gr_names_asitis <- getvassetc[['gr_names_asitis']]
+      sgr_varss             <- add_higher_level_str_id(s_formula_gr_strsi)
+      sform_gr_names        <- lapply(sform, get_x_random2)[[1]]
+      sform_gr_names_asitis <- lapply(sform, get_x_random2_asitis)[[1]]
     } else {
       sgr_varss <- sform_gr_names <- sform_gr_names_asitis <- NULL
     }
-    
-    # 24.08.2024
-    # now get the .gr_varss from the first element of the .form_gr_names
-    # this is because now bsitar higher loop is from 1:.. and not 2:..
-    agr_varss <- aform_gr_names[1]
-    bgr_varss <- bform_gr_names[1]
-    cgr_varss <- cform_gr_names[1]
-    dgr_varss <- dform_gr_names[1]
-    egr_varss <- eform_gr_names[1]
-    fgr_varss <- fform_gr_names[1]
-    ggr_varss <- gform_gr_names[1]
-    hgr_varss <- hform_gr_names[1]
-    igr_varss <- iform_gr_names[1]
     
     gr_varss <- c(agr_varss, bgr_varss, cgr_varss, dgr_varss, 
                   egr_varss, fgr_varss, ggr_varss,
@@ -2062,27 +1937,13 @@ prepare_formula <- function(x,
     hierarchical_gr_names <- unique(hierarchical_gr_names)
     
     if(!is.null(gr_varss)) {
-      if(length(unique(gr_varss)) != 1) {
-        gr_varssmsg <- paste0("Duplicate group identifiers ", 
-                              paste(gr_varss, collapse = ", "), 
-                              "\n",
-                              "  This is because your gr(...) argument",
-                              "\n",
-                              "  is not same across a b c ... 'gr_str' formulae")
-        
-        stop(gr_varssmsg)
-      }
+      if(length(unique(gr_varss)) != 1) 
+        stop("Duplicate group identifiers ", gr_varss)
     }
     
     
     hierarchical_gr_names_asitis <- unique(hierarchical_gr_names_asitis)
-    
-    # 24.08.2024
-    # now hierarchical_gr_names_asitis is same as gr_varss
-    # this is because now bsitar higher loop is from 1:.. and not 2:..
-    
-    # gr_varss <- hierarchical_gr_names_asitis
-    gr_varss <- gr_varss
+    gr_varss <- hierarchical_gr_names_asitis
   } # if(set_higher_levels) {
   
   
@@ -2094,46 +1955,26 @@ prepare_formula <- function(x,
       # sigmaform_gr_names and sigmaform_gr_names_asitis is collected as follow
       # The "_________" does not allow split at ( or )
       # sigma_formula_gr_strsix <<- sigma_formula_gr_strsi
-      
-      
       sigmaform <- sigmaform %>% gsub_space()
       sigmaform_temp <- sigmaform
-      setparantopen <- "######"
-      setparantclose <- "########"
-       # sigmaform_tempx <<- sigmaform_temp
-      sigmaform_temp <- gsub("(", setparantopen, sigmaform_temp, fixed = T)
-      sigmaform_temp <- gsub(")", setparantclose, sigmaform_temp, fixed = T)
+      # sigmaform_tempx <<- sigmaform_temp
+      sigmaform_temp <- gsub("(", "_________", sigmaform_temp, fixed = T)
+      sigmaform_temp <- gsub(")", "__________", sigmaform_temp, fixed = T)
       sigmaform_temp <- add_higher_level_str(sigmaform_temp, sigma_formula_gr_strsi)
       sigmaform_temp <- restore_paranthese_grgr_str_form(sigmaform_temp)
-         # sigmaform_tempxx <<- sigmaform_temp
-      # sigmaform_gr_names        <- lapply(sigmaform_temp, get_x_random2)[[1]]
-      sigmaform_gr_names        <- lapply(sigmaform_temp,
-                                          get_x_random2_new,
-                                          gsubit = setparantclose)[[1]]
-
+      # sigmaform_tempxx <<- sigmaform_temp
+      sigmaform_gr_names        <- lapply(sigmaform_temp, get_x_random2)[[1]]
       sigmaform_gr_names_asitis <- lapply(sigmaform_temp, get_x_random2_asitis)[[1]]
-       # sigmaform_gr_namesx <<- sigmaform_gr_names
-       # sigmaform_gr_names_asitisx <<- sigmaform_gr_names_asitis
-
+      # sigmaform_gr_namesx <<- sigmaform_gr_names
+      # sigmaform_gr_names_asitisx <<- sigmaform_gr_names_asitis
+      
       sigmaform <- add_higher_level_str(sigmaform, sigma_formula_gr_strsi)
       sigmaform <- restore_paranthese_grgr_str_form(sigmaform)
       sigmaform <- sigmaform %>% gsub_space()
       sigmagr_varss <- add_higher_level_str_id(sigma_formula_gr_strsi)
       # sigmaform_gr_names        <- lapply(sigmaform, get_x_random2)[[1]]
       # sigmaform_gr_names_asitis <- lapply(sigmaform, get_x_random2_asitis)[[1]]
-
       
-      # Somehow the below - getvassetc-  did not work out for sigma
-      
-      # This is ######## to accomodate formalu in formula such as poly(age)
-      # getvassetc <- getforvasasits(sigmaform, sigma_formula_gr_strsi,
-      #                              setparantopen = "######", 
-      #                              setparantclose = "########"
-      # )
-      # sigmagr_varss             <- getvassetc[['varss']]
-      # sigmaform_gr_names        <- getvassetc[['gr_names']]
-      # sigmaform_gr_names_asitis <- getvassetc[['gr_names_asitis']]
-     
     } else {
       sigmaform_gr_names <- sigmaform_gr_names_asitis <- NULL
     }
@@ -2144,14 +1985,8 @@ prepare_formula <- function(x,
     sigma_hierarchical_gr_names_asitis <- c(sigmaform_gr_names_asitis)
     sigma_hierarchical_gr_names_asitis <- 
       unique(sigma_hierarchical_gr_names_asitis)
-     # 24.08.2024
-    if(length(sigmaform_gr_names) > 1) {
-      sigma_gr_varss <- sigmaform_gr_names[1]
-    } else {
-      sigma_gr_varss <- sigma_gr_varss
-    }
     
-    # sigma_gr_varss <- sigma_gr_varss 
+    sigma_gr_varss <- sigma_gr_varss 
     sigma_gr_varss_asitis <- sigmaform_gr_names_asitis
   } # if(sigma_set_higher_levels) {
   
@@ -2394,20 +2229,11 @@ prepare_formula <- function(x,
   univariate_by_by <- univariate_by$by
   
   
- 
-  
-  
   if(sigma_set_higher_levels) { 
-    # 24.08.2024
-    # now hierarchical_gr_names_asitis is same as gr_varss
-    # this is because now bsitar higher loop is from 1:.. and not 2:..
-    # sigma_arg_groupvar <- sigma_gr_varss_asitis
-    
-    sigma_arg_groupvar <- sigma_gr_varss
+    sigma_arg_groupvar <- sigma_gr_varss_asitis
   } else if(!is.null(sigma_formula_grsi)) {
-    if(!sigma_set_higher_levels & !grepl("|",
+    if(!sigma_set_higher_levels & !grepl("|", 
                                          sigma_formula_grsi, fixed = TRUE)) {
-    
       sigma_arg_groupvar <- sigma_gr_varss
     }
   } else if(!is.null(sigma_group_arg)) {
@@ -2416,34 +2242,17 @@ prepare_formula <- function(x,
     sigma_arg_groupvar <- NULL
   }
   
-  # sigma_set_higher_levels %>% print()
-  # sigma_formula_grsi %>% print()
-  # sigma_gr_varss %>% print()
-  
-  # 24.08.2024 -> !sigma_set_higher_levels to sigma_set_higher_levels
-  # if(!is.null(sigma_formula_grsi)) {
-  #   if(!sigma_set_higher_levels & 
-  #      grepl("|", sigma_formula_grsi, fixed = TRUE)) {
-  #     sigma_arg_groupvar <- sigma_gr_varss
-  #   } 
-  #   if(!sigma_set_higher_levels & 
-  #      !grepl("|", sigma_formula_grsi, fixed = TRUE)) {
-  #     sigma_arg_groupvar <- gr_varss
-  #   }  
-  # }
-  
   
   if(!is.null(sigma_formula_grsi)) {
-    if(sigma_set_higher_levels & 
+    if(!sigma_set_higher_levels & 
        grepl("|", sigma_formula_grsi, fixed = TRUE)) {
       sigma_arg_groupvar <- sigma_gr_varss
     } 
-    if(sigma_set_higher_levels & 
+    if(!sigma_set_higher_levels & 
        !grepl("|", sigma_formula_grsi, fixed = TRUE)) {
       sigma_arg_groupvar <- gr_varss
     }  
   }
-  
   
   # New add on 3 06 2023
   if(!sigma_set_higher_levels & !identical(sigma_gr_varss, gr_varss)) {
@@ -2629,30 +2438,10 @@ prepare_formula <- function(x,
     }
     
     
-    # check and adjust intercept for smat nsp nk
-    if(smat == 'nsk' | smat == 'nsp') {
-      if(smat_intercept) {
-        if (grepl("~0", s_formulasi, fixed = T)) {
-          lmform  <- as.formula(paste0(y, "~0+", "cons:mat_s"))
-        } 
-        if (grepl("~1", s_formulasi, fixed = T)) {
-          lmform  <- as.formula(paste0(y, "~0+", "mat_s"))
-        }
-      } # if(smat_intercept) {
-    } # if(smat == 'nsk'smat == 'nsp') {
-    
-    
     lm_fit  <- lm(lmform, data = data)
     lm_coef <- coef(lm_fit)
     
     lm_rsd  <- summary(lm_fit)$sigma
-    
-    # print(mat_s)
-    # print(lm_fit)
-    # print(lmform)
-    # print(smat_intercept)
-    
-    
     
     # library(ggplot2)
     # ppp <<- predict(lm_fit)
@@ -2743,7 +2532,6 @@ prepare_formula <- function(x,
       if(match_sitar_a_form) lm_a_all[1] <- lm_a_all[1] + lm_s_all[1] * min(knots)
     }
     
-   
     
     names(lm_a_all) <- acovcoefnames
     names(lm_b_all) <- bcovcoefnames
@@ -2909,8 +2697,6 @@ prepare_formula <- function(x,
     lm_fit  <- lm(lmform, data = lm_data_at_max_x)
     lm_coef <- coef(lm_fit)
     lm_rsd  <- summary(lm_fit)$sigma
-    
-    
     
     if (any(is.na(lm_coef))) {
       stop(
@@ -3119,107 +2905,46 @@ prepare_formula <- function(x,
   # mimicking that behaviors but keeping it separate here as 
   # brms may later change it to underscore or something else
   
-  
   gsubitbt <- ""
+  acovcoefnames <- gsub("[[:space:]]", gsubitbt, acovcoefnames)
+  bcovcoefnames <- gsub("[[:space:]]", gsubitbt, bcovcoefnames)
+  ccovcoefnames <- gsub("[[:space:]]", gsubitbt, ccovcoefnames)
+  dcovcoefnames <- gsub("[[:space:]]", gsubitbt, dcovcoefnames)
+  ecovcoefnames <- gsub("[[:space:]]", gsubitbt, ecovcoefnames)
+  fcovcoefnames <- gsub("[[:space:]]", gsubitbt, fcovcoefnames)
+  gcovcoefnames <- gsub("[[:space:]]", gsubitbt, gcovcoefnames)
+  hcovcoefnames <- gsub("[[:space:]]", gsubitbt, hcovcoefnames)
+  icovcoefnames <- gsub("[[:space:]]", gsubitbt, icovcoefnames)
   
-  gsubitbt_fun <- function(x, gsubitbt) {
-    gsubitbtx <- function(x, gsubitbt) gsub("[[:space:]]", gsubitbt, x)
-    if(is.list(x)) out <- lapply(x, gsubitbtx, gsubitbt)
-    if(!is.list(x)) out <- lapply(x, gsubitbtx, gsubitbt) %>% unlist()
-    out
-  }
+  scovcoefnames <- gsub("[[:space:]]", gsubitbt, scovcoefnames)
   
+  acovcoefnames_gr <- gsub("[[:space:]]", gsubitbt, acovcoefnames_gr)
+  bcovcoefnames_gr <- gsub("[[:space:]]", gsubitbt, bcovcoefnames_gr)
+  ccovcoefnames_gr <- gsub("[[:space:]]", gsubitbt, ccovcoefnames_gr)
+  dcovcoefnames_gr <- gsub("[[:space:]]", gsubitbt, dcovcoefnames_gr)
+  ecovcoefnames_gr <- gsub("[[:space:]]", gsubitbt, ecovcoefnames_gr)
+  fcovcoefnames_gr <- gsub("[[:space:]]", gsubitbt, fcovcoefnames_gr)
+  gcovcoefnames_gr <- gsub("[[:space:]]", gsubitbt, gcovcoefnames_gr)
+  hcovcoefnames_gr <- gsub("[[:space:]]", gsubitbt, hcovcoefnames_gr)
+  icovcoefnames_gr <- gsub("[[:space:]]", gsubitbt, icovcoefnames_gr)
+  scovcoefnames_gr <- gsub("[[:space:]]", gsubitbt, scovcoefnames_gr)
   
- 
+  dparcovcoefnames <- gsub("[[:space:]]", gsubitbt, dparcovcoefnames)
   
-  for (set_randomsi_higher_levsli in c(letters[1:26], 'sigma', 'dpar')) {
-    set_nlpar_what <- set_randomsi_higher_levsli
-    
-    if(exists(paste0(set_nlpar_what, 'covcoefnames'))) {
-      if(!is.null(ept(paste0(set_nlpar_what, 'covcoefnames'))) | 
-         ept(paste0(set_nlpar_what, 'covcoefnames') != "" )) {
-        assign(paste0(set_nlpar_what, 'covcoefnames'), 
-               gsubitbt_fun(ept(paste0(set_nlpar_what, 'covcoefnames')), 
-                            gsubitbt = gsubitbt))
-      } # if(!is.null(
-    } # if(exists(... covcoefnames
-    
-    if(exists(paste0(set_nlpar_what, 'covcoefnames_gr'))) {
-      if(!is.null(ept(paste0(set_nlpar_what, 'covcoefnames_gr'))) | 
-         ept(paste0(set_nlpar_what, 'covcoefnames_gr') != "" )) {
-        assign(paste0(set_nlpar_what, 'covcoefnames_gr'), 
-               gsubitbt_fun(ept(paste0(set_nlpar_what, 'covcoefnames_gr')), 
-                            gsubitbt = gsubitbt))
-      } # if(!is.null(
-    } # if(exists(... covcoefnames_gr
-    
-    if(exists(paste0(set_nlpar_what, 'covcoefnames_gr_str'))) {
-      if(!is.null(ept(paste0(set_nlpar_what, 'covcoefnames_gr_str'))) | 
-         ept(paste0(set_nlpar_what, 'covcoefnames_gr_str') != "" )) {
-        assign(paste0(set_nlpar_what, 'covcoefnames_gr_str'), 
-               gsubitbt_fun(ept(paste0(set_nlpar_what, 'covcoefnames_gr_str')), 
-                            gsubitbt = gsubitbt))
-      } # if(!is.null(
-    } # if(exists(... covcoefnames_gr_str
-    
-    if(exists(paste0(set_nlpar_what, 'covcoefnames_gr_str'))) {
-      if(!is.null(ept(paste0(set_nlpar_what, 'covcoefnames_gr_str'))) | 
-         ept(paste0(set_nlpar_what, 'covcoefnames_gr_str') != "" )) {
-        assign(paste0(set_nlpar_what, 'covcoefnames_gr_str'), 
-               gsubitbt_fun(ept(paste0(set_nlpar_what, 'covcoefnames_gr_str')), 
-                            gsubitbt = gsubitbt))
-      } # if(!is.null(
-    } # if(exists(... covcoefnames_gr_str
-  } # for (set_randomsi_higher_levsli
+  sigmacovcoefnames <- gsub("[[:space:]]", gsubitbt, sigmacovcoefnames)
+  sigmacovcoefnames_gr <- gsub("[[:space:]]", gsubitbt, sigmacovcoefnames_gr)
   
+  acovcoefnames_gr_str <- gsub("[[:space:]]", gsubitbt, acovcoefnames_gr_str)
+  bcovcoefnames_gr_str <- gsub("[[:space:]]", gsubitbt, bcovcoefnames_gr_str)
+  ccovcoefnames_gr_str <- gsub("[[:space:]]", gsubitbt, ccovcoefnames_gr_str)
+  dcovcoefnames_gr_str <- gsub("[[:space:]]", gsubitbt, dcovcoefnames_gr_str)
+  ecovcoefnames_gr_str <- gsub("[[:space:]]", gsubitbt, ecovcoefnames_gr_str)
+  fcovcoefnames_gr_str <- gsub("[[:space:]]", gsubitbt, fcovcoefnames_gr_str)
+  gcovcoefnames_gr_str <- gsub("[[:space:]]", gsubitbt, gcovcoefnames_gr_str)
+  hcovcoefnames_gr_str <- gsub("[[:space:]]", gsubitbt, hcovcoefnames_gr_str)
+  icovcoefnames_gr_str <- gsub("[[:space:]]", gsubitbt, icovcoefnames_gr_str)
+  scovcoefnames_gr_str <- gsub("[[:space:]]", gsubitbt, scovcoefnames_gr_str)
   
-  # acovcoefnames <- gsub("[[:space:]]", gsubitbt, acovcoefnames)
-  # bcovcoefnames <- gsub("[[:space:]]", gsubitbt, bcovcoefnames)
-  # ccovcoefnames <- gsub("[[:space:]]", gsubitbt, ccovcoefnames)
-  # dcovcoefnames <- gsub("[[:space:]]", gsubitbt, dcovcoefnames)
-  # ecovcoefnames <- gsub("[[:space:]]", gsubitbt, ecovcoefnames)
-  # fcovcoefnames <- gsub("[[:space:]]", gsubitbt, fcovcoefnames)
-  # gcovcoefnames <- gsub("[[:space:]]", gsubitbt, gcovcoefnames)
-  # hcovcoefnames <- gsub("[[:space:]]", gsubitbt, hcovcoefnames)
-  # icovcoefnames <- gsub("[[:space:]]", gsubitbt, icovcoefnames)
-  # 
-  # scovcoefnames <- gsub("[[:space:]]", gsubitbt, scovcoefnames)
-  # 
-  # acovcoefnames_gr <- gsub("[[:space:]]", gsubitbt, acovcoefnames_gr)
-  # bcovcoefnames_gr <- gsub("[[:space:]]", gsubitbt, bcovcoefnames_gr)
-  # ccovcoefnames_gr <- gsub("[[:space:]]", gsubitbt, ccovcoefnames_gr)
-  # dcovcoefnames_gr <- gsub("[[:space:]]", gsubitbt, dcovcoefnames_gr)
-  # ecovcoefnames_gr <- gsub("[[:space:]]", gsubitbt, ecovcoefnames_gr)
-  # fcovcoefnames_gr <- gsub("[[:space:]]", gsubitbt, fcovcoefnames_gr)
-  # gcovcoefnames_gr <- gsub("[[:space:]]", gsubitbt, gcovcoefnames_gr)
-  # hcovcoefnames_gr <- gsub("[[:space:]]", gsubitbt, hcovcoefnames_gr)
-  # icovcoefnames_gr <- gsub("[[:space:]]", gsubitbt, icovcoefnames_gr)
-  # scovcoefnames_gr <- gsub("[[:space:]]", gsubitbt, scovcoefnames_gr)
-  # 
-  # dparcovcoefnames <- gsub("[[:space:]]", gsubitbt, dparcovcoefnames)
-  # 
-  # sigmacovcoefnames <- gsub("[[:space:]]", gsubitbt, sigmacovcoefnames)
-  # sigmacovcoefnames_gr <- gsub("[[:space:]]", gsubitbt, sigmacovcoefnames_gr)
-  # 
-  # acovcoefnames_gr_str <- gsub("[[:space:]]", gsubitbt, acovcoefnames_gr_str)
-  # bcovcoefnames_gr_str <- gsub("[[:space:]]", gsubitbt, bcovcoefnames_gr_str)
-  # ccovcoefnames_gr_str <- gsub("[[:space:]]", gsubitbt, ccovcoefnames_gr_str)
-  # dcovcoefnames_gr_str <- gsub("[[:space:]]", gsubitbt, dcovcoefnames_gr_str)
-  # ecovcoefnames_gr_str <- gsub("[[:space:]]", gsubitbt, ecovcoefnames_gr_str)
-  # fcovcoefnames_gr_str <- gsub("[[:space:]]", gsubitbt, fcovcoefnames_gr_str)
-  # gcovcoefnames_gr_str <- gsub("[[:space:]]", gsubitbt, gcovcoefnames_gr_str)
-  # hcovcoefnames_gr_str <- gsub("[[:space:]]", gsubitbt, hcovcoefnames_gr_str)
-  # icovcoefnames_gr_str <- gsub("[[:space:]]", gsubitbt, icovcoefnames_gr_str)
-  # scovcoefnames_gr_str <- gsub("[[:space:]]", gsubitbt, scovcoefnames_gr_str)
-  # 
-  
-  
-  # sigma_arg_groupvarx <<- sigma_arg_groupvar
-
-  # group_arg_groupvarx <<- group_arg_groupvar
-
-  # hierarchical_gr_names %>% print()
-  # sigma_hierarchical_gr_names %>% print()
   
   
   list_out <- list(
@@ -3403,10 +3128,8 @@ prepare_formula <- function(x,
     lme_sd_a = lme_sd_a,
     lme_rsd = lme_rsd
   )
-  
-  
  
-  # setbformulax <<- setbformula
+   # setbformulax <<- setbformula
   attr(setbformula, "list_out") <- as.list(list_out)
   
   return(setbformula)

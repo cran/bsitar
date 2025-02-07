@@ -3,7 +3,7 @@
 \name{plot_curves.bgmfit}
 \alias{plot_curves.bgmfit}
 \alias{plot_curves}
-\title{Plot growth curves}
+\title{Plot Growth Curves}
 \usage{
 \method{plot_curves}{bgmfit}(
   model,
@@ -12,10 +12,11 @@
   bands = NULL,
   conf = 0.95,
   resp = NULL,
+  dpar = NULL,
   ndraws = NULL,
   draw_ids = NULL,
   newdata = NULL,
-  summary = TRUE,
+  summary = FALSE,
   digits = 2,
   re_formula = NULL,
   numeric_cov_at = NULL,
@@ -36,6 +37,7 @@
   sample_new_levels = "uncertainty",
   incl_autocor = TRUE,
   robust = FALSE,
+  transform = NULL,
   future = FALSE,
   future_session = "multisession",
   cores = NULL,
@@ -70,6 +72,7 @@
   expose_function = FALSE,
   usesavedfuns = NULL,
   clearenvfuns = NULL,
+  funlist = NULL,
   envir = NULL,
   ...
 )
@@ -79,157 +82,169 @@ plot_curves(model, ...)
 \arguments{
 \item{model}{An object of class \code{bgmfit}.}
 
-\item{opt}{A character string containing letter(s) corresponding to the
-following plotting options: 'd' for population average distance curve, 'v'
-for population average velocity curve, 'D' for individual-specific distance
-curves, 'V' for individual-specific velocity curves, 'u' for unadjusted
-individual-specific distance curves, and 'a' for adjusted
-individual-specific distance curves (adjusted for the random effects).
-Options 'd' and 'D' can not be specified simultaneously. Likewise, Options
-'v' and 'V' can not be specified simultaneously. All other combinations are
-allowed. For example, dvau', Dvau', dVau', DVau', or dvau'.}
+\item{opt}{A character string containing one or more of the following
+plotting options:
+\itemize{
+\item 'd': Population average distance curve
+\item 'v': Population average velocity curve
+\item 'D': Individual-specific distance curves
+\item 'V': Individual-specific velocity curves
+\item 'u': Unadjusted individual-specific distance curves
+\item 'a': Adjusted individual-specific distance curves (adjusted for
+random effects)
+}
 
-\item{apv}{An optional logical (default \code{FALSE}) specifying whether or
-not to calculate and plot the age at peak velocity (APGV) when \code{opt})
-includes 'v' or 'V'.}
+Note that 'd' and 'D' cannot be specified simultaneously, nor can 'v' and
+'V'. Other combinations are allowed, e.g., 'dvau', 'Dvau', 'dVau', etc.}
 
-\item{bands}{A character string containing letter(s), or \code{NULL} (default)
-to indicate if CI bands to be plotted around the distance and velocity
-curves (and also the APGV). If \code{NULL}, no band plotted. Alternatively,
-user can specify a string with any one of the following or their
-combination(s): \code{'d'} for band around the distance curve, \code{'v} for
-band around the velocity curve, and \code{'p} for band around the the
-vertical line denoting the APGV parameter. The \code{'dvp'} will include CI
-bands for distance and velocity curves, and the APGV.}
+\item{apv}{A logical value (default \code{FALSE}) indicating whether to
+calculate and plot the age at peak velocity (APGV) when \code{opt} includes
+'v' or 'V'.}
 
-\item{conf}{A numeric value (default \code{0.95}) to be used to compute the CI
-and hence the width of the \code{bands}. See \code{\link[=growthparameters]{growthparameters()}}
-for further details.}
+\item{bands}{A character string containing one or more of the following
+options, or \code{NULL} (default), indicating if CI bands should be plotted
+around the curves:
+\itemize{
+\item 'd': Band around the distance curve
+\item 'v': Band around the velocity curve
+\item 'p': Band around the vertical line denoting the APGV parameter
+}
 
-\item{resp}{A character string (default \code{NULL}) to specify response
-variable when processing posterior draws for the \code{univariate_by} and
+The \code{'dvp'} option will include CI bands for distance and velocity
+curves, and the APGV.}
+
+\item{conf}{A numeric value (default \code{0.95}) specifying the confidence
+interval (CI) level for the bands. See \code{\link[=growthparameters]{growthparameters()}} for
+more details.}
+
+\item{resp}{A character string (default \code{NULL}) to specify the response
+variable when processing posterior draws for \code{univariate_by} and
 \code{multivariate} models. See \code{\link[=bsitar]{bsitar()}} for details on
-\code{univariate_by} and \code{multivariate} models}
+\code{univariate_by} and \code{multivariate} models.}
+
+\item{dpar}{Optional name of a predicted distributional parameter.
+If specified, expected predictions of this parameters are returned.}
 
 \item{ndraws}{A positive integer indicating the number of posterior draws to
-be used in estimation. If \code{NULL} (default), all draws are used.}
+use in estimation. If \code{NULL} (default), all draws are used.}
 
-\item{draw_ids}{An integer indicating the specific posterior draw(s)
-to be used in estimation (default \code{NULL}).}
+\item{draw_ids}{An integer specifying the specific posterior draw(s) to use
+in estimation (default \code{NULL}).}
 
-\item{newdata}{An optional data frame to be used in estimation. If
-\code{NULL} (default), the \code{newdata} is retrieved from the
-\code{model}.}
+\item{newdata}{An optional data frame for estimation. If \code{NULL}
+(default), \code{newdata} is retrieved from the \code{model}.}
 
-\item{summary}{A logical indicating whether only the estimate should be
-computed (\code{TRUE}, default), or estimate along with SE and CI should be
-returned (\code{FALSE}). Setting \code{summary} as \code{FALSE} will
-increase the computation time.}
+\item{summary}{A logical value indicating whether only the estimate should be
+computed (\code{TRUE}), or whether the estimate along with SE and CI should
+be returned (\code{FALSE}, default). Setting \code{summary} to \code{FALSE}
+will increase computation time. Note that \code{summary = FALSE} is
+required to obtain correct estimates when \code{re_formula = NULL}.}
 
-\item{digits}{An integer (default \code{2}) to set the decimal argument for
-the \code{\link[base:Round]{base::round()}} function.}
+\item{digits}{An integer (default \code{2}) to set the decimal places for
+rounding the results using the \code{\link[base:Round]{base::round()}} function.}
 
-\item{re_formula}{Option to indicate whether or not to include the
+\item{re_formula}{Option to indicate whether or not to include
 individual/group-level effects in the estimation. When \code{NA} (default),
-the individual-level effects are excluded and therefore population average
-growth parameters are computed. When \code{NULL}, individual-level effects
-are included in the computation and hence the growth parameters estimates
-returned are individual-specific. In both situations, (i.e,, \code{NA} or
-\code{NULL}), continuous and factor covariate(s) are appropriately included
-in the estimation. The continuous covariates by default are set to their
-means (see \code{numeric_cov_at} for details) whereas factor covariates are
-left unaltered thereby allowing estimation of covariate specific population
-average and individual-specific growth parameter.}
+individual-level effects are excluded, and population average growth
+parameters are computed. When \code{NULL}, individual-level effects are
+included in the computation, and the resulting growth parameters are
+individual-specific. In both cases (\code{NA} or \code{NULL}), continuous
+and factor covariates are appropriately included in the estimation.
+Continuous covariates are set to their means by default (see
+\code{numeric_cov_at} for details), while factor covariates remain
+unaltered, allowing for the estimation of covariate-specific population
+average and individual-specific growth parameters.}
 
 \item{numeric_cov_at}{An optional (named list) argument to specify the value
-of continuous covariate(s). The default \code{NULL} option set the
-continuous covariate(s) at their mean. Alternatively, a named list can be
+of continuous covariate(s). The default \code{NULL} option sets the
+continuous covariate(s) to their mean. Alternatively, a named list can be
 supplied to manually set these values. For example, \code{numeric_cov_at =
-  list(xx = 2)} will set the continuous covariate varibale 'xx' at 2. The
-argument \code{numeric_cov_at} is ignored when no continuous covariate is
+  list(xx = 2)} will set the continuous covariate variable 'xx' to 2. The
+argument \code{numeric_cov_at} is ignored when no continuous covariates are
 included in the model.}
 
-\item{aux_variables}{An optional argument to specify the variables to be
-passed to the \code{ipts} argument. This is useful when fitting location
-scale models and the measurement error models.}
+\item{aux_variables}{An optional argument to specify variables passed to the
+\code{ipts} argument, useful when fitting location-scale or measurement
+error models.}
 
-\item{levels_id}{An optional argument to specify the \code{ids} for
-hierarchical model (default \code{NULL}). It is used only when model is
-applied to the data with 3 or more levels of hierarchy. For a two level
-model, the \code{levels_id} is automatically inferred from the model fit.
-Even for 3 or higher level model, the \code{levels_id} is inferred from the
-model fit but under the assumption that hierarchy is specified from lowest
-to upper most level i.e, \code{id} followed by \code{study} where \code{id}
-is nested within the \code{study} Note that it is not guaranteed that the
-\code{levels_id} is sorted correctly, and therefore it is better to set it
-manually when fitting a model with three or more levels of hierarchy.}
+\item{levels_id}{An optional argument to specify the \code{ids} for the
+hierarchical model (default \code{NULL}). It is used only when the model is
+applied to data with three or more levels of hierarchy. For a two-level
+model, \code{levels_id} is automatically inferred from the model fit. For
+models with three or more levels, \code{levels_id} is inferred from the
+model fit under the assumption that hierarchy is specified from the lowest
+to the uppermost level, i.e., \code{id} followed by \code{study}, where
+\code{id} is nested within \code{study}. However, it is not guaranteed that
+\code{levels_id} is sorted correctly, so it is better to set it manually
+when fitting a model with three or more levels of hierarchy.}
 
 \item{avg_reffects}{An optional argument (default \code{NULL}) to calculate
-(marginal/average) curves and growth parameters such as APGV and PGV. If
-specified, it must be a named list indicating the \code{over} (typically
+(marginal/average) curves and growth parameters, such as APGV and PGV. If
+specified, it must be a named list indicating the \code{over} (typically a
 level 1 predictor, such as age), \code{feby} (fixed effects, typically a
-factor variable), and  \code{reby} (typically \code{NULL} indicating that
-parameters are integrated over the random effects) such as
+factor variable), and \code{reby} (typically \code{NULL}, indicating that
+parameters are integrated over the random effects). For example,
 \code{avg_reffects = list(feby = 'study', reby = NULL, over = 'age')}.}
 
-\item{ipts}{An integer to set the length of the predictor variable to get a
-smooth velocity curve. The \code{NULL} will return original values whereas
-an integer such as \code{ipts = 10} (default) will interpolate the
-predictor. It is important to note that these interpolations do not alter
-the range of predictor when calculating population average and/or the
-individual specific growth curves.}
+\item{ipts}{An integer to set the length of the predictor variable for
+generating a smooth velocity curve. If \code{NULL}, the original values are
+returned. If an integer (e.g., \code{ipts = 10}, default), the predictor is
+interpolated. Note that these interpolations do not alter the range of the
+predictor when calculating population averages and/or individual-specific
+growth curves.}
 
-\item{deriv_model}{A logical to specify whether to estimate velocity curve
-from the derivative function, or the differentiation of the distance curve.
-The argument \code{deriv_model} is set to \code{TRUE} for those functions
-which need velocity curve such as \code{growthparameters()} and
-\code{plot_curves()}, and \code{NULL} for functions which explicitly use
-the distance curve (i.e., fitted values) such as \code{loo_validation()}
-and \code{plot_ppc()}.}
+\item{deriv_model}{A logical value specifying whether to estimate the
+velocity curve from the derivative function or by differentiating the
+distance curve. Set \code{deriv_model = TRUE} for functions that require
+the velocity curve, such as \code{growthparameters()} and
+\code{plot_curves()}. Set it to \code{NULL} for functions that use the
+distance curve (i.e., fitted values), such as \code{loo_validation()} and
+\code{plot_ppc()}.}
 
-\item{xrange}{An integer to set the predictor range (i.e., age) when
-executing the interpolation via \code{ipts}. The default \code{NULL} sets
-the individual specific predictor range whereas code \code{xrange = 1} sets
-identical range for individuals within the same higher grouping variable
-(e.g., study). Code \code{xrange  = 2} sets the identical range across the
-entire sample. Lastly, a paired numeric values can be supplied e.g.,
-\code{xrange = c(6, 20)} to set the range within those values.}
+\item{xrange}{An integer to set the predictor range (e.g., age) when
+executing the interpolation via \code{ipts}. By default, \code{NULL} sets
+the individual-specific predictor range. Setting \code{xrange = 1} applies
+the same range for individuals within the same higher grouping variable
+(e.g., study). Setting \code{xrange = 2} applies an identical range across
+the entire sample. Alternatively, a numeric vector (e.g., \code{xrange =
+  c(6, 20)}) can be provided to set the range within the specified values.}
 
-\item{xrange_search}{A vector of length two, or a character string
-\code{'range'} to set the range of predictor variable (\code{x} ) within
+\item{xrange_search}{A vector of length two or a character string
+\code{'range'} to set the range of the predictor variable (\code{x}) within
 which growth parameters are searched. This is useful when there is more
-than one peak and user wants to summarize peak within a given range of the
-\code{x} variable. Default \code{xrange_search = NULL}.}
+than one peak and the user wants to summarize the peak within a specified
+range of the \code{x} variable. The default value is \code{xrange_search =
+  NULL}.}
 
-\item{takeoff}{A logical (default \code{FALSE}) to indicate whether
-or not to calculate the age at takeoff velocity (ATGV) and the takeoff
-growth velocity (TGV) parameters.}
+\item{takeoff}{A logical value (default \code{FALSE}) indicating whether to
+calculate the age at takeoff velocity (ATGV) and the takeoff growth
+velocity (TGV) parameters.}
 
-\item{trough}{A logical (default \code{FALSE}) to indicate whether or
-not to calculate the age at cessation of growth velocity (ACGV) and the
-cessation of growth velocity (CGV) parameters.}
+\item{trough}{A logical value (default \code{FALSE}) indicating whether to
+calculate the age at cessation of growth velocity (ACGV) and the cessation
+of growth velocity (CGV) parameters.}
 
-\item{acgv}{A logical (default \code{FALSE}) to indicate whether or not to
+\item{acgv}{A logical value (default \code{FALSE}) indicating whether to
 calculate the age at cessation of growth velocity from the velocity curve.
-If \code{TRUE}, age at cessation of growth velocity (ACGV) and the
-cessation growth velocity (CGV) are  calculated based on the percentage of
-the peak growth velocity as defined by the \code{acgv_velocity} argument
+If \code{TRUE}, the age at cessation of growth velocity (ACGV) and the
+cessation growth velocity (CGV) are calculated based on the percentage of
+the peak growth velocity, as defined by the \code{acgv_velocity} argument
 (see below). The \code{acgv_velocity} is typically set at 10 percent of the
-peak growth velocity. The ACGV and CGV are calculated along with the the
+peak growth velocity. ACGV and CGV are calculated along with the
 uncertainty (SE and CI) around the ACGV and CGV parameters.}
 
-\item{acgv_velocity}{Specify the percentage of the peak growth velocity to be
-used when estimating \code{acgv}. The default value is \code{0.10} i.e.,
-10 percent of the peak growth velocity.}
+\item{acgv_velocity}{The percentage of the peak growth velocity to use when
+estimating \code{acgv}. The default value is \code{0.10}, i.e., 10 percent
+of the peak growth velocity.}
 
 \item{seed}{An integer (default \code{123}) that is passed to the estimation
-method.}
+method to ensure reproducibility.}
 
-\item{estimation_method}{A character string to specify the estimation method
+\item{estimation_method}{A character string specifying the estimation method
 when calculating the velocity from the posterior draws. The \code{'fitted'}
-method internally calls the \code{\link[=fitted_draws]{fitted_draws()}} whereas the option
-\code{predict} calls the \code{\link[=predict_draws]{predict_draws()}}. See
-\code{\link[brms:fitted.brmsfit]{brms::fitted.brmsfit()}} and \code{\link[brms:predict.brmsfit]{brms::predict.brmsfit()}} for derails.}
+method internally calls \code{\link[=fitted_draws]{fitted_draws()}}, while the
+\code{'predict'} method calls \code{\link[=predict_draws]{predict_draws()}}. See
+\code{\link[brms:fitted.brmsfit]{brms::fitted.brmsfit()}} and \code{\link[brms:predict.brmsfit]{brms::predict.brmsfit()}} for details.}
 
 \item{allow_new_levels}{A flag indicating if new levels of group-level
 effects are allowed (defaults to \code{FALSE}). Only relevant if
@@ -255,299 +270,276 @@ where a new level is assigned all of the posterior draws of the same
 specified via \code{autocor} should be included in the predictions.
 Defaults to \code{TRUE}.}
 
-\item{robust}{A logical to specify the summarize options. If \code{FALSE}
-(the default) the mean is used as the measure of central tendency and the
+\item{robust}{A logical value to specify the summary options. If \code{FALSE}
+(default), the mean is used as the measure of central tendency and the
 standard deviation as the measure of variability. If \code{TRUE}, the
-median and the median absolute deviation (MAD) are applied instead. Ignored
-if \code{summary} is \code{FALSE}.}
+median and median absolute deviation (MAD) are applied instead. Ignored if
+\code{summary} is \code{FALSE}.}
 
-\item{future}{A logical (default \code{FALSE}) to specify whether or not to
-perform parallel computations. If set to \code{TRUE}, the
-\code{\link[future.apply:future_lapply]{future.apply::future_sapply()}} function is used to summarize draws.}
+\item{transform}{A function applied to individual draws from the posterior
+distribution before computing summaries. The argument \code{transform} is
+based on the \code{\link[marginaleffects:predictions]{marginaleffects::predictions()}} function. This should not be
+confused with \code{transform} from \code{\link[brms:posterior_predict.brmsfit]{brms::posterior_predict()}}, which is
+now deprecated.}
 
-\item{future_session}{A character string to set the session type when
-\code{future = TRUE}. The \code{'multisession'} (default) options sets the
-multisession whereas the \code{'multicore'} sets the multicore session.
-Note that option \code{'multicore'} is not supported on Windows systems.
-For more details, see \code{\link[future.apply:future_lapply]{future.apply::future_sapply()}}.}
+\item{future}{A logical value (default \code{FALSE}) to specify whether or
+not to perform parallel computations. If set to \code{TRUE}, the
+\code{\link[future.apply:future_lapply]{future.apply::future_sapply()}} function is used to summarize the posterior
+draws in parallel.}
 
-\item{cores}{Number of cores to be used when running the parallel
-computations (if \code{future = TRUE}). On non-Windows systems this
-argument can be set globally via the mc.cores option. For the default
-\code{NULL} option, the number of cores are set automatically by calling
-the \code{\link[future:re-exports]{future::availableCores()}}. The number of cores used are the maximum
-number of cores avaialble minus one, i.e., \code{future::availableCores() -
-  1}.}
+\item{future_session}{A character string specifying the session type when
+\code{future = TRUE}. The \code{'multisession'} (default) option sets the
+multisession environment, while the \code{'multicore'} option sets up a
+multicore session. Note that \code{'multicore'} is not supported on Windows
+systems. For more details, see \code{\link[future.apply:future_lapply]{future.apply::future_sapply()}}.}
 
-\item{trim}{A number (default 0) of long line segments to be excluded from
-plot with option 'u' or 'a'. See \link[sitar:plot.sitar]{sitar::plot.sitar} for details.}
+\item{cores}{The number of cores to be used for parallel computations if
+\code{future = TRUE}. On non-Windows systems, this argument can be set
+globally via the \code{mc.cores} option. By default, \code{NULL}, the
+number of cores is automatically determined using
+\code{\link[future:re-exports]{future::availableCores()}}, and it will use the maximum number of cores
+available minus one (i.e., \code{future::availableCores() - 1}).}
 
-\item{layout}{A character string defining the layout structure of the plot. A
-\code{'single'} (default) layout provides overlaid distance and velocity
-curves on a single plot when opt includes \code{'dv'}, \code{'Dv'},
-\code{'dV'} or \code{'DV'} options.  Similarly, when opt includes
-\code{'au'}, the adjusted and unadjusted curves are plotted as a single
-plot. When opt is a single letter (e.g., \code{'d'}. \code{'v'} \code{'D'},
-\code{'V'}, \code{'a'}, \code{'u'}), the \code{'single'} optiion is ignored.
-The alternative layout option, the \code{'facet'} uses the \code{facet_wrap}
-from the \code{ggplot2}. to map and draw plot when \code{opt} include two or
-more letters.}
+\item{trim}{A numeric value (default \code{0}) indicating the number of long
+line segments to be excluded from the plot when the option 'u' or 'a' is
+selected. See \link[sitar:plot.sitar]{sitar::plot.sitar} for further details.}
 
-\item{linecolor}{The color of line used when layout is \code{'facet'}. The
-default is \code{NULL} which internally set the \code{linecolor} as
-\code{'grey50'}.}
+\item{layout}{A character string defining the plot layout. The default
+\code{'single'} layout overlays distance and velocity curves on a single
+plot when \code{opt} includes combinations like \code{'dv'}, \code{'Dv'},
+\code{'dV'}, or \code{'DV'}. The alternative layout option \code{'facet'}
+uses \code{facet_wrap} from \pkg{ggplot2} to map and draw plots when
+\code{opt} includes two or more letters.}
 
-\item{linecolor1}{The color of first line when layout is \code{'single'}. For
-example, for \code{opt = 'dv'}, the color of distance line is controlled by
-the \code{linecolor1}. Default \code{NULL} will internally set
-\code{linecolor1} as \code{'orange2'}.}
+\item{linecolor}{The color of the lines when the layout is \code{'facet'}.
+The default is \code{NULL}, which sets the line color to \code{'grey50'}.}
 
-\item{linecolor2}{The color of second line when layout is \code{'single'}. For
-example, for \code{opt = 'dv'}, the color of velocity line is controlled by
-the \code{linecolor2}. Default \code{NULL} sets the color \code{'green4'}
-for \code{linecolor2}.}
+\item{linecolor1}{The color of the first line when the layout is
+\code{'single'}. For example, in \code{opt = 'dv'}, the distance line is
+controlled by \code{linecolor1}. The default \code{NULL} sets
+\code{linecolor1} to \code{'orange2'}.}
 
-\item{label.x}{An optional character string to label the x axis. When
-\code{NULL} (default), the x axis label is taken from the predictor (e.g.,
-age).}
+\item{linecolor2}{The color of the second line when the layout is
+\code{'single'}. For example, in \code{opt = 'dv'}, the velocity line is
+controlled by \code{linecolor2}. The default \code{NULL} sets
+\code{linecolor2} to \code{'green4'}.}
 
-\item{label.y}{An optional character string to label the y axis. When
-\code{NULL} (default), the y axis label is taken from the type of plot
-(e.g., distance, velocity etc.). Note that when layout option is
-\code{'facet'}, then y axis label is removed and instead the same label is
-used as a title.}
+\item{label.x}{An optional character string to label the x-axis. If
+\code{NULL} (default), the x-axis label will be taken from the predictor
+(e.g., age).}
 
-\item{legendpos}{An optional character string to specify the position of
-legends. When \code{NULL} (default), the legend position is set as 'bottom'
-for distance and velocity curves with \code{'single'} layout option for the
-population average curves, and \code{'none'} for the individual specific
-curves. The \code{'none'} suppress all legends that helps in avoiding
-printing legends for each individual.}
+\item{label.y}{An optional character string to label the y-axis. If
+\code{NULL} (default), the y-axis label will be taken from the plot type
+(e.g., distance, velocity). When \code{layout = 'facet'}, the label is
+removed, and the same label is used as the title.}
 
-\item{linetype.apv}{An optional character string to specify the type of the
-vertical line drawn to mark the APGV. Default \code{NULL} sets the linetype
-as \code{dotted}.}
+\item{legendpos}{A character string to specify the position of the legend. If
+\code{NULL} (default), the legend position is set to 'bottom' for distance
+and velocity curves in the \code{'single'} layout. For individual-specific
+curves, the legend position is set to \code{'none'} to suppress the legend.}
 
-\item{linewidth.main}{An optional character string to specify the width of the
-the line for the distance and velocity curves. The default \code{NULL} will
-set it as 0.35.}
+\item{linetype.apv}{A character string to specify the type of the vertical
+line marking the APGV. Default \code{NULL} sets the linetype to
+\code{dotted}.}
 
-\item{linewidth.apv}{An optional character string to specify the width of the
-the vertical line drawn to mark the APGV. The default \code{NULL} will set
-it as 0.25.}
+\item{linewidth.main}{A numeric value to specify the line width for distance
+and velocity curves. The default \code{NULL} sets the width to 0.35.}
 
-\item{linetype.groupby}{An optional argument to specify the line type for the
-distance and velocity curves when drawing plots for a model that includes
-factor covariate(s) or when visualising individual specific
-distance/velocity curves (default \code{NA}). Setting it to \code{NULL} will
-automatically sets the linetype for each factor level or individual This
-will also add legends for the factor level covariate or individuals whereas
-\code{NA} will set a 'solid' line type and suppress legends. It is
-recommended to keep the default \code{NULL} option when plotting population
-average curves for when model included factor covariates because this would
-appropriately set the legends otherwise it is difficult to differentiate
-which curve belongs to which level of factor. For individual specific
-curves, the line type can be set to \code{NULL} when the number of
-individuals is small. However, when the number of individuals is large,
-\code{NA} is a better choice which prevents printing a large number of
-legends for each individual.}
+\item{linewidth.apv}{A numeric value to specify the width of the vertical
+line marking the APGV. The default \code{NULL} sets the width to 0.25.}
 
-\item{color.groupby}{An optional argument to specify the line color for
-distance and velocity curves when drawing plots for a model that includes
-factor covariate(s), or when visualising individual specific
-distance/velocity curves (default \code{NA}). Setting it to \code{NULL} will
-automatically sets the line color for each factor level or individual. This
-will also add legends for the factor level covariate or individuals.
-However, setting it as \code{NA} will set a 'solid' line type and suppress
-legends. It is recommended to keep the default \code{NULL} option when
-plotting population average curves for factor covariates because this would
-appropriately set the legends otherwise it is difficult to differentiate
-which curve belongs to which level of the factor. For individual specific
-curves, the line color can be set to \code{NULL} when the number of
-individuals is small. However, when the number of individuals is large,
-\code{NA} is a better choice which prevents printing a large number of
-legends for each individual.}
+\item{linetype.groupby}{A character string specifying the line type for
+distance and velocity curves when drawing plots for a model with factor
+covariates or individual-specific curves. The default is \code{NA}, which
+sets the line type to 'solid' and suppresses legends.}
 
-\item{band.alpha}{An optional numeric value to specify the transparency of the
-CI band(s) around the distance curve, velocity curve and the line indicating
-the APGV. The default \code{NULL} will set this value to 0.4.}
+\item{color.groupby}{A character string specifying the line color for
+distance and velocity curves when drawing plots for a model with factor
+covariates or individual-specific curves. The default is \code{NA}, which
+suppresses legends.}
 
-\item{show_age_takeoff}{A logical (default \code{TRUE}) to indicate whether to
-display the ATGV line(s) on the plot.}
+\item{band.alpha}{A numeric value to specify the transparency of the CI bands
+around the curves. The default \code{NULL} sets the transparency to 0.4.}
 
-\item{show_age_peak}{A logical (default \code{TRUE}) to indicate whether to
-display the APGV line(s) on the plot.}
+\item{show_age_takeoff}{A logical value (default \code{TRUE}) to indicate
+whether to display the ATGV line(s) on the plot.}
 
-\item{show_age_cessation}{A logical (default \code{TRUE}) to indicate whether
-to display the ACGV line(s) on the plot.}
+\item{show_age_peak}{A logical value (default \code{TRUE}) to indicate
+whether to display the APGV line(s) on the plot.}
 
-\item{show_vel_takeoff}{A logical (default \code{FALSE}) to indicate whether
-to display the TGV line(s) on the plot.}
+\item{show_age_cessation}{A logical value (default \code{TRUE}) to indicate
+whether to display the ACGV line(s) on the plot.}
 
-\item{show_vel_peak}{A logical (default \code{FALSE}) to indicate whether to
-display the PGV line(s) on the plot.}
+\item{show_vel_takeoff}{A logical value (default \code{FALSE}) to indicate
+whether to display the TGV line(s) on the plot.}
 
-\item{show_vel_cessation}{A logical (default \code{FALSE}) to indicate whether
-to display the CGV line(s) on the plot.}
+\item{show_vel_peak}{A logical value (default \code{FALSE}) to indicate
+whether to display the PGV line(s) on the plot.}
 
-\item{returndata}{A logical (default \code{FALSE}) indicating whether to plot
-the data or return the data. If \code{TRUE}, the data is returned as a
-\code{data.frame}.}
+\item{show_vel_cessation}{A logical value (default \code{FALSE}) to indicate
+whether to display the CGV line(s) on the plot.}
 
-\item{returndata_add_parms}{A logical (default \code{FALSE}) indicating
-whether add growth parameters to the \code{returndata}. The
-\code{returndata_add_parms} is ignored when \code{returndata = FALSE}. If
-\code{TRUE}, the growth parameters such as \code{APGV} and \code{PGV} are
-added to the returned \code{data.frame}. Note that growth parameters are
-estimated only when \code{'opt'} argument include either \code{'v'} or
-\code{'V'} option and the argument \code{'apv'} is set to \code{TRUE}. If
-any of these conditions are missing, then \code{returndata_add_parms} will
-ignored ignored.}
+\item{returndata}{A logical value (default \code{FALSE}) to indicate whether
+to plot the data or return it as a \code{data.frame}.}
 
-\item{parms_eval}{A logical to specify whether or not to get growth
-parameters on the fly. This is for internal use only and mainly needed for
-compatibility across internal functions.}
+\item{returndata_add_parms}{A logical value (default \code{FALSE}) to specify
+whether to add growth parameters to the returned \code{data.frame}. Ignored
+when \code{returndata = FALSE}. Growth parameters are added when the
+\code{opt} argument includes 'v' or 'V' and \code{apv = TRUE}.}
+
+\item{parms_eval}{A logical value to specify whether or not to compute growth
+parameters on the fly. This is for internal use only and is mainly needed
+for compatibility across internal functions.}
 
 \item{idata_method}{A character string to indicate the interpolation method.
-The number of of interpolation points is set up the \code{ipts} argument.
-Options available for \code{idata_method} are \emph{method 1} (specified as
-\code{'m1'}) and \emph{method 2} (specified as \code{'m2'}). The
-\emph{method 1} (\code{'m1'}) is adapted from the the \pkg{iapvbs} package
-and is documented here
-\url{https://rdrr.io/github/Zhiqiangcao/iapvbs/src/R/exdata.R}
-whereas \emph{method 2} (\code{'m2'}) is based on the \pkg{JMbayes}
-package as documented here
-\url{https://github.com/drizopoulos/JMbayes/blob/master/R/dynPred_lme.R}.
-The \code{'m1'} method works by internally constructing the data frame based
-on the model configuration whereas the method \code{'m2'} uses the exact
-data frame used in model fit and can be accessed via \code{fit$data}. If
-\code{idata_method = NULL, default}, then method \code{'m2'} is
-automatically set. Note that method \code{'m1'} might fail in some cases
-when model involves covariates particularly when model is fit as
-\code{univariate_by}. Therefore, it is advised to switch to method
-\code{'m2'} in case \code{'m1'} results in error.}
+The number of interpolation points is set by the \code{ipts} argument.
+Available options for \code{idata_method} are \emph{method 1} (specified as
+\code{'m1'}) and \emph{method 2} (specified as \code{'m2'}).
+\itemize{
+\item \emph{Method 1} (\code{'m1'}) is adapted from the \pkg{iapvbs} package
+and is documented
+\href{https://rdrr.io/github/Zhiqiangcao/iapvbs/src/R/exdata.R}{here}.
+\item \emph{Method 2} (\code{'m2'}) is based on the \pkg{JMbayes} package
+and is documented
+\href{https://github.com/drizopoulos/JMbayes/blob/master/R/dynPred_lme.R}{here}.
+The \code{'m1'} method works by internally constructing the data frame
+based on the model configuration, while the \code{'m2'} method uses the
+exact data frame from the model fit, accessible via \code{fit$data}. If
+\code{idata_method = NULL} (default), method \code{'m2'} is automatically
+selected. Note that method \code{'m1'} may fail in certain cases,
+especially when the model includes covariates (particularly in
+\code{univariate_by} models). In such cases, it is recommended to use
+method \code{'m2'}.
+}}
 
-\item{parms_method}{A character to specify the method used to when evaluating
-\code{parms_eval}. The default is \code{getPeak} which uses the
-\code{\link[sitar:getPeakTrough]{sitar::getPeak()}} function from the \code{sitar} package. The alternative
-option is \code{findpeaks} that uses the \code{\link[pracma:findpeaks]{pracma::findpeaks()}} function
-function from the \code{pracma} package. This is for internal use only and
-mainly needed for compatibility across internal functions.}
+\item{parms_method}{A character string specifying the method used when
+evaluating \code{parms_eval}. The default method is \code{getPeak}, which
+uses the \code{\link[sitar:getPeakTrough]{sitar::getPeak()}} function from the \code{sitar} package.
+Alternatively, \code{findpeaks} uses the \code{findpeaks} function from the
+\code{pracma} package. This parameter is for internal use and ensures
+compatibility across internal functions.}
 
-\item{verbose}{An optional argument (logical, default \code{FALSE}) to
-indicate whether to print information collected during setting up the
-object(s).}
+\item{verbose}{A logical argument (default \code{FALSE}) to specify whether
+to print information collected during the setup of the object(s).}
 
-\item{fullframe}{A logical to indicate whether to return \code{fullframe}
-object in which \code{newdata} is bind to the summary estimates. Note that
-\code{fullframe} can not be combined with \code{summary = FALSE}.
-Furthermore, \code{fullframe} can only be used when \code{idata_method =
-  'm2'}. A particular use case is when fitting \code{univariate_by} model.
-The \code{fullframe} is mainly for internal use only.}
+\item{fullframe}{A logical value indicating whether to return a
+\code{fullframe} object in which \code{newdata} is bound to the summary
+estimates. Note that \code{fullframe} cannot be used with \code{summary =
+  FALSE}, and it is only applicable when \code{idata_method = 'm2'}. A
+typical use case is when fitting a \code{univariate_by} model. This option
+is mainly for internal use.}
 
-\item{dummy_to_factor}{A named list (default \code{NULL}) that is used to
-convert dummy variables into a factor variable. The named elements are
-\code{factor.dummy}, \code{factor.name}, and \code{factor.level}. The
-\code{factor.dummy} is a vector of character strings that need to be
-converted to a factor variable whereas the \code{factor.name} is a single
-character string that is used to name the newly created factor variable.
-The \code{factor.level} is used to name the levels of newly created factor.
-When \code{factor.name} is \code{NULL}, then the factor name is internally
-set as \code{'factor.var'}. If \code{factor.level} is \code{NULL}, then
-names of factor levels are take from the \code{factor.dummy} i.e., the
-factor levels are assigned same name as \code{factor.dummy}. Note that when
-\code{factor.level} is not \code{NULL}, its length must be same as the
-length of the \code{factor.dummy}.}
+\item{dummy_to_factor}{A named list (default \code{NULL}) to convert dummy
+variables into a factor variable. The list must include the following
+elements:
+\itemize{
+\item \code{factor.dummy}: A character vector of dummy variables to be
+converted to factors.
+\item \code{factor.name}: The name for the newly created factor variable
+(default is \code{'factor.var'} if \code{NULL}).
+\item \code{factor.level}: A vector specifying the factor levels.
+If \code{NULL}, levels are taken from \code{factor.dummy}.
+If \code{factor.level} is provided, its length must match
+\code{factor.dummy}.
+}}
 
-\item{expose_function}{An optional logical argument to indicate whether to
-expose Stan functions (default \code{FALSE}). Note that if user has already
-exposed Stan functions during model fit by setting \code{expose_function =
-  TRUE} in the \code{\link[=bsitar]{bsitar()}}, then those exposed functions are saved and can be
-used during post processing of the posterior draws and therefore
-\code{expose_function} is by default set as \code{FALSE} in all post
-processing functions except \code{\link[=optimize_model]{optimize_model()}}. For \code{\link[=optimize_model]{optimize_model()}}, the
-default setting is \code{expose_function = NULL}. The reason is that each
-optimized model has different Stan function and therefore it need to be re
-exposed and saved. The \code{expose_function = NULL} implies that the
-setting for \code{expose_function} is taken from the original \code{model}
-fit. Note that \code{expose_function} must be set to \code{TRUE} when
-adding \code{fit criteria} and/or \code{bayes_R2} during model
-optimization.}
+\item{expose_function}{A logical argument (default \code{FALSE}) to indicate
+whether Stan functions should be exposed. If \code{TRUE}, any Stan
+functions exposed during the model fit using \code{expose_function = TRUE}
+in the \code{\link[=bsitar]{bsitar()}} function are saved and can be used in post-processing. By
+default, \code{expose_function = FALSE} in post-processing functions,
+except in \code{\link[=optimize_model]{optimize_model()}} where it is set to \code{NULL}. If
+\code{NULL}, the setting is inherited from the original model fit. It must
+be set to \code{TRUE} when adding \code{fit criteria} or \code{bayes_R2}
+during model optimization.}
 
-\item{usesavedfuns}{A logical (default \code{NULL}) to indicate whether to
-use the already exposed and saved \code{Stan} functions. Depending on
-whether the user have exposed Stan functions within the \code{\link[=bsitar]{bsitar()}} call via
-\code{expose_functions} argument in the \code{\link[=bsitar]{bsitar()}}, the \code{usesavedfuns}
-is automatically set to \code{TRUE} (if \code{expose_functions = TRUE}) or
-\code{FALSE} (if \code{expose_functions = FALSE}). Therefore, manual
-setting of \code{usesavedfuns} as \code{TRUE}/\code{FALSE} is rarely
-needed. This is for internal purposes only and mainly used during the
-testing of the functions and therefore should not be used by users as it
-might lead to unreliable estimates.}
+\item{usesavedfuns}{A logical value (default \code{NULL}) indicating whether
+to use already exposed and saved Stan functions. This is typically set
+automatically based on the \code{expose_functions} argument from the
+\code{\link[=bsitar]{bsitar()}} call. Manual specification of \code{usesavedfuns} is rarely
+needed and is intended for internal testing, as improper use can lead to
+unreliable estimates.}
 
-\item{clearenvfuns}{A logical to indicate whether to clear the exposed
-function from the environment (\code{TRUE}) or not (\code{FALSE}). If
-\code{NULL} (default), then \code{clearenvfuns} is set as \code{TRUE} when
-\code{usesavedfuns} is \code{TRUE}, and \code{FALSE} if \code{usesavedfuns}
-is \code{FALSE}.}
+\item{clearenvfuns}{A logical value indicating whether to clear the exposed
+Stan functions from the environment (\code{TRUE}) or not (\code{FALSE}). If
+\code{NULL}, \code{clearenvfuns} is set based on the value of
+\code{usesavedfuns}: \code{TRUE} if \code{usesavedfuns = TRUE}, or
+\code{FALSE} if \code{usesavedfuns = FALSE}.}
 
-\item{envir}{Environment used for function evaluation. The default is
-\code{NULL} which will set \code{parent.frame()} as default environment.
-Note that since most of post processing functions are based on \pkg{brms},
-the functions needed for evaluation should be in the \code{.GlobalEnv}.
-Therefore, it is strongly recommended to set \code{ envir = globalenv()}
-(or \code{envir = .GlobalEnv}). This is particularly true for the
-derivatives such as velocity curve.}
+\item{funlist}{A list (default \code{NULL}) specifying function names. This
+is rarely needed, as required functions are typically retrieved
+automatically. A use case for \code{funlist} is when \code{sigma_formula},
+\code{sigma_formula_gr}, or \code{sigma_formula_gr_str} use an external
+function (e.g., \code{poly(age)}). The \code{funlist} should include
+function names defined in the \code{globalenv()}. For functions needing
+both distance and velocity curves (e.g., \code{plot_curves(..., opt =
+  'dv')}), \code{funlist} must include two functions: one for the distance
+curve and one for the velocity curve.}
 
-\item{...}{Further arguments passed to \code{brms::fitted.brmsfit()} and
-\code{brms::predict()} functions.}
+\item{envir}{The environment used for function evaluation. The default is
+\code{NULL}, which sets the environment to \code{parent.frame()}. Since
+most post-processing functions rely on \pkg{brms}, it is recommended to set
+\code{envir = globalenv()} or \code{envir = .GlobalEnv}, especially for
+derivatives like velocity curves.}
+
+\item{...}{Additional arguments passed to the \code{brms::fitted.brmsfit()}
+and \code{brms::predict()} functions.}
 }
 \value{
-A plot object (default), or a \code{data.frame} when
-\code{returndata = TRUE}.
+A plot object (default) or a \code{data.frame} when \code{returndata
+  = TRUE}.
 }
 \description{
-The \strong{plot_curves()} provides visualization of six
-different types of growth curves that are plotted by using the \pkg{ggplot2}
-package. The \strong{plot_curves()} also allows users to make their own
-detailed plots from the data returned as a \code{data.frame}.
+The \strong{plot_curves()} function visualizes six different
+types of growth curves using the \pkg{ggplot2} package. Additionally, it
+allows users to create customized plots from the data returned as a
+\code{data.frame}. For an alternative approach, the \code{\link[=marginal_draws]{marginal_draws()}}
+function can be used, which not only estimates adjusted curves but also
+enables comparison across groups using the \code{hypotheses} argument.
 }
 \details{
-The \strong{plot_curves()} is a generic function that allows
-visualization of following six curves: population average distance curve,
-population average velocity curve, individual-specific distance curves,
-individual-specific velocity curves, unadjusted individual growth curves
-(i.e, observed growth curves), and the adjusted individual growth curves
-(adjusted for the model estimated random effects). The
-\strong{plot_curves()} internally calls the \code{\link[=growthparameters]{growthparameters()}} function to
-estimate and summaries the distance and velocity curves and to estimate
-growth parameters such as the age at peak growth velocity (APGV). The
-\strong{plot_curves()} in turn calls the \code{\link[=fitted_draws]{fitted_draws()}} or the
-\code{\link[=predict_draws]{predict_draws()}} functions to make inference from the posterior draws.
-Thus, \strong{plot_curves()} allows plotting fitted or predicted curves. See
-\code{\link[=fitted_draws]{fitted_draws()}} and \code{\link[=predict_draws]{predict_draws()}} for details on these functions and
-the difference between fitted and predicted values.
+The \strong{plot_curves()} function is a generic tool for
+visualizing the following six curves:
+\itemize{
+\item Population average distance curve
+\item Population average velocity curve
+\item Individual-specific distance curves
+\item Individual-specific velocity curves
+\item Unadjusted individual growth curves (i.e., observed growth curves)
+\item Adjusted individual growth curves (adjusted for the model-estimated
+random effects)
+}
+
+Internally, \strong{plot_curves()} calls the \code{\link[=growthparameters]{growthparameters()}} function
+to estimate and summarize the distance and velocity curves, as well as to
+compute growth parameters such as the age at peak growth velocity (APGV).
+The function also calls \code{\link[=fitted_draws]{fitted_draws()}} or \code{\link[=predict_draws]{predict_draws()}} to make
+inferences based on posterior draws. As a result, \strong{plot_curves()}
+can plot either fitted or predicted curves. For more details, see
+\code{\link[=fitted_draws]{fitted_draws()}} and \code{\link[=predict_draws]{predict_draws()}} to understand the difference between
+fitted and predicted values.
 }
 \examples{
 
+\donttest{
+
 # Fit Bayesian SITAR model 
 
-# To avoid mode estimation which takes time, the Bayesian SITAR model fit to 
-# the 'berkeley_exdata' has been saved as an example fit ('berkeley_exfit').
+# To avoid mode estimation which takes time, the Bayesian SITAR model is fit to 
+# the 'berkeley_exdata' and saved as an example fit ('berkeley_exfit').
 # See 'bsitar' function for details on 'berkeley_exdata' and 'berkeley_exfit'.
 
-# Check and confirm whether model fit object 'berkeley_exfit' exists
- berkeley_exfit <- getNsObject(berkeley_exfit)
+# Check and confirm whether the model fit object 'berkeley_exfit' exists
+berkeley_exfit <- getNsObject(berkeley_exfit)
 
 model <- berkeley_exfit
 
 # Population average distance and velocity curves with default options
 plot_curves(model, opt = 'dv')
 
-\donttest{
 # Individual-specific distance and velocity curves with default options
-# Note that legendpos = 'none' will suppress the legend positions. This   
-# suppression is useful when plotting individual-specific curves
+# Note that \code{legendpos = 'none'} will suppress the legend positions. 
+# This suppression is useful when plotting individual-specific curves
 
 plot_curves(model, opt = 'DV')
 
@@ -585,7 +577,7 @@ plot_curves(model, opt = 'au', ipts = NULL, layout = 'single')
 
 }
 \seealso{
-\code{\link[=growthparameters]{growthparameters()}} \link{fitted_draws} \code{\link[=predict_draws]{predict_draws()}}
+\code{\link[=growthparameters]{growthparameters()}} \code{\link[=fitted_draws]{fitted_draws()}} \code{\link[=predict_draws]{predict_draws()}}
 }
 \author{
 Satpal Sandhu  \email{satpal.sandhu@bristol.ac.uk}

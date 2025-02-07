@@ -3,34 +3,34 @@
 
 #' @title Update model
 #'
-#' @description The \strong{update_model()} is a wrapper around the
-#'   \code{update()} function in the \pkg{brms} package which refits the model
-#'   as per the user specified updated arguments.
+#' @description The \strong{update_model()} function is a wrapper around the
+#'   \code{update()} function from the \pkg{brms} package, which refits the model
+#'   based on the user-specified updated arguments.
 #' 
-#' @details This is an adapted version of the \strong{update()} function from
-#'   available the the\pkg{brms} package.
+#' @details This function is an adapted version of the \strong{update()} function 
+#'   from the \pkg{brms} package.
 #' 
 #' @param model An object of class \code{bgmfit}.
 #'
 #' @param newdata An optional \code{data.frame} to be used when updating the
 #'   model. If \code{NULL} (default), the data used in the original model fit is
-#'   re used. Note that data-dependent default priors are not updated
-#'   automatically.
+#'   reused. Note that data-dependent default priors are not automatically updated.
 #'
-#' @param recompile A logical to indicate whether the Stan model should be
+#' @param recompile A logical value indicating whether the Stan model should be
 #'   recompiled. When \code{NULL} (default), \strong{update_model()} tries to
-#'   figure out internally whether recompilation is required or not. Setting
-#'   \code{recompile} to \code{FALSE} will ignore Stan code changing arguments.
+#'   internally determine whether recompilation is required. Setting
+#'   \code{recompile} to \code{FALSE} will ignore any changes in the Stan code.
 #'   
-#' @param check_newargs A logical (default \code{FALSE}) to check whether
-#'   arguments in the original \code{model} fit and the \code{update_model} are
-#'   same. When \code{check_newargs = TRUE} and arguments are same, it implies 
-#'   that update is not needed and hence the original \code{model} object is 
-#'   returned along with the message if \code{verbose = TRUE}.
+#' @param check_newargs A logical value (default \code{FALSE}) indicating whether
+#'   to check if the arguments in the original \code{model} fit and the 
+#'   \code{update_model} are identical. When \code{check_newargs = TRUE} and the 
+#'   arguments are identical, it indicates that an update is unnecessary. In this 
+#'   case, the original \code{model} object is returned, along with a message if 
+#'   \code{verbose = TRUE}.
 #' 
 #' @inherit growthparameters.bgmfit params
 #'
-#' @param ... Other arguments passed to \code{\link{brms}}.
+#' @param ... Other arguments passed to \code{[brms::brm()]}.
 #'
 #' @return An updated object of class \code{brmsfit}.
 #'   
@@ -76,7 +76,10 @@ update_model.bgmfit <-
            check_newargs = FALSE,
            envir = NULL,
            ...) {
-    
+    # changes on 21.07.2024 for brms version ‘2.21.6’
+    # deletions/insertions -> tidy_ranef standata_basis 
+    # insertion -> bframe
+    # edited -> model$prior
     if(is.null(envir)) {
       envir <- model$model_info$envir
     } else {
@@ -238,8 +241,10 @@ update_model.bgmfit <-
       utils::getFromNamespace(".validate_prior", "brms")
     get_element            <-
       utils::getFromNamespace("get_element", "brms")
-    tidy_ranef             <-
-      utils::getFromNamespace("tidy_ranef", "brms")
+    # tidy_ranef             <-
+    #   utils::getFromNamespace("tidy_ranef", "brms")
+    getframe_re      <-
+      utils::getFromNamespace("frame_re", "brms")
     validate_stanvars      <-
       utils::getFromNamespace("validate_stanvars", "brms")
     validate_threads       <-
@@ -248,8 +253,10 @@ update_model.bgmfit <-
       utils::getFromNamespace("validate_sample_prior", "brms")
     validate_save_pars     <-
       utils::getFromNamespace("validate_save_pars", "brms")
-    standata_basis         <-
-      utils::getFromNamespace("standata_basis", "brms")
+    # standata_basis         <-
+    #   utils::getFromNamespace("standata_basis", "brms")
+    getframe_basis      <-
+      utils::getFromNamespace("frame_basis", "brms")
     algorithm_choices      <-
       utils::getFromNamespace("algorithm_choices", "brms")
     get_nl                 <-
@@ -265,6 +272,8 @@ update_model.bgmfit <-
     stop2                  <- utils::getFromNamespace("stop2", "brms")
     
     validate_silent        <- utils::getFromNamespace("validate_silent", "brms")
+    
+    getbrmsframe        <- utils::getFromNamespace("brmsframe", "brms")
     
     
     testmode <- isTRUE(dots[["testmode"]])
@@ -440,6 +449,7 @@ update_model.bgmfit <-
         dots$formula <- NULL
       }
       bterms <- brms::brmsterms(model$formula)
+      bframe <- getbrmsframe(bterms, data = model$data)
       model$data2 <- validate_data2(dots$data2, bterms = bterms)
       model$data <- validate_data(
         dots$data,
@@ -450,13 +460,15 @@ update_model.bgmfit <-
       )
       model$prior <- .validate_prior(
         dots$prior,
-        bterms = bterms,
-        data = model$data,
+        # bterms = bterms,
+        bframe = bframe,
+        # data = model$data,
         sample_prior = dots$sample_prior
       )
       model$family <- get_element(model$formula, "family")
       model$autocor <- get_element(model$formula, "autocor")
-      model$ranef <- tidy_ranef(bterms, data = model$data)
+      # model$ranef <- tidy_ranef(bterms, data = model$data)
+      model$ranef <- getframe_re(bterms, data = model$data)
       model$stanvars <- validate_stanvars(dots$stanvars)
       model$threads <- validate_threads(dots$threads)
       if ("sample_prior" %in% names(dots)) {
@@ -469,7 +481,8 @@ update_model.bgmfit <-
         save_mevars = dots$save_mevars,
         save_all_pars = dots$save_all_pars
       )
-      model$basis <- standata_basis(bterms, data = model$data)
+      # model$basis <- standata_basis(bterms, data = model$data)
+      model$basis <- getframe_basis(bframe, data = model$data)
       algorithm <- match.arg(dots$algorithm, algorithm_choices())
       dots$algorithm <- model$algorithm <- algorithm
       # can only avoid recompilation when using the old backend

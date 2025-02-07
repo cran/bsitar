@@ -3114,9 +3114,7 @@ set_priors_initials <- function(a_prior_beta,
     #     )
     #   }
     # }
-    # print(class)
-    # print(define_)
-    # print(priors_)
+    
     
     out_pr <-
       list(
@@ -3215,6 +3213,8 @@ set_priors_initials <- function(a_prior_beta,
   
   evaluated_priors <- c_priors %>% do.call(rbind, .)
   
+  
+  if(length(stanvars_data_5) == 0) stanvars_data_5 <- NULL
 
   newlist <- c()
   for (i in 1:length(stanvars_data_5)) {
@@ -3285,10 +3285,20 @@ set_priors_initials <- function(a_prior_beta,
       }
       list_ck <- list_ck[lengths(list_ck) != 0]
       keys    <- unique(unlist(lapply(list_ck, names)))
-      list_ck <-
-        setNames(do.call(mapply, c(FUN = c, lapply(
-          list_ck, `[`, keys
-        ))), keys)
+      
+      # This was resulting in error when spline initial random - 11 06 2024
+      
+      # list_ck <-
+      #   setNames(do.call(mapply, c(FUN = c, lapply(
+      #     list_ck, `[`, keys
+      #   ))), keys)
+      
+      list_ck <- do.call(mapply, c(FUN = c, lapply(list_ck, `[`, keys)))
+      if(is.matrix(list_ck)) {
+        list_ck <- lapply(base::seq_len(ncol(list_ck)), function(i) list_ck[,i])
+      }
+      list_ck <- setNames(list_ck, keys)
+      
       combined_inits <- c(list_ck, list_ck_)
     }
     
@@ -3574,7 +3584,12 @@ set_priors_initials <- function(a_prior_beta,
   # When sigma  formula is ~1+.., then first element is Intercept_sigma and the 
   # remaining are b_sigma
   
+  
+  
   initialsx <- out_listx
+  
+  
+  
   if(!sigma_form_0) {
     if(nys == 1) {
       sigma_par_name <- 'b_sigma'
@@ -3583,6 +3598,7 @@ set_priors_initials <- function(a_prior_beta,
       sigma_par_name <- paste0('b_sigma', resp_)
       Intercept_sigma <- paste0('Intercept_sigma', resp_)
     }
+   
    
     
   #   if(!is.null(initialsx[[sigma_par_name]])) {
@@ -3617,7 +3633,8 @@ set_priors_initials <- function(a_prior_beta,
       
       if(init_arguments[['sigma_cov_init_beta']] != "random") {
         if(length(g_sigma_i) > 1) {
-          initialsx[[sigma_par_name]] <- array(g_sigma_i_cov, dim = length(g_sigma_i_cov))
+          initialsx[[sigma_par_name]] <- array(g_sigma_i_cov, 
+                                               dim = length(g_sigma_i_cov))
         } else if(length(g_sigma_i) == 1) {
           initialsx[[sigma_par_name]] <- g_sigma_i_cov
         }
@@ -3628,8 +3645,15 @@ set_priors_initials <- function(a_prior_beta,
   
   }
   
+  # Somehow 'b_sigma' are created and carried forward even when only intercept
+  # So, dropping it - 09 06 2024
+  if(sigma_formulasi == "~1") {
+    initialsx[['b_sigma']] <- NULL
+  }
   
   initials <- initialsx
+  
+  
   
   
   

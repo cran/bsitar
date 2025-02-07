@@ -9,6 +9,7 @@
   model,
   type,
   ndraws = NULL,
+  dpar = NULL,
   draw_ids = NULL,
   prefix = c("ppc", "ppd"),
   group = NULL,
@@ -54,12 +55,15 @@ type (e.g. \code{type = "xyz"}) to get a list of supported
 types in the resulting error message.}
 
 \item{ndraws}{A positive integer indicating the number of posterior draws to
-be used in estimation. If \code{NULL} (default), all draws are used.}
+use in estimation. If \code{NULL} (default), all draws are used.}
 
-\item{draw_ids}{An integer indicating the specific posterior draw(s)
-to be used in estimation (default \code{NULL}).}
+\item{dpar}{Optional name of a predicted distributional parameter.
+If specified, expected predictions of this parameters are returned.}
 
-\item{prefix}{The prefix of the \pkg{bayesplot} function to be applied. 
+\item{draw_ids}{An integer specifying the specific posterior draw(s) to use
+in estimation (default \code{NULL}).}
+
+\item{prefix}{The prefix of the \pkg{bayesplot} function to be applied.
 Either `"ppc"` (posterior predictive check; the default)
 or `"ppd"` (posterior predictive distribution), the latter being the same
 as the former except that the observed data is not shown for `"ppd"`.}
@@ -72,14 +76,13 @@ ppc \code{*_grouped} types and ignored otherwise.}
 Only used for ppc types having an \code{x} argument
 and ignored otherwise.}
 
-\item{newdata}{An optional data frame to be used in estimation. If
-\code{NULL} (default), the \code{newdata} is retrieved from the
-\code{model}.}
+\item{newdata}{An optional data frame for estimation. If \code{NULL}
+(default), \code{newdata} is retrieved from the \code{model}.}
 
-\item{resp}{A character string (default \code{NULL}) to specify response
-variable when processing posterior draws for the \code{univariate_by} and
+\item{resp}{A character string (default \code{NULL}) to specify the response
+variable when processing posterior draws for \code{univariate_by} and
 \code{multivariate} models. See \code{\link[=bsitar]{bsitar()}} for details on
-\code{univariate_by} and \code{multivariate} models}
+\code{univariate_by} and \code{multivariate} models.}
 
 \item{size, alpha}{Passed to the appropriate geom to control the appearance of
 the predictive distributions.}
@@ -121,100 +124,93 @@ to to the \code{size}, \code{alpha}, and \code{width} arguments of \code{\link[g
 to control the appearance of \code{y} points. The default of \code{y_jitter=NULL}
 will let \strong{ggplot2} determine the amount of jitter.}
 
-\item{verbose}{An optional argument (logical, default \code{FALSE}) to
-indicate whether to print information collected during setting up the
-object(s).}
+\item{verbose}{A logical argument (default \code{FALSE}) to specify whether
+to print information collected during the setup of the object(s).}
 
-\item{deriv_model}{A logical to specify whether to estimate velocity curve
-from the derivative function, or the differentiation of the distance curve.
-The argument \code{deriv_model} is set to \code{TRUE} for those functions
-which need velocity curve such as \code{growthparameters()} and
-\code{plot_curves()}, and \code{NULL} for functions which explicitly use
-the distance curve (i.e., fitted values) such as \code{loo_validation()}
-and \code{plot_ppc()}.}
+\item{deriv_model}{A logical value specifying whether to estimate the
+velocity curve from the derivative function or by differentiating the
+distance curve. Set \code{deriv_model = TRUE} for functions that require
+the velocity curve, such as \code{growthparameters()} and
+\code{plot_curves()}. Set it to \code{NULL} for functions that use the
+distance curve (i.e., fitted values), such as \code{loo_validation()} and
+\code{plot_ppc()}.}
 
-\item{dummy_to_factor}{A named list (default \code{NULL}) that is used to
-convert dummy variables into a factor variable. The named elements are
-\code{factor.dummy}, \code{factor.name}, and \code{factor.level}. The
-\code{factor.dummy} is a vector of character strings that need to be
-converted to a factor variable whereas the \code{factor.name} is a single
-character string that is used to name the newly created factor variable.
-The \code{factor.level} is used to name the levels of newly created factor.
-When \code{factor.name} is \code{NULL}, then the factor name is internally
-set as \code{'factor.var'}. If \code{factor.level} is \code{NULL}, then
-names of factor levels are take from the \code{factor.dummy} i.e., the
-factor levels are assigned same name as \code{factor.dummy}. Note that when
-\code{factor.level} is not \code{NULL}, its length must be same as the
-length of the \code{factor.dummy}.}
+\item{dummy_to_factor}{A named list (default \code{NULL}) to convert dummy
+variables into a factor variable. The list must include the following
+elements:
+\itemize{
+\item \code{factor.dummy}: A character vector of dummy variables to be
+converted to factors.
+\item \code{factor.name}: The name for the newly created factor variable
+(default is \code{'factor.var'} if \code{NULL}).
+\item \code{factor.level}: A vector specifying the factor levels.
+If \code{NULL}, levels are taken from \code{factor.dummy}.
+If \code{factor.level} is provided, its length must match
+\code{factor.dummy}.
+}}
 
-\item{expose_function}{An optional logical argument to indicate whether to
-expose Stan functions (default \code{FALSE}). Note that if user has already
-exposed Stan functions during model fit by setting \code{expose_function =
-  TRUE} in the \code{\link[=bsitar]{bsitar()}}, then those exposed functions are saved and can be
-used during post processing of the posterior draws and therefore
-\code{expose_function} is by default set as \code{FALSE} in all post
-processing functions except \code{\link[=optimize_model]{optimize_model()}}. For \code{\link[=optimize_model]{optimize_model()}}, the
-default setting is \code{expose_function = NULL}. The reason is that each
-optimized model has different Stan function and therefore it need to be re
-exposed and saved. The \code{expose_function = NULL} implies that the
-setting for \code{expose_function} is taken from the original \code{model}
-fit. Note that \code{expose_function} must be set to \code{TRUE} when
-adding \code{fit criteria} and/or \code{bayes_R2} during model
-optimization.}
+\item{expose_function}{A logical argument (default \code{FALSE}) to indicate
+whether Stan functions should be exposed. If \code{TRUE}, any Stan
+functions exposed during the model fit using \code{expose_function = TRUE}
+in the \code{\link[=bsitar]{bsitar()}} function are saved and can be used in post-processing. By
+default, \code{expose_function = FALSE} in post-processing functions,
+except in \code{\link[=optimize_model]{optimize_model()}} where it is set to \code{NULL}. If
+\code{NULL}, the setting is inherited from the original model fit. It must
+be set to \code{TRUE} when adding \code{fit criteria} or \code{bayes_R2}
+during model optimization.}
 
-\item{usesavedfuns}{A logical (default \code{NULL}) to indicate whether to
-use the already exposed and saved \code{Stan} functions. Depending on
-whether the user have exposed Stan functions within the \code{\link[=bsitar]{bsitar()}} call via
-\code{expose_functions} argument in the \code{\link[=bsitar]{bsitar()}}, the \code{usesavedfuns}
-is automatically set to \code{TRUE} (if \code{expose_functions = TRUE}) or
-\code{FALSE} (if \code{expose_functions = FALSE}). Therefore, manual
-setting of \code{usesavedfuns} as \code{TRUE}/\code{FALSE} is rarely
-needed. This is for internal purposes only and mainly used during the
-testing of the functions and therefore should not be used by users as it
-might lead to unreliable estimates.}
+\item{usesavedfuns}{A logical value (default \code{NULL}) indicating whether
+to use already exposed and saved Stan functions. This is typically set
+automatically based on the \code{expose_functions} argument from the
+\code{\link[=bsitar]{bsitar()}} call. Manual specification of \code{usesavedfuns} is rarely
+needed and is intended for internal testing, as improper use can lead to
+unreliable estimates.}
 
-\item{clearenvfuns}{A logical to indicate whether to clear the exposed
-function from the environment (\code{TRUE}) or not (\code{FALSE}). If
-\code{NULL} (default), then \code{clearenvfuns} is set as \code{TRUE} when
-\code{usesavedfuns} is \code{TRUE}, and \code{FALSE} if \code{usesavedfuns}
-is \code{FALSE}.}
+\item{clearenvfuns}{A logical value indicating whether to clear the exposed
+Stan functions from the environment (\code{TRUE}) or not (\code{FALSE}). If
+\code{NULL}, \code{clearenvfuns} is set based on the value of
+\code{usesavedfuns}: \code{TRUE} if \code{usesavedfuns = TRUE}, or
+\code{FALSE} if \code{usesavedfuns = FALSE}.}
 
-\item{envir}{Environment used for function evaluation. The default is
-\code{NULL} which will set \code{parent.frame()} as default environment.
-Note that since most of post processing functions are based on \pkg{brms},
-the functions needed for evaluation should be in the \code{.GlobalEnv}.
-Therefore, it is strongly recommended to set \code{ envir = globalenv()}
-(or \code{envir = .GlobalEnv}). This is particularly true for the
-derivatives such as velocity curve.}
+\item{envir}{The environment used for function evaluation. The default is
+\code{NULL}, which sets the environment to \code{parent.frame()}. Since
+most post-processing functions rely on \pkg{brms}, it is recommended to set
+\code{envir = globalenv()} or \code{envir = .GlobalEnv}, especially for
+derivatives like velocity curves.}
 
 \item{...}{Additional arguments passed to the \code{\link[brms:pp_check.brmsfit]{brms::pp_check.brmsfit()}}
-function. Please see \code{\link[brms:pp_check.brmsfit]{brms::pp_check.brmsfit()}} for details.}
+function. Please refer to \code{\link[brms:pp_check.brmsfit]{brms::pp_check.brmsfit()}} for details.}
 }
 \value{
-A ggplot object that can be further customized using the
-ggplot2 package.
+A \code{ggplot} object that can be further customized using the
+\pkg{ggplot2} package.
 }
 \description{
 Perform posterior predictive checks with the help
 of the \pkg{bayesplot} package.
 }
 \details{
-The \strong{plot_ppc()} is a wrapper around the \code{\link[brms:pp_check.brmsfit]{brms::pp_check()}}.
+The \strong{plot_ppc()} function is a wrapper around the
+\code{\link[brms:pp_check.brmsfit]{brms::pp_check()}} function, which allows for the visualization of
+posterior predictive checks.
 }
 \examples{
 
+\donttest{
+
 # Fit Bayesian SITAR model 
 
-# To avoid mode estimation which takes time, the Bayesian SITAR model fit to 
-# the 'berkeley_exdata' has been saved as an example fit ('berkeley_exfit').
-# See 'bsitar' function for details on 'berkeley_exdata' and 'berkeley_exfit'.
+# To avoid mode estimation, which takes time, the Bayesian SITAR model is fit to 
+# the 'berkeley_exdata' and saved as an example fit ('berkeley_exfit').
+# See the 'bsitar' function for details on 'berkeley_exdata' and 'berkeley_exfit'.
 
-# Check and confirm whether model fit object 'berkeley_exfit' exists
+# Check and confirm whether the model fit object 'berkeley_exfit' exists
  berkeley_exfit <- getNsObject(berkeley_exfit)
 
 model <- berkeley_exfit
 
 plot_ppc(model, ndraws = 100)
+}
 
 }
 \author{

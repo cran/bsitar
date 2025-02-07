@@ -1,1169 +1,1373 @@
 
 
-#' @title Fit Bayesian SITAR growth curve model
+
+#' @title Fit Bayesian SITAR Growth Curve Model
 #'
-#' @description The \strong{bsitar()} is the main function that fits the
-#'   Bayesian version of the super imposition by translation and rotation
-#'   (\emph{SITAR}) model. The \emph{SITAR} model is a nonlinear mixed effects
-#'   model that has been used extensively to summarize growth processes (such as
-#'   height and weight) from early childhood through the adulthood. The
-#'   frequentist version of the \emph{SITAR} model can be fit by using an
+#' @description The \strong{bsitar()} function fits the Bayesian version of the
+#'   Super Imposition by Translation and Rotation (\emph{SITAR}) model. The
+#'   \emph{SITAR} model is a nonlinear mixed-effects model that has been widely
+#'   used to summarize growth processes (such as height and weight) from early
+#'   childhood through adulthood.
+#'
+#'   The frequentist version of the \emph{SITAR} model can be fit using the
 #'   already available R package, \pkg{sitar} \insertCite{R-sitar}{bsitar}.
-#'   Besides Bayesian implementation, the \pkg{bsitar} package greatly enhances
-#'   the modelling capabilities of the \emph{SITAR}. For example, in addition to
-#'   the univariate analysis (i.e, modelling a single outcome), the \pkg{bsitar}
-#'   allows univariate-by-subgroup and multivariate model fitting. In
-#'   univariate-by-subgroup analysis, a single outcome is simultaneously
-#'   analysed for subgroups defined by a factor variable such as gender. An
-#'   advantage of univariate-by-subgroup analysis is that posterior draws for
-#'   each sub group are part of a single model object that makes it possible to
-#'   compare coefficients across groups and also test various hypotheses. The
-#'   multivariate analysis involves simultaneous joint modelling of two or more
-#'   outcomes.
+#'   However, the \pkg{bsitar} package offers an enhanced Bayesian
+#'   implementation that improves modeling capabilities. In addition to
+#'   univariate analysis (i.e., modeling a single outcome), \pkg{bsitar} also
+#'   supports:
+#'   
+#'   \itemize{
+#'     \item Univariate-by-subgroup analysis: This allows for simultaneous
+#'     modeling of a single outcome across different subgroups defined by a
+#'     factor variable (e.g., gender). The advantage is that posterior draws for
+#'     each subgroup are part of a single model object, enabling comparisons of
+#'     coefficients across groups and testing of various hypotheses.
+#'     \item Multivariate analysis: This approach involves simultaneous joint
+#'     modeling of two or more outcomes, allowing for more comprehensive growth
+#'     modeling.
+#'   }
+#'   
+#'   The Bayesian implementation in \pkg{bsitar} provides a more flexible and
+#'   robust framework for growth curve modeling compared to the frequentist
+#'   approach.
 #'  
-#' @details The \emph{SITAR} is a shape-invariant nonlinear mixed effect growth
-#'   curve model that fits a population average (i.e., mean average) curve to
-#'   the data, and aligns each individual's growth trajectory to the underlying
-#'   population average curve via a set of (typically) three random effects: the
-#'   \code{size}, \code{timing} and \code{intensity}. Additionally, a slope
-#'   parameter can be included as a random effect to estimate the variability in
-#'   adult growth rate (See [sitar::sitar()] for details). The concept of shape
-#'   invariant model (SIM) was first described by
-#'   \insertCite{Lindstrom1995;textual}{bsitar} and later used by
-#'   \insertCite{Beath2007;textual}{bsitar} to model infant growth data (birth
-#'   to 2 years). The current version of the \emph{SITAR} model is developed by
-#'   \insertCite{Cole2010;textual}{bsitar} and has been used extensively for
-#'   modelling growth data
-#'  \insertCite{@see @nembidzaneUsingSITARMethod2020 and @Sandhu2020}{bsitar}. 
-#'  
-#'  The frequentist version of the \emph{SITAR} model can be fit by using an
-#'  already available R package, the \pkg{sitar} \insertCite{R-sitar}{bsitar}.
-#'  The framework of Bayesian implementation of the \emph{SITAR} model in
-#'  \pkg{bsitar} package is same as the \pkg{sitar} package with the exception
-#'  that unlike the \pkg{sitar} package which uses B spline basis for the
-#'  natural cubic spline design matrix (by calling the [splines::ns()]), the
-#'  \pkg{bsitar} package uses the truncated power basis approach (see
-#'  \insertCite{harrell2001regression;textual}{bsitar}, and 
-#'  \insertCite{R-Hmisc;textual}{bsitar} for details) to construct the spline
-#'  design matrix. Note that \pkg{bsitar} package builds the spline design
-#'  matrix on the fly which is then included in the \code{functions} block of
-#'  the **Stan** program and hence compiled (via the c++) during the model fit.
-#'  
-#'  Like \pkg{sitar} package \insertCite{Cole2010}{bsitar}, the \pkg{bsitar}
-#'  package fits \emph{SITAR} model with (usually) up to three random effects:
-#'  the size (parameter defined as \code{a}), the timing (parameter defined as
-#'  \code{b}) and the intensity (parameter defined as \code{c}). In addition,
-#'  there is a slope parameter (defined as \code{d}) that models the variability
-#'  in the adult slope of the growth curve (See [sitar::sitar()] for details).
-#'  Please note that author of the \pkg{sitar} package
-#'  \insertCite{Cole2010}{bsitar} enforces the inclusion of parameter
-#'  \code{d} as a random effects only and therefore excludes it from the 
-#'  fixed fixed structure of the model. However, the \pkg{bsitar} package allows
-#'  inclusion of parameter \code{d} in fixed and/or in the random effects
-#'  structures of the \emph{SITAR} model. For the three parameter version of the
-#'  \emph{SITAR} model (default), the fixed effects structure (i.e., population
-#'  average trajectory) is specified as \code{fixed = 'a+b+c'}, and the
-#'  random effects structure that captures the deviation of individual
-#'  trajectories from the population average curve is specified as \code{random
-#'  = 'a+b+c'}. Note that user need not to include all the three parameters in
-#'  the fixed or the random effect structure. For example, a fixed effect
-#'  version of the \emph{SITAR} model can be fit by setting randoms as an empty 
-#'  string i.e., \code{random = ''}. Furthermore, the fixed effect structure may 
-#'  include only a sub set of the parameters e.g., size and timing parameters 
-#'  (\code{fixed = 'a+b'}) or the size and the intensity parameters 
-#'  (\code{fixed = 'a+c'}). The four parameters version of the \emph{SITAR} 
-#'  model is fit by including parameter \code{d} in the \code{fixed} and/or the 
-#'  \code{random} arguments. Similar to the three parameter \emph{SITAR} model, 
-#'  user can fit model with a sub set of the fixed and/or the random effects.
-#'  
-#'  The \pkg{sitar} package internally depends on the \pkg{brms} 
-#'  package \insertCite{@see @R-brms; @brms2021}{bsitar}. The \pkg{brms} can
-#'  fit a wide range of hierarchical linear and nonlinear regression models
-#'  including multivariate models. The \pkg{brms} itself depends on the **Stan**
-#'  software program full Bayesian inference
-#'  \insertCite{@see @teamStanReferenceManual; @gelman2015}{bsitar}. Like 
-#'  \pkg{brms}, the \pkg{bsitar} package allows a wide range of prior
-#'  specifications that encourage the users to specify priors that
-#'  actually reflect their prior knowledge about the human growth processes,
-#'  (such as timing and intensity of the growth spurt). For prior
-#'  specification, we follow the carefully crafted approaches used in the
-#'  \pkg{brms} and \pkg{rstanarm} packages. For example, we follow the
-#'  \pkg{brms} package in using the \code{student_t} distribution for the
-#'  regression coefficients as well as the standard deviation for group
-#'  level random effects, but set \code{exponential} distribution for the
-#'  residual standard deviation as used in the \pkg{rstanarm} package. 
-#'  Like \pkg{brms} and \pkg{rstanarm} packages, the \pkg{bsitar} package allows
-#'  for auto scaling of the scale parameter for the location-scale based
-#'  distributions such as \code{normal} and \code{student_t}. While
-#'  \pkg{rstanarm} earlier used to set \code{autosclae} as \code{2.5} (recently
-#'  authors changed this behavior to \code{FALSE}), the \pkg{brms} package sets
-#'  it as \code{1.0} or \code{2.5} depending on the standard deviation of the
-#'  response variable (See [brms::prior()]). The \pkg{bsitar} package, on the
-#'  other hand, offers full flexibility in choosing the scale factor as any real
-#'  number (e.g., \code{autosclae = 5.0}). When \code{autosclae = TRUE}, the
-#'  \code{2.5} is the default scaling factor. We strongly recommend to go
-#'  through the well documented details on prior specifications used in
-#'  \pkg{brms} and \pkg{rstanarm} packages.
-#'  
-#'  Like \pkg{brms} package, the \pkg{bsitar} package offers a range of tools to
-#'  evaluate the model fit that include posterior predictive check (see
-#'  [brms::pp_check()]) and the leave one out (\code{loo}) cross validation (see
-#'  [brms::loo()]). Furthermore, while the excellent post-processing support
-#'  offered by the \pkg{brms} package is directly available to the users, the
-#'  \pkg{bsitar} package includes many customized functions that allow for
-#'  estimation and visualization of population average and individual specific
-#'  distance (increase in size) and velocity (change in rate of growth), as well
-#'  as computation of population average and individual specific growth
-#'  parameters such as age at peak growth velocity (APGV) and the peak growth
-#'  velocity (PGV).
-#'
-#'  Finally, the \pkg{bsitar} package allows three different types of model
-#'  specifications: \code{'univariate'}, \code{'univariate_by'} and
-#'  \code{'multivariate'}. A \code{'univariate'} fitting involves a single model
-#'  applied to an outcome whereas both \code{'univariate_by'} and
-#'  \code{'multivariate'} specifications comprise two or more sub models. The
-#'  \code{'univariate_by'} fits two or more sub models to an outcome variable
-#'  defined by a factor variable (e.g, sex). The data are typically stacked and
-#'  the factor variable is used to set-up the sub models via the \code{'subset'}
-#'  option available in the [brms::brm()]. The \code{'multivariate'} model allows
-#'  simultaneous modelling of two or more outcomes with joint a distribution of
-#'  the random effects. For both \code{'univariate_by'} and \code{'multivariate'}
-#'  models, the \pkg{bsitar} package allows full flexibility in specifying
-#'  separate arguments such as predictor variables (\code{x}), degree of freedom
-#'  (\code{df}) for design matrix as well as the priors and the initial values.
-#'  Furthermore, to enhance the ease of specifying different options and to make
-#'  it user-friendly, there is no need to enclose the character option(s) in
-#'  single or double quotes. For example to specify the \code{'univariate_by'}
-#'  for sex, the \code{univariate_by = sex} is same as \code{univariate_by =
-#'  'sex'} or \code{univariate_by = "sex"}. The same applies for all character
-#'  string options.
-#'
-#'@param x Predictor variable (typically age in years). For \code{univariate}
-#'  model, the \code{x} is a single variable whereas for \code{univariate_by}
-#'  and \code{multivariate} models, the \code{x} can be same for sub models, or
-#'  different for each sub model. For example, when fitting a bivariate model,
-#'  the \code{x = list(x1, x2)} specifies that \code{x1} is the predictor
-#'  variable for the first sub model, and \code{x2} for the second sub model. To
-#'  specify \code{x1} as a common predictor
-#'  variable for both sub models, the argument \code{x} is defined as \code{x =
-#'  list(x1)} or simply \code{x = x1}.
+#' @details The \emph{SITAR} is a shape-invariant nonlinear mixed-effects growth
+#' curve model that fits a population average (i.e., mean) curve to the data and
+#' aligns each individual's growth trajectory to the underlying population curve
+#' via a set of (typically) three random effects: \code{size}, \code{timing},
+#' and \code{intensity}. Additionally, a slope parameter can be included as a
+#' random effect to estimate the variability in adult growth rate (see
+#' [sitar::sitar()] for details).
+#' 
+#' The concept of a shape-invariant model (SIM) was first introduced by
+#' \insertCite{Lindstrom1995;textual}{bsitar}, and later used by
+#' \insertCite{Beath2007;textual}{bsitar} to model infant growth data (birth to
+#' 2 years). The current version of the \emph{SITAR} model was developed by
+#' \insertCite{Cole2010;textual}{bsitar} and has been extensively used for
+#' modeling growth data 
+#' \insertCite{@see @nembidzaneUsingSITARMethod2020 and @Sandhu2020}{bsitar}.
+#' 
+#' The frequentist version of the \emph{SITAR} model can be fit using the
+#' already available R package, \pkg{sitar} \insertCite{R-sitar}{bsitar}. The
+#' framework of the Bayesian implementation of the \emph{SITAR} model in the
+#' \pkg{bsitar} package is similar to the \pkg{sitar} package, with the main
+#' difference being that \pkg{sitar} uses [splines::ns()] to construct the
+#' B-splines based natural cubic spline design matrix, whereas \pkg{bsitar}
+#' implements a different strategy to create natural cubic splines. The
+#' \pkg{bsitar} offers three different types of splines: \pkg{nsp}, \pkg{nsk},
+#' and \pkg{rcs}. Both \pkg{nsp} and \pkg{nsk} use the B-splines basis to
+#' generate the natural cubic spline design matrix as implemented in
+#' [splines2::nsp()] and [splines2::nsk()], whereas \pkg{rcs} is based on the
+#' truncated power basis approach (see
+#' \insertCite{harrell2001regression;textual}{bsitar} and
+#' \insertCite{R-Hmisc;textual}{bsitar} for details) to construct the spline
+#' design matrix. While all approaches produce the same growth curves, the
+#' model-estimated spline coefficients differ from each other.
+#' 
+#' Like the \pkg{sitar} package \insertCite{Cole2010}{bsitar}, the \pkg{bsitar}
+#' package fits the \emph{SITAR} model with (usually) three random effects: size
+#' (parameter \code{a}), timing (parameter \code{b}), and intensity (parameter
+#' \code{c}). Additionally, there is a slope parameter (parameter \code{d}) that
+#' models the variability in the adult slope of the growth curve (see
+#' [sitar::sitar()] for details).
+#' 
+#' Note that the author of the \pkg{sitar} package \insertCite{Cole2010}{bsitar}
+#' enforces the inclusion of the \code{d} parameter as a random effect only,
+#' excluding it from the fixed structure of the model. However, the \pkg{bsitar}
+#' package allows inclusion of the \code{d} parameter in both the fixed and/or
+#' random effects structures of the \emph{SITAR} model.
+#' 
+#' For the three-parameter version of the \emph{SITAR} model (default), the
+#' fixed effects structure (i.e., population average trajectory) is specified as
+#' \code{fixed = 'a+b+c'}, and the random effects structure, capturing the
+#' deviation of individual trajectories from the population average curve, is
+#' specified as \code{random = 'a+b+c'}.
+#' 
+#' The \pkg{bsitar} package offers flexibility in model specification. For
+#' example:
+#' \itemize{
+#'   \item A fixed-effect version of the \emph{SITAR} model can be fit by
+#'   setting \code{random = ''}. \item The fixed-effect structure can include a
+#'   subset of parameters,
+#'   such as size and timing (\code{fixed = 'a+b'}) or size and intensity
+#'   (\code{fixed = 'a+c'}).
+#'   \item For a four-parameter version of the \emph{SITAR} model, parameter
+#'   \code{d} is included in the \code{fixed} and/or \code{random} arguments.
+#' }
+#' 
+#' The \pkg{sitar} package internally depends on the \pkg{brms} 
+#' package \insertCite{@see @R-brms; @brms2021}{bsitar}, which fits a wide 
+#' range of hierarchical linear and nonlinear regression models, including 
+#' multivariate models. The \pkg{brms} package itself depends on **Stan** for 
+#' full Bayesian 
+#' inference \insertCite{@see @teamStanReferenceManual; @gelman2015}{bsitar}. 
+#' Like \pkg{brms}, the \pkg{bsitar} package allows flexible prior 
+#' specifications based on user's knowledge of growth processes (e.g., timing 
+#' and intensity of growth spurts).
+#' 
+#' The \pkg{brms} package uses a combination of \code{normal} and
+#' \code{student_t} distributions for regression coefficients, group-level
+#' random effects, and the distributional parameter (\code{sigma}), while
+#' \pkg{rstanarm} uses \code{normal} distributions for regression coefficients
+#' and group-level random effects, but sets \code{exponential} for the
+#' distributional parameter (\code{sigma}). By default, \pkg{bsitar} uses
+#' \code{normal} distributions for all parameters, including regression
+#' coefficients, standard deviations of group-level random effects, and the
+#' distributional parameter. Additionally, \pkg{bsitar} provides flexibility in
+#' choosing scale parameters for location-scale distributions (such as
+#' \code{normal} and \code{student_t}).
+#' 
+#' The \pkg{bsitar} package also allows three types of model specifications:
+#' \code{'univariate'}, \code{'univariate_by'}, and \code{'multivariate'}:
+#' \itemize{
+#'   \item \code{'univariate'} fits a single model to an outcome variable.
+#'   \item \code{'univariate_by'} fits two or more sub-models to an outcome
+#'   defined by a factor variable (e.g., sex).
+#'   \item \code{'multivariate'} fits a joint model to multiple outcomes with
+#'   shared random effects.
+#' }
+#' 
+#' The \pkg{bsitar} package offers full flexibility in specifying predictors,
+#' degrees of freedom for design matrices, priors, and initial values. The
+#' package also allows users to specify options in a user-friendly manner (e.g.,
+#' \code{univariate_by = sex} is equivalent to \code{univariate_by = 'sex'}).
+#' 
+#'@param x Predictor variable (typically age in years). For a \code{univariate}
+#'  model, \code{x} is a single variable. For \code{univariate_by} and
+#'  \code{multivariate} models, \code{x} can either be the same for all
+#'  sub-models, or different for each sub-model. For example, when fitting a
+#'  bivariate model, \code{x = list(x1, x2)} specifies that \code{x1} is the
+#'  predictor variable for the first sub-model, and \code{x2} is the predictor
+#'  for the second sub-model. To use \code{x1} as a common predictor variable
+#'  for both sub-models, you can specify \code{x = list(x1)} or simply \code{x =
+#'  x1}.
 #'
 #'@param y Response variable (e.g., repeated height measurements). For
 #'  \code{univariate} and \code{univariate_by} models, \code{y} is specified as
-#'  a single variable. For \code{univariate_by} model, the response vector for
-#'  each sub model is created and named internally based on the factor levels of
-#'  the variable that is used to set up the \code{univariate_by} model. As an
-#'  example, the model specified as \code{univariate_by = sex} creates response
-#'  vectors \code{Female} and  \code{Male} when \code{Female} is the first level
-#'  and \code{Male} is the second level of the \code{sex} variable. For
-#'  \code{multivariate} model, the response variables are specified as a list
-#'  such as \code{y = list(y1, y2}) where \code{y1} is the response variable for
-#'  the first sub model and \code{y2} for the second sub model. Note that for
-#'  \code{multivariate} model, data are not stacked but rather response vectors
-#'  are separate variables in the \code{data} and are of same length.
+#'  a single variable. In the case of a \code{univariate_by} model, the response
+#'  vector for each sub-model is created and named internally based on the
+#'  factor levels of the variable used to define the sub-model. For example,
+#'  specifying \code{univariate_by = sex} creates response vectors \code{Female}
+#'  and \code{Male} when \code{Female} is the first level and \code{Male} is the
+#'  second level of the \code{sex} variable. In a \code{multivariate} model, the
+#'  response variables are provided as a list, such as \code{y = list(y1, y2)},
+#'  where \code{y1} is the response variable for the first sub-model, and
+#'  \code{y2} is the response for the second sub-model. Note that for the
+#'  \code{multivariate} model, the data are not stacked; instead, response
+#'  vectors are separate variables in the \code{data} and must be of equal
+#'  length.
 #'
-#'@param id A factor variable uniquely identifying the groups (e.g.,
-#'  individuals) in the data frame. For \code{univariate_by} and
-#'  \code{multivariate} models, the \code{id} can be same (typically) for sub
-#'  models or different for each sub model (see argument \code{x} for details on
-#'  setting different arguments for sub models).
+#' @param id A factor variable uniquely identifying the groups (e.g.,
+#'   individuals) in the data frame. For \code{univariate_by} and
+#'   \code{multivariate} models, the \code{id} can be the same (typically) for
+#'   all sub-models, or different for each sub-model (see the \code{x} argument
+#'   for details on setting different arguments for sub-models).
 #'
-#'@param data Data frame containing variables such as \code{x}, \code{y}, 
-#' \code{id} etc.
+#' @param data A data frame containing variables such as \code{x}, \code{y},
+#'   \code{id}, etc.
 #'
-#'@param df Degrees of freedom for the natural cubic spline design matrix
-#'  (default \code{4}). The \code{df} is internally used to construct the
-#'  knots (quantiles of \code{x} distribution) that are then used in the
-#'  construction of the spline design matrix. For \code{univariate_by}
-#'  and \code{multivariate} models, the \code{df} can be same (e.g., \code{df  =
-#'  4}) for sub models or different for each sub model such as
-#'  \code{df=list(4, 5)} where \code{df} is 4 is for the first sub model, and 5
-#'  for the second sub model.
+#' @param df Degrees of freedom for the natural cubic spline design matrix
+#'   (default \code{4}). The \code{df} is used internally to construct knots
+#'   (quantiles of the \code{x} distribution) for the spline design matrix. For
+#'   \code{univariate_by} and \code{multivariate} models, the \code{df} can be
+#'   the same across sub-models (e.g., \code{df = 4}) or different for each
+#'   sub-model, such as \code{df = list(4, 5)}, where \code{df = 4} applies to
+#'   the first sub-model and \code{df = 5} applies to the second sub-model.
 #'
-#'@param knots A numeric vector vector specifying the knots for the natural
-#'  cubic spline design matrix (default \code{NULL}) Note that \code{df} and
-#'  \code{knots} can not be specified together, and also both of them can not be
-#'  \code{NULL}. In other words, either \code{df} or \code{knots} must be
-#'  specified. Like \code{df}, the \code{knots} can be same for sub models or
-#'  different for each sub model when fitting \code{univariate_by} and
-#'  \code{multivariate} models (see \code{df} for details).
-#'
-#'@param fixed A character string specifying the fixed effects structure
-#'  (default \code{'a+b+c'}). Note that different fixed effect structures can be
-#'  specified when fitting \code{univariate_by} and \code{multivariate} models.
-#'  As an example, \code{fixed = list('a+b+c', 'a+b')} implies that the fixed
-#'  effect structure for the first sub model is \code{'a+b+c'}, and \code{'a+b'}
-#'  for the second sub model.
-#'
-#'@param random A character string specifying the random effects structure
-#'  (default \code{'a+b+c'}). The approach used in setting the \code{random} is
-#'  same as described above for the fixed effects structure (see \code{fixed}).
+#' @param knots A numeric vector specifying the knots for the natural cubic
+#'   spline design matrix (default \code{NULL}). Note that you cannot specify
+#'   both \code{df} and \code{knots} at the same time, nor can both be
+#'   \code{NULL}. In other words, either \code{df} or \code{knots} must be
+#'   specified. Like \code{df}, the \code{knots} can be the same for all
+#'   sub-models, or different for each sub-model when fitting
+#'   \code{univariate_by} and \code{multivariate} models (see \code{df} for
+#'   details).
+#' 
+#' @param fixed A character string specifying the fixed effects structure
+#'   (default \code{'a+b+c'}). For \code{univariate_by} and \code{multivariate}
+#'   models, you can specify different fixed effect structures for each
+#'   sub-model. For example, \code{fixed = list('a+b+c', 'a+b')} implies that
+#'   the fixed effects structure for the first sub-model is \code{'a+b+c'}, and
+#'   for the second sub-model it is \code{'a+b'}.
+#' 
+#' @param random A character string specifying the random effects structure
+#'   (default \code{'a+b+c'}). The approach to setting the \code{random} is the
+#'   same as for the fixed effects structure (see \code{fixed}).
+#' 
+#' @param xoffset An optional character string or numeric value to set the
+#'   origin of the predictor variable, \code{x} (i.e., centering of \code{x}).
+#'   Available options include:
+#'  - \code{'mean'}: The mean of \code{x} (i.e., \code{mean(x)}),
+#'  - \code{'max'}: The maximum value of \code{x} (i.e., \code{max(x)}),
+#'  - \code{'min'}: The minimum value of \code{x} (i.e., \code{min(x)}),
+#'  - \code{'apv'}: Age at peak velocity estimated from the velocity curve 
+#'  derived from a simple linear model fit to the data,
+#'  - Any real number (e.g., \code{xoffset = 12}).
+#' The default is \code{xoffset = 'mean'}.
+#' 
+#' For \code{univariate_by} and \code{multivariate} models, \code{xoffset} can
+#' be the same or different for each sub-model (see \code{x} for details on
+#' setting different arguments for sub-models). If \code{xoffset} is a numeric
+#' value, it will be transformed internally (e.g., \code{log} or \code{sqrt})
+#' depending on the \code{xfun} argument. Similarly, when \code{xoffset} is
+#' \code{'mean'}, \code{'min'}, or \code{'max'}, these values are calculated
+#' after applying the \code{log} or \code{sqrt} transformation to \code{x}.
+#' 
+#' @param bstart An optional character string or numeric value to set the origin
+#'   of the fixed effect parameter \code{b}. The \code{bstart} argument is used
+#'   to establish the location parameter for location-scale based priors (such
+#'   as \code{normal()}) via the \code{b_prior_beta} argument, and/or the
+#'   initial value via the \code{b_init_beta} argument. The available options
+#'   for \code{bstart} are:
+#'  - \code{'mean'}: The mean of \code{x} (i.e., \code{mean(x)}),
+#'  - \code{'min'}: The minimum value of \code{x} (i.e., \code{min(x)}),
+#'  - \code{'max'}: The maximum value of \code{x} (i.e., \code{max(x)}),
+#'  - \code{'apv'}: Age at peak velocity estimated from the velocity curve 
+#'  derived from a simple linear model fit to the data,
+#'  - Any real number (e.g., \code{bstart = 12}).
 #'  
-#'@param xoffset An optional character string, or a numeric value to set up the
-#'  origin of the predictor variable, \code{x} (i.e., centering of \code{x}).
-#'  The options available are \code{'mean'} (mean of x, i.e., \code{mean(x)}),
-#'  \code{'max'} (maximum value of x, i.e., \code{max(x)}), \code{'min'}
-#'  (minimum value of x, i.e., \code{min(x)}), \code{'apv'} (age at peak
-#'  velocity estimated from the velocity curve derived from the simple linear
-#'  model fit to the data), or any real number such as \code{xoffset = 12}.
-#'  The default is \code{xoffset = 'mean'}. For \code{univariate_by} 
-#'  and \code{multivariate} models, the \code{xoffset} can be same for sub 
-#'  models or different for each sub model (see argument \code{x} for details
-#'  on setting different arguments for sub models).
+#' The default is \code{bstart = 'xoffset'} (i.e., the same value as
+#' \code{xoffset}). For \code{univariate_by} and \code{multivariate} models,
+#' \code{bstart} can be the same for all sub-models (typically), or different
+#' for each sub-model (refer to \code{x} for details on setting different
+#' arguments for sub-models).
+#' 
+#' @param cstart An optional character string or numeric value to set the origin
+#'   of the fixed effect parameter \code{c}. The \code{cstart} argument is used
+#'   to establish the location parameter for location-scale based priors (such
+#'   as \code{normal()}) via the \code{c_prior_beta} argument, and/or the
+#'   initial value via the \code{c_init_beta} argument. The available options
+#'   for \code{cstart} are:
+#'  - \code{'pv'}: Peak velocity estimated from the velocity curve derived 
+#'  from the simple linear model fit to the data,
+#'  - Any real number (e.g., \code{cstart = 1}).
+#'  
+#' Note that since parameter \code{c} is estimated on the exponential scale, the
+#' \code{cstart} should be adjusted accordingly. The default \code{cstart} is
+#' \code{'0'} (i.e., \code{cstart = '0'}). For \code{univariate_by} and
+#' \code{multivariate} models, \code{cstart} can be the same for all sub-models
+#' (typically), or different for each sub-model (refer to \code{x} for details
+#' on setting different arguments for sub-models).
+#' 
+#' @param xfun An optional character string specifying the transformation of the
+#'   predictor variable \code{x}. The default value is \code{NULL}, indicating
+#'   that no transformation is applied and the model is fit to the data with the
+#'   original scale of \code{x}. The available transformation options are:
+#'  - \code{'log'}: Logarithmic transformation,
+#'  - \code{'sqrt'}: Square root transformation.
+#'  
+#' For \code{univariate_by} and \code{multivariate} models, the \code{xfun} can
+#' be the same for all sub-models (typically), or different for each sub-model
+#' (refer to \code{x} for details on setting different arguments for
+#' sub-models).
+#' 
+#' @param yfun An optional character string specifying the transformation of the
+#'   response variable \code{y}. The default value is \code{NULL}, indicating
+#'   that no transformation is applied and the model is fit to the data with the
+#'   original scale of \code{y}. The available transformation options are:
+#'  - \code{'log'}: Logarithmic transformation,
+#'  - \code{'sqrt'}: Square root transformation.
+#'  
+#' For \code{univariate_by} and \code{multivariate} models, the \code{yfun} can
+#' be the same for all sub-models (typically), or different for each sub-model
+#' (refer to \code{x} for details on setting different arguments for
+#' sub-models).
+#' 
+#' @param bound An optional real number specifying the value by which the span
+#'   of the predictor variable \code{x} should be extended (default is
+#'   \code{0.04}). This extension can help in modeling edge cases. For more
+#'   details, refer to the \pkg{sitar} package documentation. For
+#'   \code{univariate_by} and \code{multivariate} models, the \code{bound} can
+#'   be the same for all sub-models (typically), or different for each sub-model
+#'   (refer to \code{x} for details on setting different arguments for
+#'   sub-models).
+#' 
+#' @param stype A character string or a named list specifying the spline type to
+#'   be used. The available options are:
+#'  - \code{'rcs'}: Constructs the spline design matrix using the truncated 
+#'  power basis (Harrell's method), implemented in [Hmisc::rcspline.eval()].
+#'  - \code{'nks'}: Implements a B-spline based natural cubic spline method, 
+#'  similar to [splines2::nsk()].
+#'  - \code{'nsp'}: Implements a B-spline based natural cubic spline method, 
+#'  similar to [splines2::nsp()].
+#' The default is \code{'nsp'}.
+#' 
+#' The \code{'rcs'} method uses a truncated power basis, whereas \code{'nks'}
+#' and \code{'nsp'} are B-spline-based methods. Unlike [splines2::nsp()] and
+#' [splines2::nsk()], which normalize the spline basis by default, \code{'nks'}
+#' and \code{'nsp'} return the non-normalized version of the spline. If
+#' normalization is desired, the user can specify \code{normalize = TRUE} in a
+#' list. For example, to use a normalized \code{'nsp'}, one can specify
+#' \code{stype = list(type = 'nsp', normalize = TRUE)}.
+#' 
+#' For more details, see [Hmisc::rcspline.eval()], [splines2::nsk()], and
+#' [splines2::nsp()].
+#' 
 #'
-#'@param bstart An optional character string, or a numeric value to set up the
-#'  origin of the fixed effect parameter \code{b}. The argument \code{bstart}
-#'  can be used to set up the location parameter for the location-scale based
-#'  priors (such as \code{normal()}) via \code{b_prior_beta} argument and/or the
-#'  initial value via the \code{b_init_beta} argument. The options available to
-#'  set up the \code{bstart} are same as described above for the \code{xoffset}
-#'  i.e., \code{'mean'}, \code{'min'}, \code{'max'}, \code{'apv'} or a real
-#'  number such as \code{12}. The default is same as \code{xoffset} i.e.,
-#'  \code{bstart = 'xoffset'}. For \code{univariate_by} and  \code{multivariate}
-#'  models, the \code{xoffset} can be same for sub models (typically), or
-#'  different for each sub model (see argument \code{x} for details on setting
-#'  different arguments for sub models).
+#'@param terms_rhs An optional character string (default \code{NULL}) specifying
+#'  terms on the right-hand side of the response variable, but before the
+#'  formula tilde sign \code{~}. The \code{terms_rhs} is used when fitting a
+#'  measurement error model.
 #'
-#'@param cstart An optional character string, or a numeric value to set up the
-#'  origin of the fixed effect parameter \code{c}. The argument \code{cstart}
-#'  can be used to set up the location parameter for the location-scale based
-#'  priors (such as \code{normal()}) via \code{c_prior_beta} argument and/or the
-#'  initial value via the \code{c_init_beta} argument. The options available to
-#'  set up the \code{cstart} are \code{'pv'} (peak velocity estimated from the
-#'  velocity curve derived from the simple linear model fit to the data), or a
-#'  real number such as \code{1}. Note that since parameter \code{c} is
-#'  estimated on the exponential scale, the argument \code{cstart} should be
-#'  adjusted accordingly. The default \code{cstart} is '0' i.e., \code{cstart =
-#'  '0'}. For \code{univariate_by} and \code{multivariate} models,
-#'  the \code{xoffset} can be same for sub models (typically), or different for
-#'  each sub model (see argument \code{x} for details on setting different
-#'  arguments for sub models).
+#'  For example, when fitting a model with measurement error in the response
+#'  variable, the formula in [brms::brmsformula()] could be specified as
+#'  \code{brmsformula(y | mi(sdy) ~ ...)}. In this case, \code{mi(sdy)} is
+#'  passed to the formula via \code{terms_rhs = 'mi(sdy)'}.
 #'
-#'@param xfun An optional character string to specify the transformation of the
-#'  predictor variable, The default is \code{NULL} indicating that no
-#'  transformation is applied i.e., model is fit to the data with original scale
-#'  of the \code{x}. Available transformation options are \code{'log'}
-#'  (logarithmic transformation) and \code{'sqrt'} (square root transformation).
-#'  For \code{univariate_by} and \code{multivariate} models, the \code{xfun} can
-#'  be same for sub models (typically), or different for each sub model (see
-#'  argument \code{x} for details on setting different arguments for sub
-#'  models).
+#'  For a \code{multivariate} model, each outcome can have its own measurement
+#'  error variable. For instance, the \code{terms_rhs} can be specified as a
+#'  list: \code{terms_rhs = list(mi(sdy1), mi(sdy2))}.
 #'
-#'@param yfun An optional character string to specify the transformation of the
-#'  response variable, The default is \code{NULL}, indicating that no
-#'  transformation is applied i.e., model is fit to the data with original scale
-#'  of the \code{y}. Available transformation options are \code{'log'}
-#'  (logarithmic transformation) and \code{'sqrt'} (square root transformation).
-#'  For \code{univariate_by} and \code{multivariate} models, the \code{xfun} can
-#'  be same for sub models (typically), or different for each sub model (see
-#'  argument \code{x} for details on setting different arguments for sub
-#'  models).
-#'
-#'@param bound An optional real number to extend the span of the predictor
-#'  variable \code{x} by a small value (default 0.04). See package
-#'  [sitar::sitar()] for details. For \code{univariate_by} and
-#'  \code{multivariate} models, the \code{bound} can be same for sub models
-#'  (typically), or different for each sub model (see argument \code{x} for
-#'  details on setting different arguments for sub models).
-#'
-#'@param terms_rhs An optional character string (default \code{NULL}) to specify
-#'  terms on the right hand side of the response variable (separated by
-#'  \code{|}) but before the formula tilde sign i.e., \code{~}. The
-#'  \code{terms_rhs} is used when fitting a measurement error model. As an
-#'  example, consider fitting a model with measurement error in the response
-#'  variable which is specified in the [brms::brmsformula()] as
-#'  \code{brmsformula(y | mi(sdy) ~ ..)}. In this example, the \code{mi(sdy)} is
-#'  passed to [brms::brmsformula()] as \code{terms_rhs = mi(sdy)}. For
-#'  \code{multivariate} model, each outcome can have its own measurement error
-#'  variable that can be specified as follows: \cr \code{terms_rhs =
-#'  list(mi(sdy1), mi(sdy2))}. Note that [brms::brmsformula()] does not allow
-#'  combining \code{mi()} with the \code{subset()} formulation that is used for
-#'  fitting \code{univariate_by} model.
+#'  Note that [brms::brmsformula()] does not allow combining \code{mi()} with
+#'  the \code{subset()} formulation used in fitting \code{univariate_by} models.
 #'
 #'@param a_formula Formula for the fixed effect parameter, \code{a} (default
-#'  \code{~ 1}). User can specify different formula when fitting
-#'  \code{univariate_by} and \code{multivariate} models. As an example
-#'  \code{a_formula = list(~1, ~1 + cov)} implies that the \code{a_formula} for
-#'  the first sub model includes an intercept only whereas the second sub model
-#'  includes an intercept and a covariate, \code{cov}. The covariate(s)  can be
-#'  continuous variable(s) or factor variable(s). For factor covariates, dummy
-#'  variables are created internally via the [stats::model.matrix()]). The
-#'  formula can include any combination of continuous and factor variables as
+#'  \code{~ 1}). Users can specify different formulas when fitting
+#'  \code{univariate_by} and \code{multivariate} models.
+#'
+#'  For example, \code{a_formula = list(~1, ~1 + cov)} specifies that the
+#'  \code{a_formula} for the first sub-model includes only an intercept, while
+#'  the second sub-model includes both an intercept and a covariate \code{cov}.
+#'  The covariate(s) can be either continuous or factor variables. For factor
+#'  covariates, dummy variables are created internally using
+#'  [stats::model.matrix()].
+#'
+#'  The formula can include a combination of continuous and factor variables, as
 #'  well as their interactions.
 #'
 #'@param b_formula Formula for the fixed effect parameter, \code{b} (default
-#'  \code{~ 1}). See \code{a_formula} for details.
+#'  \code{~ 1}). See \code{a_formula} for details on how to specify the formula.
+#'  The behavior and structure of \code{b_formula} are similar to
+#'  \code{a_formula}.
 #'
 #'@param c_formula Formula for the fixed effect parameter, \code{c} (default
-#'  \code{~ 1}). See \code{a_formula} for details.
+#'  \code{~ 1}). See \code{a_formula} for details on how to specify the formula.
+#'  The behavior and structure of \code{c_formula} are similar to
+#'  \code{a_formula}.
 #'
 #'@param d_formula Formula for the fixed effect parameter, \code{d} (default
-#'  \code{~ 1}). See \code{a_formula} for details.
+#'  \code{~ 1}). See \code{a_formula} for details on how to specify the formula.
+#'  The behavior and structure of \code{d_formula} are similar to
+#'  \code{a_formula}.
 #'  
 #'@param s_formula Formula for the fixed effect parameter, \code{s} (default
-#'  \code{~ 1}). The \code{s_formula} sets up the the spline design matrix.
-#'  Typically, covariate(s) are not included in the \code{s_formula} to limit
-#'  the population curve to be single curve for the whole data. In fact, the
-#'  [sitar::sitar()] does not provide any option to include covariates in the
-#'  \code{s_formula}, However, \pkg{bsitar} package allows inclusion of
-#'  covariates but the user need to justify the modelling of separate curves for
-#'  each category when covariate is a factor variable.
+#'  \code{~ 1}). The \code{s_formula} sets up the spline design matrix.
+#'  Typically, covariates are not included in the \code{s_formula} to limit the
+#'  population curve to a single curve for the entire data. In fact, the
+#'  \pkg{sitar} package does not provide an option to include covariates in the
+#'  \code{s_formula}. However, the \pkg{bsitar} package allows the inclusion of
+#'  covariates. In such cases, the user must justify the modeling of separate
+#'  curves for each category when the covariate is a factor variable.
 #'
-#'@param a_formula_gr Formula for the random effect parameter, \code{a} (default
-#'  \code{~ 1}). Similar to \code{a_formula}, user can specify different formula
-#'  when fitting \code{univariate_by} and \code{multivariate} models and formula
-#'  can include continuous and/or factor variable(s) including their
-#'  interactions as covariates (see \code{a_formula} for details). In addition
-#'  to setting up the design matrix for the random effect parameter \code{a},
-#'  user can set up the group identifier and the correlation structure for
-#'  random effects via the vertical bar \code{||} approach. For example,
-#'  consider only an intercept for the random effects \code{a}, \code{b}, and
-#'  \code{c} specified as \code{a_formula_gr = ~1}, \code{b_formula_gr = ~1} 
-#'  and \code{c_formula_gr = ~1}. To specify the group identifier 
-#'  (e.g., \code{id}) and an unstructured correlation structure, the formula 
-#'  argument as specified as follows: \cr
-#'  \code{a_formula_gr = ~ (1|i|id)} \cr
-#'  \code{b_formula_gr = ~ (1|i|id)} \cr
-#'  \code{c_formula_gr = ~ (1|i|id)} \cr 
-#'  where  \code{i} within the vertical bars \code{||} is just a placeholder. A
-#'  common identifier (i.e., \code{i}) shared across random effect formulas are
-#'  modeled as unstructured correlated. For more details on the the vertical bar
-#'  approach, please see [brms::brm()]. As explained below, an alternative
-#'  approach to set up the group identifier and the correlation structure is to
-#'  use \code{group_by} argument. In other words, to achieve the same set up as
-#'  defined above by using the vertical bar approach, user can just specify the
-#'  design matrix part of the formula as
-#'  \code{a_formula_gr = ~ 1} \cr
-#'  \code{b_formula_gr = ~ 1} \cr
-#'  \code{c_formula_gr = ~ 1} \cr  
-#'  and use the \code{group_by} argument as \code{group_by = list(groupvar = id,
-#'  cor = un)} where \code{id} specifies the group identifier and \code{un} sets
-#'  up the unstructured correlation structure. See \code{group_by} argument for
-#'  details.
+#' @param a_formula_gr Formula for the random effect parameter, \code{a}
+#'   (default \code{~ 1}). Similar to \code{a_formula}, users can specify
+#'   different formulas when fitting \code{univariate_by} and
+#'   \code{multivariate} models. The formula can include continuous and/or
+#'   factor variables, including their interactions as covariates (see
+#'   \code{a_formula} for details). In addition to setting up the design matrix
+#'   for the random effect parameter \code{a}, users can define the group
+#'   identifier and the correlation structure for random effects using the
+#'   vertical bar \code{||} notation. For example, to include only an intercept
+#'   for the random effects \code{a}, \code{b}, and \code{c}, you can specify:
+#' 
+#' \code{a_formula_gr = ~1}, \code{b_formula_gr = ~1}, \code{c_formula_gr = ~1}.
+#' 
+#' To specify the group identifier (e.g., \code{id}) and an unstructured
+#' correlation structure, use the vertical bar notation:
+#' 
+#' \code{a_formula_gr = ~ (1|i|id)} \cr
+#' \code{b_formula_gr = ~ (1|i|id)} \cr
+#' \code{c_formula_gr = ~ (1|i|id)} \cr
+#' 
+#' Here, \code{i} within the vertical bars is a placeholder, and a common
+#' identifier (e.g., \code{i}) shared across the random effect formulas will
+#' model them as unstructured correlated random effects. For more details on
+#' this vertical bar approach, please see \code{[brms::brm()]}.
+#' 
+#' An alternative approach to specify the group identifier and correlation
+#' structure is through the \code{group_by} argument. To achieve the same setup
+#' as described above with the vertical bar approach, users can define the
+#' formula part as:
+#' 
+#' \code{a_formula_gr = ~1}, \code{b_formula_gr = ~1}, \code{c_formula_gr = ~1}, 
+#' 
+#' and use \code{group_by} as \code{group_by = list(groupvar = id, cor = un)},
+#' where \code{id} specifies the group identifier and \code{un} sets the
+#' unstructured correlation structure. See the \code{group_by} argument for more
+#' details.
 #'
-#'@param b_formula_gr Formula for the random effect parameter, \code{b} (default
-#'  \code{~ 1}). See \code{a_formula_gr} for details.
+#' @param b_formula_gr Formula for the random effect parameter, \code{b}
+#'   (default \code{~ 1}). Similar to \code{a_formula_gr}, user can specify
+#'   different formulas when fitting \code{univariate_by} and
+#'   \code{multivariate} models. The formula can include continuous and/or
+#'   factor variable(s), including their interactions as covariates (see
+#'   \code{a_formula_gr} for details). In addition to setting up the design
+#'   matrix for the random effect parameter \code{b}, the user can set up the
+#'   group identifier and the correlation structure for random effects via the
+#'   vertical bar \code{||} approach. For example, consider only an intercept
+#'   for the random effects \code{a}, \code{b}, and \code{c} specified as
+#'   \code{a_formula_gr = ~1}, \code{b_formula_gr = ~1} and \code{c_formula_gr =
+#'   ~1}. To specify the group identifier (e.g., \code{id}) and an unstructured
+#'   correlation structure, the formula argument can be specified as: \cr
+#'   \code{a_formula_gr = ~ (1|i|id)} \cr \code{b_formula_gr = ~ (1|i|id)} \cr
+#'   \code{c_formula_gr = ~ (1|i|id)} \cr where \code{i} within the vertical
+#'   bars \code{||} is just a placeholder. A common identifier (i.e., \code{i})
+#'   shared across random effect formulas are modeled as unstructured
+#'   correlated. For more details on the vertical bar approach, please see
+#'   [brms::brm()].
+#' 
+#' @param c_formula_gr Formula for the random effect parameter, \code{c}
+#'   (default \code{~ 1}). See \code{b_formula_gr} for details.
 #'
-#'@param c_formula_gr Formula for the random effect parameter, \code{c} (default
-#'  \code{~ 1}). See \code{a_formula_gr} for details.
-#'
-#'@param d_formula_gr Formula for the random effect parameter, \code{d} (default
-#'  \code{~ 1}). See \code{a_formula_gr} for details.
+#' @param d_formula_gr Formula for the random effect parameter, \code{d}
+#'   (default \code{~ 1}). See \code{b_formula_gr} for details.
 #'  
-#'@param a_formula_gr_str Formula for the random effect parameter, \code{a}
-#'  (default \code{NULL}) when fitting a hierarchical model with three or more
-#'  levels of hierarchy. An example is model applied to the data that comprise
-#'  repeated measurements (level 1) on individuals (level 2) nested further
-#'  within the growth studies (level 3). Note that When using
-#'  \code{a_formula_gr_str} argument, only the vertical bar approach (see
-#'  \code{a_formula_gr}) can be used to set up the group identifiers and the
-#'  correlation structure. An example of setting up the formula for a three
-#'  level model with random effect parameter \code{a}, \code{b} is as follows:
-#'  \cr
-#'  \code{a_formula_gr_str = ~ (1|i|id:study) + (1|i2|study)} \cr
-#'  \code{b_formula_gr_str = ~ (1|i|id:study) + (1|i2|study)} \cr
-#'  \code{c_formula_gr_str = ~ (1|i|id:study) + (1|i2|study)} \cr 
-#'  where \code{|i|} and \code{|i2|} set up the unstructured correlation 
-#'  structure for individual and study level random effects. Note that 
-#'  \code{|i|} and \code{|i2|} need to be distinct because random effect 
-#'  parameters are not allowed to be correlated across different levels of 
-#'  hierarchy.
-#'  It is worth mentioning that user can set up model with any number of 
-#'  hierarchical levels and include covariate into the random effect formula.
-#'  
-#'@param b_formula_gr_str Formula for the random effect parameter, \code{b}
-#'  (default \code{NULL}) when fitting a hierarchical model with three or more
-#'  levels of hierarchy. See \code{a_formula_gr_str} for details.
+#' @param a_formula_gr_str Formula for the random effect parameter, \code{a}
+#'   (default \code{NULL}), used when fitting a hierarchical model with three or
+#'   more levels of hierarchy. For example, a model applied to data that
+#'   includes repeated measurements (level 1) on individuals (level 2), which
+#'   are further nested within growth studies (level 3). 
+#'   
+#'   For \code{a_formula_gr_str} argument, only the vertical bar approach (see
+#'   \code{a_formula_gr}) can be used to define the group identifiers and
+#'   correlation structure. An example of setting up a formula for a three-level
+#'   model with random effect parameters \code{a}, \code{b}, and \code{c} is as
+#'   follows: \cr 
+#'   \code{a_formula_gr_str = ~ (1|i|id:study) + (1|i2|study)} \cr 
+#'   \code{b_formula_gr_str = ~ (1|i|id:study) + (1|i2|study)} \cr 
+#'   \code{c_formula_gr_str = ~ (1|i|id:study) + (1|i2|study)} \cr 
+#'   
+#'   In this example, \code{|i|} and \code{|i2|} set up unstructured correlation
+#'   structures for the random effects at the individual and study levels,
+#'   respectively. Note that \code{|i|} and \code{|i2|} must be distinct, as
+#'   random effect parameters cannot be correlated across different levels of
+#'   hierarchy.
+#'   
+#'   Additionally, users can specify models with any number of hierarchical
+#'   levels and include covariates in the random effect formula.
+#'   
+#' @param b_formula_gr_str Formula for the random effect parameter, \code{b} 
+#'   (default \code{NULL}), used when fitting a hierarchical model with three 
+#'   or more levels of hierarchy. For details, see \code{a_formula_gr_str}.
 #'
-#'@param c_formula_gr_str Formula for the random effect parameter, \code{c}
-#'  (default \code{NULL}) when fitting a hierarchical model with three or more
-#'  levels of hierarchy. See \code{a_formula_gr_str} for details.
+#' @param c_formula_gr_str Formula for the random effect parameter, \code{c} 
+#'   (default \code{NULL}), used when fitting a hierarchical model with three 
+#'   or more levels of hierarchy. For details, see \code{a_formula_gr_str}.
 #'
-#'@param d_formula_gr_str Formula for the random effect parameter, \code{d}
-#'  (default \code{NULL}) when fitting a hierarchical model with three or more
-#'  levels of hierarchy. See \code{a_formula_gr_str} for details.
-#'  
-#'@param d_adjusted A logical indicator to set up the scale of predictor
-#'  variable \code{x} when fitting the model with random effect parameter
-#'  \code{d}. The coefficient of parameter \code{d} is estimated as a linear
-#'  function of \code{x} i.e., \code{d * x}. If \code{FALSE} (default), the
-#'  original \code{x} is used. When \code{d_adjusted = TRUE}, the \code{x} is
-#'  adjusted for the timing (\code{b}) and intensity (\code{c}) parameters as
+#' @param d_formula_gr_str Formula for the random effect parameter, \code{d} 
+#'   (default \code{NULL}), used when fitting a hierarchical model with three 
+#'   or more levels of hierarchy. For details, see \code{a_formula_gr_str}.
+#'   
+#' @param d_adjusted A logical indicator to adjust the scale of the predictor
+#'   variable \code{x} when fitting the model with the random effect parameter
+#'   \code{d}. The coefficient of parameter \code{d} is estimated as a linear
+#'   function of \code{x}, i.e., \code{d * x}. If \code{FALSE} (default), the
+#'   original \code{x} is used. When \code{d_adjusted = TRUE}, \code{x} is
+#'   adjusted for the timing (\code{b}) and intensity (\code{c}) parameters as
 #'  \code{x} - \code{b}) * \code{exp(c)} i.e., \code{d * ((x-b)*exp(c))}. The
 #'  adjusted scale of \code{x} reflects individual developmental age rather than
 #'  chronological age. This makes d more sensitive to the timing of puberty in
 #'  individuals. See [sitar::sitar()] function for details.
 #'
-#'@param sigma_formula Formula for the fixed effect distributional parameter,
-#'  \code{sigma}. The \code{sigma_formula} sets up the fixed effect design
-#'  matrix that may include continuous and/or factor variables (and their
-#'  interactions) as covariates(s) for  the distributional parameter. In other
-#'  words, setting up the covariates for \code{sigma_formula} is same as for any
-#'  other fixed parameter such as \code{a} (see \code{a_formula} for details).
-#'  Note that \code{sigma_formula} estimates \code{sigma} parameter at
-#'  \code{log} scale. By default, the \code{sigma_formula} is \code{NULL}
-#'  because the [brms::brm()] itself models the \code{sigma} as a residual
-#'  standard deviation (\code{RSD}) parameter at the link scale. The
-#'  \code{sigma_formula} along with the arguments \code{sigma_formula_gr} and
-#'  \code{sigma_formula_gr_str} allow estimating the scale parameters as random
-#'  effects for \code{sigma}. The set up to specify the fixed and random effects
-#'  for \code{sigma} is similar to setting fixed and random effect structures
-#'  for other model parameters such as \code{a}, \code{b}, and \code{c}. It is
-#'  important to note that an alternative way to set up the fixed effect design
-#'  matrix for the distributional parameter \code{sigma} is to use the
-#'  \code{dpar_formula} argument. An advantage of \code{dpar_formula} over
-#'  \code{sigma_formula} is that user can specify the linear and nonlinear
-#'  formulation as allowed by the [brms::lf()] and [brms::nlf()] syntax. The
-#'  [brms::lf()] and [brms::nlf()] offer flexibility in centering the predictors
-#'  and also allows enabling/disabling of cell mean centering when excluding
-#'  \code{intercept} via \code{0 + } formulation. A disadvantage of
-#'  \code{dpar_formula} approach is that it is not possible to include random
-#'  effects for the \code{sigma}. Note that \code{sigma_formula} and
-#'  \code{dpar_formula} can not be specified together. When either
-#'  \code{sigma_formula} or \code{dpar_formula} is used, the default estimation
-#'  of the \code{RSD} by [brms::brm()] is automatically turned off.
+#' @param sigma_formula Formula for the fixed effect distributional parameter,
+#'   \code{sigma}. The \code{sigma_formula} sets up the fixed effect design
+#'   matrix, which may include continuous and/or factor variables (and their
+#'   interactions) as covariates for the distributional parameter. In other
+#'   words, setting up the covariates for \code{sigma_formula} follows the same
+#'   approach as for other fixed parameters, such as \code{a} (see
+#'   \code{a_formula} for details). Note that \code{sigma_formula} estimates the
+#'   \code{sigma} parameter on the \code{log} scale. By default,
+#'   \code{sigma_formula} is \code{NULL}, as the [brms::brm()] function itself
+#'   models \code{sigma} as a residual standard deviation (\code{RSD}) parameter
+#'   on the link scale. The \code{sigma_formula}, along with the arguments
+#'   \code{sigma_formula_gr} and \code{sigma_formula_gr_str}, allows
+#'   \code{sigma} to be estimated as a random effect. The setup for fixed and
+#'   random effects for \code{sigma} is similar to the approach used for other
+#'   parameters such as \code{a}, \code{b}, and \code{c}.
+#'   
+#'   It is important to note that an alternative way to set up the fixed effect
+#'   design matrix for the distributional parameter \code{sigma} is to use the
+#'   \code{dpar_formula} argument. The advantage of \code{dpar_formula} over
+#'   \code{sigma_formula} is that it allows users to specify both linear and
+#'   nonlinear formulations using the [brms::lf()] and [brms::nlf()] syntax.
+#'   These functions offer more flexibility, such as centering the predictors
+#'   and enabling or disabling cell mean centering by excluding the intercept
+#'   via \code{0 + } formulation. However, a disadvantage of the
+#'   \code{dpar_formula} approach is that random effects cannot be included for
+#'   \code{sigma}.
+#'   
+#'   \code{sigma_formula} and \code{dpar_formula} cannot be specified together.
+#'   When either \code{sigma_formula} or \code{dpar_formula} is used, the
+#'   default estimation of \code{RSD} by [brms::brm()] is automatically turned
+#'   off.
+#'   
+#'   Users can specify an external function, such as \code{poly}, but only with
+#'   a single argument (the predictor), i.e., \code{poly(age)}. Additional
+#'   arguments must be specified externally. For example, to set the degree of
+#'   the polynomial to 3, a copy of the \code{poly} function can be created and
+#'   modified as follows: \cr \code{mypoly = poly; formals(mypoly)[['degree']]
+#'   <- 3; mypoly(age)}.
 #'
-#'@param sigma_formula_gr Formula for the random effect parameter, \code{sigma}
-#'  (default \code{NULL}). See \code{a_formula_gr} for details.
-#'
-#'@param sigma_formula_gr_str Formula for the random effect parameter,
-#'  \code{sigma} when fitting a hierarchical model with three or more
-#'  levels of hierarchy. See \code{a_formula_gr_str} for details. 
-#'
-#'@param dpar_formula Formula for the distributional fixed effect parameter,
-#'  \code{sigma} (default \code{NULL}). See \code{sigma_formula} for details.
-#'  
-#'@param autocor_formula Formula to set up the autocorrelation structure of
-#'  residuals (default \code{NULL}). Allowed autocorrelation structures are: 
-#'  \itemize{
-#'  \item autoregressive moving average (\code{arma}) of order \code{p} and 
-#'  \code{q} specified as \code{autocor_formula = ~arms(p=1, q=1)}.
-#'  \item autoregressive (\code{ar}) of order \code{p} specified as 
-#'  \code{autocor_formula = ~ar(p=1)}.
-#'  \item moving average (\code{ma}) of order \code{q} specified as 
-#'  \code{autocor_formula = ~ma(q=1)}. 
-#'  \item unstructured (\code{unstr}) over time (and individuals), The 
-#'  \code{unstr} structure is specified as 
-#'  \code{autocor_formula = ~unstr(time, id))}. 
-#'  }
-#'  See [brms::brm()] for further details on modeling autocorrelation structure
-#'  of residuals
-#'  
-#'@param family Family distribution (default \code{gaussian}) and the link
-#'  function (default \code{identity}). See [brms::brm()] for details on
-#'  available distributions and link functions, and how to specify them. For
-#'  \code{univariate_by} and \code{multivariate} models, the \code{family} can
-#'  be same (e.g., \code{family = gaussian()}) for sub models or different for
-#'  each sub model such as \code{family = list(gaussian(), student())} which
-#'  sets \code{gaussian} distribution for the first sub model and
-#'  \code{student_t} distribution for the second sub model. Please note that
-#'  argument \code{family} is ignored when use specifies \code{custom_family}
-#'  i.e., \code{custom_family} is not \code{NULL}.
-#'
-#'@param custom_family Specify  custom families (i.e. response distribution).
-#'  Default \code{NULL}. Please see [brms::custom_family()] for details. It is
-#'  important no note that user defined Stan functions must be expose by setting
-#'  \code{expose_functions = TRUE}.
-#'  
-#'@param custom_stanvars Prepare and pass user-defined variables that need to be
-#'  added to the Stan's program blocks (default \code{NULL}). This is primarily
-#'  useful when defining \code{custom_family}. Please see
-#'  [brms::custom_family()] for details on specifying \code{stanvars}. Note that
-#'  \code{custom_stanvars} are passed directly without conducting any sanity
-#'  checks.
-#'
-#'@param group_arg Specify arguments for group-level random effects. The
-#'  \code{group_arg} should be a named list that may include \code{groupvar},
-#'  \code{dist}, \code{cor} and \code{by} as described below:
-#'  \itemize{
-#'  \item The \code{groupvar} specifies the subject identifier. In case
-#'  \code{groupvar = NULL} (default), the \code{groupvar} is automatically
-#'  assigned based on the \code{id} argument.
-#'  \item The \code{dist} specifies the distribution from which the random
-#'  effects are drawn (default \code{gaussian}). As per the [brms::brm()]
-#'  documentation, the \code{gaussian} distribution is the only available
-#'  distribution (as of now).
-#'  \item The \code{by} argument can be used to estimate separate variance
-#'  covariance structure (i.e., standard deviation and correlation parameters)
-#'  for random effect parameters (default \code{NULL}). If specified, variable
-#'  used to set up the \code{by} argument must be a factor variable. For
-#'  example, \code{by = 'sex'} implies that separate variance covariance
-#'  structure are estimated for males and females.
-#'  \item The \code{cor} is used to set up the covariance (i.e., correlation)
-#'  structure for random effect parameters. The default covariance is
-#'  unstructured (i.e, \code{cor = un}) for all three model settings, i.e.,
-#'  \code{univariate}, \code{univariate_by} and \code{multivariate}. The
-#'  alternative correlation structure available for \code{univariate} and
-#'  \code{univariate_by} models is \code{diagonal}. While the \code{cor = un}
-#'  models the full unstructured variance covariance structure, the \code{cor
-#'  = diagonal} estimates only the variance (i.e, standard deviation) parameters
-#'  and the covariance (i.e., correlation) parameters are set to zero. For
-#'  \emph{multivariate} model, options include \code{un}, \code{diagonal} and
-#'  \code{un_s}. The \code{un} sets up the unstructured correlation implying
-#'  that the group level random effects across response variables are drawn for
-#'  a joint multivariate normal distribution with shared correlation parameters.
-#'  The \code{cor = diagonal} specifies that only the variance parameter are
-#'  estimates for each sub model whereas the correlation parameters set to zero.
-#'  Option \code{cor = un_s} allows for estimating unstructured variance
-#'  covariance parameters separately for each response variable.
-#'  }
-#'  Note that user need not to define all or any of these options (i.e.,
-#'  \code{groupvar}, \code{dist}, \code{cor}, or \code{by}) because if
-#'  unspecified, they are are automatically set to their default values. Also
-#'  note that only \code{groupvar} from the \code{group_arg} argument is passed
-#'  on to the \emph{univariate_by} and \emph{multivariate} models because these
-#'  model have their own additional options specified via the
-#'  \code{univariate_by} and \code{multivariate} arguments. Lastly, the
-#'  \code{group_arg} is completely ignored when user specify random effects via
-#'  the vertical bar \code{||} approach (see \code{a_formula_gr} for details) or
-#'  when fitting a hierarchical model with three or more levels of hierarchy
-#'  (see \code{a_formula_gr_str} for details).
-#'  
-#'@param sigma_group_arg Specify arguments for modelling distributional level
-#'  random effects, \code{sigma}. The approach used in setting up the
-#'  \code{sigma_group_arg} is exactly same as described above for the group
-#'  level random effects (see \code{group_arg} for details).
-#'
-#'@param univariate_by Set up the univariate-by-subgroup model fitting (default
-#'  \code{NULL}) via a named list as described below:
-#'  \itemize{
-#'  \item The \code{by} (an optional character string) is used to specify the
-#'  variable (must be a factor variable) to define the sub models (default
-#'  \code{NA}).
-#'  \item The \code{cor} (an optional character string) specifies the
-#'  correlation structure. The options available are \code{un} and
-#'  \code{diagonal}. The \code{un = un} (default) models the full unstructured
-#'  variance covariance structure, whereas the \code{cor = diagonal} estimates
-#'  only the variance (i.e, standard deviation) parameters and the covariance
-#'  (i.e., correlation) parameters are set to zero.
-#'  \item The \code{terms} (an optional character string) specifies the method
-#'  used in setting up the sub models. Options are \code{'subset'} (default) and
-#'  \code{'weights'}. See \code{brms::`addition-terms`} for details.
-#'  }
-#'
-#'@param multivariate Set up the multivariate model fitting (default
-#'  \code{NULL}) arguments as a named list:
-#'  \itemize{
-#'  \item The \code{mvar} (logical, default \code{FALSE}) indicates whether to
-#'  fit a multivariate model.
-#'  \item The \code{cor} (an optional character string) sets up the correlation
-#'  structure. The options available are \code{un}, \code{diagonal} and
-#'  \code{un_s}. The \code{un} sets up the unstructured correlation implying
-#'  that the group level random effects across response variables are drawn for
-#'  a joint multivariate normal distribution with shared correlation parameters.
-#'  The \code{cor = diagonal} specifies that only the variance parameter are
-#'  estimates for each sub model whereas the correlation parameters set to zero.
-#'  Option \code{cor = un_s} allows for estimating unstructured variance
-#'  covariance parameters separately for each response variable.
-#'  \item The \code{rescor} (logical, default \code{TRUE}) indicates whether to
-#'  estimate the residual correlation between response variables.
-#'  }
-#'
-#'@param a_prior_beta Specify priors for the fixed effect parameter, \code{a}.
-#'  (default \code{student_t(3, ymean, ysd, autoscale = TRUE)}). The key points
-#'  in prior specification that are applicable for all parameters are
-#'  highlighted below. For full details on prior specification, please see
-#'  [brms::prior()].
-#'  \itemize{
-#'  \item Allowed distributions are \code{normal}, \code{student_t},
-#'  \code{cauchy}, \code{lognormal}, \code{uniform}, \code{exponential},
-#'  \code{gamma} and \code{inv_gamma} (inverse gamma). \item For each
-#'  distribution, upper and lower bounds can be set via options \code{lb} and
-#'  \code{ub} (default \code{NA} for both \code{lb} and \code{ub}). \item For
-#'  location-scale based distributions (such as \code{normal}, \code{student_t},
-#'  \code{cauchy}, and \code{lognormal}), an option \code{autosclae} (default
-#'  \code{FALSE}) can be used to multiply the scale parameter by a numeric
-#'  value. Both \pkg{brms} and \pkg{rstanarm} packages allow similar auto
-#'  scaling under the hood. While \pkg{rstanarm} earlier used to set
-#'  \code{autosclae} as \code{TRUE} which internally multiplied scale parameter
-#'  by a value 2.5 (recently authors changed this behavior to \code{FALSE}), the
-#'  \pkg{brms} package sets scaling factor as 1.0 or 2.5 depending on the
-#'  standard deviation of the response variable (See [brms::prior()]). The
-#'  \pkg{bsitar} package offers full flexibility in choosing the scaling factor
-#'  as any real number instead of 1.0 or 2.5 (e.g., \code{autosclae = 5.0}).
-#'  When \code{autosclae = TRUE}, \code{2.5} is the default scaling factor.
-#'  \item For location-scale based distributions such as \code{normal}, options
-#'  \code{fxl} (\code{function location}) and \code{fxs} (\code{function scale}) 
-#'  are available to apply any function such as \code{log} and \code{sqrt}, 
-#'  or a function defined in the R environment to transform the location and
-#'  scale parameters. For example, prior \code{normal(2, 5, fxl = 'log', fxs =
-#'  'sqrt')} will be translated internally as \code{normal(log(2), sqrt(5))}
-#'  implying that the actually prior assigned will be  \code{normal(0.693,
-#'  2.23)}. The default for both  \code{fxl} and \code{fxs} is \code{NULL}.
-#'  \item Like \code{fxl} and \code{fxs} functions, another function \code{fxls}
-#'  (\code{function location scale}) is available to transform location and
-#'  scale parameters for the location-scale based distributions such
-#'  as \code{normal}. Unlike \code{fxl} and \code{fxs} functions which transform
-#'  location and scale parameters individually, the \code{fxls} function is used
-#'  for those transformation for which both location and scale parameters are
-#'  needed in the transformation of these parameters. For example, the
-#'  transformation of location and scale parameters for the normal prior on log
-#'  scale is as follows: \cr 
-#'  \code{log_location = log(location / sqrt(scale^2 / location^2 + 1))}, \cr 
-#'  \code{log_scale = sqrt(log(scale^2 / location^2 + 1))}, \cr 
-#'  where location and scale are the original parameters supplied by the user
-#'  and log_location and log_scale are the equivalent parameters on the log
-#'  scale. The \code{fxls} can be set as a character string or a list comprised
-#'  of two functions where first function of the list will be used to transform
-#'  the location parameter and the second function will be for the scale
-#'  transformation. If a character string is used such as \code{fxls = 'log'},
-#'  then the above transformation for the log parametrization will be applied
-#'  automatically. Note that if using a list, then the list must be crated
-#'  within the R environment and then passed this to the  \code{fxls} as: \cr
-#'  \code{location_fun <- function(location, scale) {
-#'  log(location / sqrt(scale^2 / location^2 + 1))
-#'  }} \cr
-#'  \code{scale_fun <- function(location, scale) {
-#'  sqrt(log(scale^2 / location^2 + 1))
-#'  }} \cr
-#'  fxls_fun <- list(location_fun = location_fun, scale_fun = scale_fun) \cr
-#'  \code{fxls = 'fxls_fun'} \cr
-#'  As an example, \code{normal(2, 5, fxls = 'fxls_fun'}. The default for
-#'  \code{fxls} is \code{NULL}.
-#'  \item For strictly positive distributions such as \code{exponential},
-#'  \code{gamma} and \code{inv_gamma}, the lower bound (\code{lb}) is
-#'  automatically set to zero i.e., \code{lb = 0}. \item For uniform
-#'  distribution, an option \code{addrange} is available to symmetrically widen
-#'  the prior range. For example, prior \code{uniform(a, b, addrange = 5)}
-#'  implies that the lower and upper limits will be evaluated as
-#'  \code{uniform(a-5, b+5)}. \item For exponential distribution, the rate
-#'  parameter is evaluated as inverse. In other words, prior set as
-#'  \code{exponential(10)} is translated to 0.1 i.e.,
-#'  \code{exponential(1.0/10.0)}. \item User need not to specify each option
-#'  explicitly because the missing options are set to their default values
-#'  automatically. For example, the prior specified as
-#'  \code{a_prior_beta = normal(location = 5, scale = 1, lb = NA, ub = NA,
-#'  addrange = NA, autosclae = FALSE, fxl = NULL, fxs = NULL)}) is same 
-#'  as \code{a_prior_beta = normal(5, 1)}).
-#'  \item For \code{univariate_by} \code{multivariate} models, priors
-#'  can be same for sub models (e.g., \code{a_prior_beta =
-#'  normal(5, 1)}), or different for each sub such as \code{a_prior_beta =
-#'  list(normal(5,1), normal(10, 5)}).
-#'  }
-#'  The location parameter for the location-scale based distributions can be
-#'  specified as mean (by specifying \code{'ymean'}) or the median (by using
-#'  \code{'ymedian'}) of the response variable. Similarly, the scale parameter
-#'  can be set as the standard deviation (SD) or the median absolute deviation
-#'  (MAD) of the response variable via \code{'ysd'} and \code{'ymad'} options.
-#'  Another option available is to use the coefficients \code{'lm'} from the
-#'  simple linear model applied to the data (e.g., \code{lm(y ~ age, data =
-#'  data}). This is true even when model has covariates i.e.,
-#'  \code{lm(y ~ age + cov, data = data}).  A few examples of specifying priors
-#'  using these options are: \cr
-#'  \code{a_prior_beta = normal(ymean, ysd)}, \cr 
-#'  \code{a_prior_beta = normal(ymean, ysd)}, \cr 
-#'  \code{a_prior_beta = normal(ymedian, ymad)}, \cr 
-#'  \code{a_prior_beta = normal(lm, ysd)}, \cr 
-#'  Note that options \code{'ymean'}, \code{'ymedian'}, \code{'ysd'},
-#'  \code{'ymad'}, \code{'ymad'} and \code{'lm'} are available only for the
-#'  fixed effect parameter, \code{a} and not for parameters \code{b}, \code{c}
-#'  or \code{d}.
-#'  
-#'@param b_prior_beta Specify priors for the fixed effect parameter, \code{b}.
-#'  (default \code{student_t(3, 0, 3.5, autoscale = FALSE)}). See
-#'  \code{a_prior_beta} for details.
-#'
-#'@param c_prior_beta Specify priors for the fixed effect parameter, \code{c}.
-#'  (default \code{student_t(3, 0, 1.5, autoscale = FALSE)}). See
-#'  \code{a_prior_beta} for details.
-#'
-#'@param d_prior_beta Specify priors for the fixed effect parameter, \code{d}.
-#'  (default \code{student_t(3, 0, 1.0, autoscale = FALSE)}). See
-#'  \code{a_prior_beta} for details.
-#'  
-#'@param s_prior_beta  Specify priors for the fixed effect parameter, \code{s}
-#'  (i.e., spline coefficients). (default \code{student_t(3, 0, 'lm', autoscale
-#'  = TRUE)}). The general approach is same as described
-#'  earlier for the fixed effect parameters (see \code{a_prior_beta} for
-#'  details). A few key points are highlighted below:
-#'  \itemize{
-#'  \item When specifying location-scale based priors using 'lm' such as
-#'  \code{s_prior_beta = normal(lm, 'lm')} , it sets spline coefficients
-#'  obtained from the simple linear model fit as location parameter whereas
-#'  scale parameter is based on the standard deviation of the spline design
-#'  matrix. However, typically, the location parameter is set at '0' (default),
-#'  and the autoscale option is set as \code{TRUE}.
-#'  \item For location-scale based priors, an option \code{sethp} (logical,
-#'  default \code{FALSE}) is available to set up the hierarchical priors. To set \code{sethp} as \code{TRUE}, the prior is
-#'  specified as \code{s_prior_beta = normal(0, 'lm', autoscale = TRUE, sethp =
-#'  TRUE)}). When \code{sethp = TRUE}, instead of setting prior as \code{s ~ normal(0,
-#'  'lm')} the hierarchical priors are set as \code{s ~ normal(0, 'hp')} where
-#'  \code{'hp'} is defined as \code{hp ~ normal(0, 'lm')}. Note that the scale 
-#'  parameter for the  \code{hp ~ normal(0, 'lm')} is automatically taken from the 
-#'  \code{s ~ normal(0, 'hp')}. Setting \code{sethp = TRUE} implies that the 
-#'  scale for spline coefficients is estimated from the data itself. The 
-#'  distribution of hierarchical priors is automatically matched with the prior 
-#'  set for the \code{s} parameter, or else can be set by the same \code{sethp} 
-#'  option. For example, \code{s_prior_beta = normal(0, 'lm', sethp = cauchy)} 
-#'  will be translated to \code{s ~ normal(0, 'lm')}, \code{hp  ~ cauchy(0, 'lm')}.
-#'  \item For \code{uniform} priors, the  option\code{addrange} can be used to
-#'  symmetrically expand the prior range.
-#'  }
-#'  It is observed that location scale based prior distributions (e.g,
-#'  \code{normal}, \code{student_t}, and \code{cauchy}) perform well for the
-#'  spline coefficients.
-#'  
-#'@param a_cov_prior_beta Specify priors for the covariate(s) included in the
-#'  fixed effect parameter, \code{a} (default \code{student_t(3, 0, 5.0,
-#'  autoscale = FALSE)}). The approach is same as described earlier for the
-#'  \code{a_prior_beta} except that options \code{'ymean'}, \code{'ymedian'},
-#'  \code{'ysd'}, and \code{'ymad'} are not allowed. The Option \code{'lm'} for
-#'  the location parameter sets covariate(s) coefficient obtained from the
-#'  simple linear model fit to the data. Note that option \code{'lm'} is allowed
-#'  only for the \code{a_cov_prior_beta} and not for the covariate(s) included
-#'  in the other fixed or random effect parameters. Lastly, separate priors can
-#'  be specified for sub models when fitting \code{univariate_by} and
-#'  \code{a_prior_beta} models (see \code{a_prior_beta}).
+#' @param sigma_formula_gr Formula for the random effect parameter, \code{sigma}
+#'   (default \code{NULL}). See \code{a_formula_gr} for details. Similar to
+#'   \code{sigma_formula}, external functions such as \code{poly} can be used.
+#'   For further details, please refer to the description of
+#'   \code{sigma_formula}.
 #' 
-#'@param b_cov_prior_beta Specify priors for the covariate(s) included in the
-#'  fixed effect parameter, \code{b} (default \code{student_t(3, 0, 1.0,
-#'  autoscale = FALSE)}). See \code{a_cov_prior_beta} for details.
-#'
-#'@param c_cov_prior_beta Specify priors for the covariate(s) included in the
-#'  fixed effect parameter, \code{c} (default \code{student_t(3, 0, 0.1,
-#'  autoscale = FALSE)}). See \code{a_cov_prior_beta} for details.
-#'
-#'@param d_cov_prior_beta Specify priors for the covariate(s) included in the
-#'  fixed effect parameter, \code{d} (default \code{student_t(3, 0, 1.0,
-#'  autoscale = FALSE)}). See \code{a_cov_prior_beta} for details.
+#' @param sigma_formula_gr_str Formula for the random effect parameter,
+#'   \code{sigma}, when fitting a hierarchical model with three or more levels
+#'   of hierarchy. See \code{a_formula_gr_str} for details. As with
+#'   \code{sigma_formula}, external functions such as \code{poly} can be used.
+#'   For further details, please refer to the description of
+#'   \code{sigma_formula}.
 #'  
-#'@param s_cov_prior_beta Specify priors for the covariate(s) included in the
-#'  fixed effect parameter, \code{s} (default \code{student_t(3, 0, 10.0,
-#'  autoscale = FALSE)}). However, as described earlier, (see \code{s_formual}),
-#'  the \emph{SITAR} model does not allows for inclusion of covariate(s) in the
-#'  spline design matrix. If and when covariate(s) are specified (see
-#'  \code{s_formual}), the approach of setting priors for the covariate(s)
-#'  included in the parameter, \code{s} via \code{s_cov_prior_beta} is same as
-#'  described earlier for the fixed effect parameter \code{a} (see
-#'  \code{a_cov_prior_beta}). For the location-scale based priors, the option
-#'  \code{'lm'} sets the location parameter same as the spline coefficients
-#'  obtained from fitting a simple linear to the data.
+#' @param sigma_formula_manual Formula for the random effect parameter,
+#'  \code{sigma}, provided as a character string that explicitly uses the
+#'  [brms::nlf()] and [brms::lf()] functions (default \code{NULL}). An example
+#'  is: \cr
+#'  \code{nlf(sigma ~ z) + lf(z ~ 1 + age + (1 + age |55| gr(id, by = NULL)))}.
+#'   
+#'  Another use case for \code{sigma_formula_manual} is modeling a
+#'  location-scale model in the \code{SITAR} framework, where the same
+#'  \code{SITAR} formula can be used to model the scale (\code{sigma}). An
+#'  example is: \cr
+#'   
+#'  \code{nlf(sigma ~ sigmaSITARFun(logage, sigmaa, sigmab, sigmac, sigmas1,
+#'  sigmas2, sigmas3, sigmas4), loop = FALSE) +
+#'  lf(sigmaa ~ 1 + (1 |110| gr(id, by = NULL))+(1 |330| gr(study, by = NULL))) +
+#'  lf(sigmab ~ 1 + (1 |110| gr(id, by = NULL))+(1 |330| gr(study, by = NULL))) +
+#'  lf(sigmac ~ 1 + (1 |110| gr(id, by = NULL))+(1 |330| gr(study, by = NULL))) +
+#'  lf(sigmas1 + sigmas2 + sigmas3 + sigmas4 ~ 1)}.
+#'   
+#'  Here, \code{sigmaSITARFun} (and all other required sub-functions) are
+#'  defined through the \code{sigmax}, \code{sigmadf}, \code{sigmaknots},
+#'  \code{sigmafixed}, \code{sigmarandom}, \code{sigmaxoffset},
+#'  \code{sigmaxfun}, and \code{sigmabound} arguments. Ensure the
+#'  \code{sigma_formula_manual} code matches the \code{sigmaSITARFun} function
+#'  created by these arguments.
+#' 
+#'   Note that for \code{sigma_formula_manual}, priors must be set up manually
+#'   using the \code{add_self_priors} argument. To see which priors are
+#'   required, the user can run the code with \code{get_priors = TRUE}.
+#'   Additionally, no initial values are defined, so initial values for these
+#'   parameters should be set to either \code{0} or \code{random}.
+#'   
+#' @param sigmax Predictor for the distributional parameter \code{sigma}. See
+#'   \code{x} for details. Ignored if \code{sigma_formula_manual = NULL}.
 #'
-#'@param a_prior_sd Specify priors  for the random effect parameter, \code{a}.
-#'  (default \code{student_t(3, 0, 'ysd', autoscale = FALSE)}). Note that prior
-#'  is on the standard deviation (which is the square root of the variance) and
-#'  not on the variance itself. The approach of setting the prior is same as
-#'  described earlier for the fixed effect parameter, \code{a} (See
-#'  \code{a_prior_beta}) with the exception that location parameter is always
-#'  zero. The lower bound \code{0} is automatically set by the
-#'  \code{brms::brm()}. For \code{univariate_by} and \code{multivariate} models,
-#'  priors can be same for sub models or different for each sub model (See
-#'  \code{a_prior_beta}).
+#' @param sigmadf Degree of freedom for the spline function used for
+#'   \code{sigma}. See \code{df} for details. Ignored if
+#'   \code{sigma_formula_manual = NULL}.
+#' 
+#' @param sigmaknots Knots for the spline function used for \code{sigma}. See
+#'   \code{knots} for details. Ignored if \code{sigma_formula_manual = NULL}.
 #'
-#'@param b_prior_sd  Specify priors  for the random effect parameter, \code{b}
-#'  (default \code{student_t(3, 0, 2.0, autoscale = FALSE)}). See
-#'  \code{a_prior_sd} for details.
+#' @param sigmafixed Fixed effect formula for the \code{sigma} structure. See
+#'   \code{fixed} for details. Ignored if \code{sigma_formula_manual = NULL}.
 #'
-#'@param c_prior_sd Specify priors  for the random effect parameter, \code{c}
-#'  (default \code{student_t(3, 0, 1.25, autoscale = FALSE)}). See
-#'  \code{a_prior_sd} for details.
+#' @param sigmarandom Random effect formula for the \code{sigma} structure. See
+#'   \code{random} for details. Ignored if \code{sigma_formula_manual = NULL}.
+#'   Currently not used even when \code{sigma_formula_manual} is specified.
 #'
-#'@param d_prior_sd Specify priors  for the random effect parameter,
-#'  \code{d} (default \code{student_t(3, 0, 1.0, autoscale = FALSE)}). See
-#'  \code{a_prior_sd} for details.
+#' @param sigmaxoffset Offset for the \code{x} in the \code{sigma} structure.
+#'   See \code{xoffset} for details. Ignored if \code{sigma_formula_manual =
+#'   NULL}.
 #'
-#'@param a_cov_prior_sd Specify priors for the covariate(s) included in the
-#'  random effect parameter, \code{a} (default \code{student_t(3, 0, 5.0,
-#'  autoscale = FALSE)}). The approach is same as described earlier for the
-#'  \code{a_cov_prior_beta} except that no pre-defined option (e.g.,
-#'  \code{'lm'}) is allowed.
+#' @param sigmabstart Starting value for the \code{b} parameter in the
+#'   \code{sigma} structure. See \code{bstart} for details. Ignored if
+#'   \code{sigma_formula_manual = NULL}. Currently not used even when
+#'   \code{sigma_formula_manual} is specified.
 #'
-#'@param b_cov_prior_sd Specify priors for the covariate(s) included in the
-#'  random effect parameter, \code{b} (default \code{student_t(3, 0, 1.0,
-#'  autoscale = FALSE)}). See \code{a_cov_prior_sd} for details.
+#' @param sigmacstart Starting value for the \code{c} parameter in the
+#'   \code{sigma} structure. See \code{cstart} for details. Ignored if
+#'   \code{sigma_formula_manual = NULL}. Currently not used even when
+#'   \code{sigma_formula_manual} is specified.
 #'
-#'@param c_cov_prior_sd Specify priors for the covariate(s) included in the
-#'  random effect parameter, \code{c} (default \code{student_t(3, 0, 0.1,
-#'  autoscale = FALSE)}). See \code{a_cov_prior_sd} for details.
+#' @param sigmaxfun Transformation function for \code{x} in the \code{sigma}
+#'   structure. See \code{xfun} for details. Ignored if
+#'   \code{sigma_formula_manual = NULL}.
 #'
-#'@param d_cov_prior_sd Specify priors for the covariate(s) included in the
-#'  random effect parameter, \code{d} (default \code{student_t(3, 0, 1.0,
-#'  autoscale = FALSE)}). See \code{a_cov_prior_sd} for details.
+#' @param sigmabound Bounds for the \code{x} in the \code{sigma} structure. See
+#'   \code{bound} for details. Ignored if \code{sigma_formula_manual = NULL}.
+#' 
+#' @param dpar_formula Formula for the distributional fixed effect parameter,
+#'   \code{sigma} (default \code{NULL}). See \code{sigma_formula} for details.
+#'   
+#' @param autocor_formula Formula to set up the autocorrelation structure of 
+#'   residuals (default \code{NULL}). Allowed autocorrelation structures include:
+#'   \itemize{
+#'   \item autoregressive moving average (\code{arma}) of order \code{p} and 
+#'     \code{q}, specified as \code{autocor_formula = ~arma(p = 1, q = 1)}.
+#'   \item autoregressive (\code{ar}) of order \code{p}, specified as 
+#'     \code{autocor_formula = ~ar(p = 1)}.
+#'   \item moving average (\code{ma}) of order \code{q}, specified as 
+#'     \code{autocor_formula = ~ma(q = 1)}.
+#'   \item unstructured (\code{unstr}) over time (and individuals), specified as
+#'     \code{autocor_formula = ~unstr(time, id)}.
+#'   }
+#'   See [brms::brm()] for further details on modeling the autocorrelation 
+#'   structure of residuals.
+#'   
+#' @param family Family distribution (default \code{gaussian}) and the link
+#'   function (default \code{identity}). See [brms::brm()] for details on
+#'   available distributions and link functions, and how to specify them. For
+#'   \code{univariate_by} and \code{multivariate} models, the \code{family} can
+#'   be the same for all sub-models (e.g., \code{family = gaussian()}) or
+#'   different for each sub-model, such as \code{family = list(gaussian(),
+#'   student())}, which sets \code{gaussian} distribution for the first
+#'   sub-model and \code{student_t} distribution for the second. Note that the
+#'   \code{family} argument is ignored if \code{custom_family} is specified
+#'   (i.e., if \code{custom_family} is not \code{NULL}).
+#' 
+#' @param custom_family Specifies custom families (i.e., response distribution).
+#'   Default is \code{NULL}. For details, see [brms::custom_family()]. Note that
+#'   user-defined Stan functions must be exposed by setting
+#'   \code{expose_functions = TRUE}.
+#' 
+#' @param custom_stanvars Allows the preparation and passing of user-defined
+#'   variables to be added to Stan's program blocks (default \code{NULL}). This
+#'   is primarily useful when defining a \code{custom_family}. For more details
+#'   on specifying \code{stanvars}, see [brms::custom_family()]. Note that
+#'   \code{custom_stanvars} are passed directly without conducting any sanity
+#'   checks.
+#' 
+#' @param group_arg Specify arguments for group-level random effects. The
+#'   \code{group_arg} should be a named list that may include \code{groupvar},
+#'   \code{dist}, \code{cor}, and \code{by} as described below:
+#'   \itemize{
+#'   \item \code{groupvar} specifies the subject identifier. If \code{groupvar =
+#'   NULL} (default), \code{groupvar} is automatically assigned based on the
+#'   \code{id} argument. \item \code{dist} specifies the distribution from which
+#'   the random effects are drawn (default \code{gaussian}). Currently,
+#'   \code{gaussian} is the only available distribution (as per the
+#'   [brms::brm()] documentation).
+#'   \item \code{by} can be used to estimate a separate variance-covariance
+#'   structure (i.e., standard deviation and correlation parameters) for random
+#'   effect parameters (default \code{NULL}). If specified, the variable used
+#'   for \code{by} must be a factor variable. For example, \code{by = 'sex'}
+#'   estimates separate variance-covariance structures for males and females.
+#'   \item \code{cor} specifies the covariance (i.e., correlation) structure for
+#'   random effect parameters. The default covariance is unstructured (\code{cor
+#'   = un}) for all model types (i.e., \code{univariate}, \code{univariate_by},
+#'   and \code{multivariate}). The alternative correlation structure available
+#'   for \code{univariate} and \code{univariate_by} models is \code{diagonal},
+#'   which estimates only the variance parameters (standard deviations), while
+#'   setting the covariance (correlation) parameters to zero. For
+#'   \emph{multivariate} models, options include \code{un}, \code{diagonal}, and
+#'   \code{un_s}. The \code{un} structure models a full unstructured
+#'   correlation, meaning that the group-level random effects across response
+#'   variables are drawn from a joint multivariate normal distribution with
+#'   shared correlation parameters. The \code{cor = diagonal} option estimates
+#'   only variance parameters for each sub-model, while setting the correlation
+#'   parameters to zero. The \code{cor = un_s} option allows for separate
+#'   estimation of unstructured variance-covariance parameters for each response
+#'   variable. 
+#'   }
+#'   
+#'   Note that it is not necessary to define all or any of these options
+#'   (\code{groupvar}, \code{dist}, \code{cor}, or \code{by}), as they will
+#'   automatically be set to their default values if unspecified. Additionally,
+#'   only \code{groupvar} from the \code{group_arg} argument is passed to the
+#'   \emph{univariate_by} and \emph{multivariate} models, as these models have
+#'   their own additional options specified via the \code{univariate_by} and
+#'   \code{multivariate} arguments. Lastly, the \code{group_arg} is ignored when
+#'   random effects are specified using the vertical bar \code{||} approach (see
+#'   \code{a_formula_gr} for details) or when fitting a hierarchical model with
+#'   three or more levels of hierarchy (see \code{a_formula_gr_str} for
+#'   details).
+#'   
+#' @param sigma_group_arg Specify arguments for modeling distributional-level
+#'   random effects for \code{sigma}. The setup for \code{sigma_group_arg}
+#'   follows the same approach as described for group-level random effects (see
+#'   \code{group_arg} for details).
 #'
-#'@param a_prior_sd_str Specify priors for the random effect parameter, \code{a}
-#'  when fitting a hierarchical model with three or more levels of hierarchy
-#'  (default \code{NULL}). The approach is same as described earlier (see the
-#'  \code{a_prior_sd}).
+#' @param univariate_by Set up the univariate-by-subgroup model fitting (default
+#'   \code{NULL}) via a named list with the following elements:
+#'   \itemize{
+#'   \item \code{by} (optional, character string): Specifies the factor variable
+#'   used to define the sub-models (default \code{NA}).
+#'   \item \code{cor} (optional, character string): Defines the correlation
+#'   structure. Options include \code{un} (default) for a full unstructured
+#'   variance-covariance structure and \code{diagonal} for a structure with only
+#'   variance parameters (i.e., standard deviations) and no covariance (i.e.,
+#'   correlations set to zero).
+#'   \item \code{terms} (optional, character string): Specifies the method for
+#'   setting up the sub-models. Options are \code{'subset'} (default) and
+#'   \code{'weights'}. See \code{brms::`addition-terms`} for more details.
+#'   }
+#' 
+#' @param multivariate Set up the multivariate model fitting (default \code{NULL}) 
+#'   using a named list with the following elements:
+#'   \itemize{
+#'   \item \code{mvar} (logical, default \code{FALSE}): Indicates whether to fit
+#'   a multivariate model.
+#'   \item \code{cor} (optional, character string): Specifies the correlation
+#'   structure. Available options are:
+#'   \itemize{
+#'   \item \code{un} (default): Models a full unstructured correlation, where
+#'   group-level random effects across response variables are drawn from a joint
+#'   multivariate normal distribution with shared correlation parameters. \item
+#'   \code{diagonal}: Estimates only the variance parameters for each sub-model,
+#'   with the correlation parameters set to zero. \item \code{un_s}: Estimates
+#'   unstructured variance-covariance parameters separately for each response
+#'   variable.
+#'   }
+#'   \item \code{rescor} (logical, default \code{TRUE}): Indicates whether to
+#'   estimate the residual correlation between response variables.
+#'   }
+#'   
+#' @param a_prior_beta Specify priors for the fixed effect parameter, \code{a}.
+#'   (default \code{normal(lm, ysd, autoscale = TRUE)}). The following key
+#'   points are applicable for all prior specifications. For full details, see
+#'   [brms::prior()]:
+#'   \itemize{
+#'   \item Allowed distributions: \code{normal}, \code{student_t},
+#'   \code{cauchy}, \code{lognormal}, \code{uniform}, \code{exponential},
+#'   \code{gamma}, and \code{inv_gamma} (inverse gamma).
+#'   
+#'   \item For each distribution, upper and lower bounds can be set via
+#'   \code{lb} and \code{ub} (default \code{NA}).
+#'   
+#'   \item Location-scale based distributions (such as \code{normal},
+#'   \code{student_t}, \code{cauchy}, and \code{lognormal}) have an
+#'   \code{autoscale} option (default \code{FALSE}). This option multiplies the
+#'   scale parameter by a numeric value. While \pkg{brms} typically uses a
+#'   scaling factor of 1.0 or 2.5, the \pkg{bsitar} package allows any real
+#'   number to be used (e.g., \code{autoscale = 5.0}).
+#'   
+#'   \item For location-scale distributions, \code{fxl} (\code{function
+#'   location}) and \code{fxs} (\code{function scale}) are available to apply
+#'   transformations to the location and scale parameters. For example, setting
+#'   \code{normal(2, 5, fxl = 'log', fxs = 'sqrt')} translates to
+#'   \code{normal(log(2), sqrt(5))}.
 #'
-#'@param b_prior_sd_str Specify priors for the random effect parameter, \code{b}
-#'  when fitting a hierarchical model with three or more levels of hierarchy
-#'  (default \code{NULL}). The approach is same as described earlier (see the
-#'  \code{a_prior_sd_str}).
+#'   \item \code{fxls} (\code{function location scale}) transforms both location
+#'   and scale parameters. The transformation applies when both parameters are
+#'   involved, as in the log-transformation for normal priors:
+#'   \code{log_location = log(location / sqrt(scale^2 / location^2 + 1))},
+#'   \code{log_scale = sqrt(log(scale^2 / location^2 + 1))}. This can be
+#'   specified as a character string or a list of functions.
+#'   
+#'   \item For strictly positive distributions like \code{exponential},
+#'   \code{gamma}, and \code{inv_gamma}, the lower bound (\code{lb}) is
+#'   automatically set to zero.
+#'   
+#'   \item For uniform distributions, the option \code{addrange} widens the
+#'   prior range symmetrically. For example, \code{uniform(a, b, addrange = 5)}
+#'   adjusts the range to \code{uniform(a-5, b+5)}.
+#'   
+#'   \item For exponential distributions, the rate parameter is evaluated as the
+#'   inverse of the specified value. For instance, \code{exponential(10.0)} is
+#'   internally treated as \code{exponential(1.0 / 10.0)} =
+#'   \code{exponential(0.1)}.
+#'   
+#'   \item Users do not need to specify each option explicitly, as missing
+#'   options will automatically default to their respective values. For example,
+#'   \code{a_prior_beta = normal(location = 5, scale = 1)} is equivalent to
+#'   \code{a_prior_beta = normal(5, 1)}.
+#'   
+#'   \item For \code{univariate_by} and \code{multivariate} models, priors can
+#'   either be the same for all submodels (e.g., \code{a_prior_beta = normal(5,
+#'   1)}) or different for each submodel (e.g., \code{a_prior_beta =
+#'   list(normal(5, 1), normal(10, 5))}).
+#'   
+#'   \item For location-scale distributions, the location parameter can be
+#'   specified as the mean (\code{ymean}) or median (\code{ymedian}) of the
+#'   response variable, and the scale parameter can be specified as the standard
+#'   deviation (\code{ysd}) or median absolute deviation (\code{ymad}).
+#'   Alternatively, coefficients from a simple linear model can be used (e.g.,
+#'   \code{lm(y ~ age)}).
+#'   
+#'   Example prior specifications include: 
+#'   \code{a_prior_beta = normal(ymean, ysd)}, 
+#'   \code{a_prior_beta = normal(ymedian, ymad)}, 
+#'   \code{a_prior_beta = normal(lm, ysd)}.
+#'   
+#'   Note that options such as \code{ymean}, \code{ymedian}, \code{ysd},
+#'   \code{ymad}, and \code{lm} are available only for the fixed effect
+#'   parameter \code{a}, not for other parameters like \code{b}, \code{c}, or
+#'   \code{d}.
+#'   }
+#'   
+#' @param b_prior_beta Specify priors for the fixed effect parameter, \code{b}.
+#'   The default prior is \code{normal(0, 1.5, autoscale = FALSE)}. For full
+#'   details on prior specification, please refer to \code{a_prior_beta}.
+#'   
+#'   \itemize{
+#'   \item Allowed distributions include \code{normal}, \code{student_t},
+#'   \code{cauchy}, \code{lognormal}, \code{uniform}, \code{exponential},
+#'   \code{gamma}, and \code{inv_gamma}. \item You can set upper and lower
+#'   bounds (\code{lb}, \code{ub}) as needed (default is \code{NA}). \item The
+#'   \code{autoscale} option controls scaling of the prior’s scale parameter. By
+#'   default, this is set to \code{FALSE}. \item Further customization and
+#'   transformations can be applied, similar to the \code{a_prior_beta}
+#'   specification. 
+#'   }
+#'   
+#' @param c_prior_beta Specify priors for the fixed effect parameter, \code{c}.
+#'   The default prior is \code{normal(0, 0.5, autoscale = FALSE)}. For full
+#'   details on prior specification, please refer to \code{a_prior_beta}.
+#'   
+#'   \itemize{
+#'   \item Allowed distributions include \code{normal}, \code{student_t},
+#'   \code{cauchy}, \code{lognormal}, \code{uniform}, \code{exponential},
+#'   \code{gamma}, and \code{inv_gamma}. \item Upper and lower bounds
+#'   (\code{lb}, \code{ub}) can be set as necessary (default is \code{NA}).
+#'   \item The \code{autoscale} option is also available for scaling the prior's
+#'   scale parameter (default \code{FALSE}). \item Similar to
+#'   \code{a_prior_beta}, further transformations or customization can be
+#'   applied.
+#'   }
 #'
-#'@param c_prior_sd_str Specify priors for the random effect parameter, \code{c}
-#'  when fitting a hierarchical model with three or more levels of hierarchy
-#'  (default \code{NULL}). The approach is same as described earlier (see the
-#'  \code{a_prior_sd_str}).
+#' @param d_prior_beta Specify priors for the fixed effect parameter, \code{d}.
+#'   The default prior is \code{normal(0, 1.0, autoscale = FALSE)}. For full
+#'   details on prior specification, please refer to \code{a_prior_beta}.
+#'   
+#'   \itemize{
+#'   \item Allowed distributions include \code{normal}, \code{student_t},
+#'   \code{cauchy}, \code{lognormal}, \code{uniform}, \code{exponential},
+#'   \code{gamma}, and \code{inv_gamma}. \item The option to set upper and lower
+#'   bounds (\code{lb}, \code{ub}) is available (default is \code{NA}). \item
+#'   \code{autoscale} allows scaling of the prior’s scale parameter and is
+#'   \code{FALSE} by default. \item For more advanced transformations or
+#'   customization, similar to \code{a_prior_beta}, these options are available.
+#'   }
+#'   
+#' @param s_prior_beta Specify priors for the fixed effect parameter, \code{s}
+#'   (i.e., spline coefficients). The default prior is \code{normal(0, 'lm',
+#'   autoscale = TRUE)}. The general approach is similar to the one described
+#'   for other fixed effect parameters (see \code{a_prior_beta} for details).
+#'   Key points to note:
+#'   \itemize{
+#'   \item When using location-scale based priors with 'lm' (e.g.,
+#'   \code{s_prior_beta = normal(lm, 'lm')}), the location parameter is set from
+#'   the spline coefficients obtained from the simple linear model fit, and the
+#'   scale parameter is based on the standard deviation of the spline design
+#'   matrix. The location parameter is typically set to 0 (default), and
+#'   \code{autoscale} is set to \code{TRUE}. \item For location-scale based
+#'   priors, the option \code{sethp} (logical, default \code{FALSE}) is
+#'   available to define hierarchical priors. Setting \code{sethp = TRUE} alters
+#'   the prior setup to use hierarchical priors: \code{s ~ normal(0, 'lm')}
+#'   becomes \code{s ~ normal(0, 'hp')}, where \code{'hp'} is defined as
+#'   \code{hp ~ normal(0, 'lm')}. The scale for the hierarchical prior is
+#'   automatically taken from the \code{s} parameter, and it can also be defined
+#'   using the same \code{sethp} option. For example, \code{s_prior_beta =
+#'   normal(0, 'lm', sethp = cauchy)} will result in \code{s ~ normal(0, 'lm')},
+#'   \code{hp ~ cauchy(0, 'lm')
+#'   }.
+#'   \item For \code{uniform} priors, you can use the option \code{addrange} to
+#'   symmetrically expand the prior range.
+#'   }
+#'   It is observed that location-scale based prior distributions (such as
+#'   \code{normal}, \code{student_t}, and \code{cauchy}) typically work well for
+#'   spline coefficients.
+#'   
+#' @param a_cov_prior_beta Specify priors for the covariate(s) included in the
+#'   fixed effect parameter, \code{a} (default \code{normal(0, 5.0, autoscale =
+#'   FALSE)}). The approach for specifying priors is similar to
+#'   \code{a_prior_beta}, with a few differences:
+#'   \itemize{
+#'   \item The options \code{'ymean'}, \code{'ymedian'}, \code{'ysd'}, and
+#'   \code{'ymad'} are not allowed for \code{a_cov_prior_beta}. \item The
+#'   \code{'lm'} option for the location parameter allows the covariate
+#'   coefficient(s) to be obtained from a simple linear model fit to the data.
+#'   Note that the \code{'lm'} option is only allowed for
+#'   \code{a_cov_prior_beta} and not for covariates in other fixed or random
+#'   effect parameters. \item Separate priors can be specified for submodels
+#'   when fitting \code{univariate_by} and \code{a_prior_beta} models (see
+#'   \code{a_prior_beta} for details).
+#'   }
+#'   
+#' @param b_cov_prior_beta Specify priors for the covariate(s) included in the
+#'   fixed effect parameter, \code{b} (default \code{normal(0, 1.0, autoscale =
+#'   FALSE)}). See \code{a_cov_prior_beta} for details.
+#'   
+#' @param c_cov_prior_beta Specify priors for the covariate(s) included in the
+#'   fixed effect parameter, \code{c} (default \code{normal(0, 0.1, autoscale =
+#'   FALSE)}). See \code{a_cov_prior_beta} for details.
+#'   
+#' @param d_cov_prior_beta Specify priors for the covariate(s) included in the
+#'   fixed effect parameter, \code{d} (default \code{normal(0, 1.0, autoscale =
+#'   FALSE)}). See \code{a_cov_prior_beta} for details.
+#'   
+#' @param s_cov_prior_beta Specify priors for the covariate(s) included in the
+#'   fixed effect parameter, \code{s} (default \code{normal(0, 10.0, autoscale =
+#'   FALSE)}). As described in \code{s_formula}, the \emph{SITAR} model does not
+#'   allow covariates in the spline design matrix. If covariates are specified
+#'   (see \code{s_formula}), the approach to setting priors for the covariates
+#'   in parameter \code{s} is the same as for \code{a} (see
+#'   \code{a_cov_prior_beta}). For location-scale based priors, the option
+#'   \code{'lm'} sets the location parameter based on spline coefficients
+#'   obtained from fitting a simple linear model to the data.
+#'   
+#' @param a_prior_sd Specify priors for the random effect parameter, \code{a}.
+#'   (default \code{normal(0, 'ysd', autoscale = FALSE)}). The prior is applied
+#'   to the standard deviation (the square root of the variance), not the
+#'   variance itself. The approach for setting the prior is similar to
+#'   \code{a_prior_beta}, with the location parameter always set to zero. The
+#'   lower bound is automatically set to \code{0} by \code{brms::brm()}. For
+#'   \code{univariate_by} and \code{multivariate} models, priors can be the same
+#'   or different for each submodel (see \code{a_prior_beta}).
 #'
-#'@param d_prior_sd_str Specify priors for the random effect parameter, \code{d}
-#'  when fitting a hierarchical model with three or more levels of hierarchy
-#'  (default \code{NULL}). The approach is same as described earlier (see the
-#'  \code{a_prior_sd_str}).
-#'  
-#'@param a_cov_prior_sd_str Specify priors for the covariate(s) included in the
-#'  random effect parameter, \code{a} when fitting a hierarchical model with
-#'  three or more levels of hierarchy (default \code{NULL}). The approach is
-#'  same as described earlier (see the \code{a_cov_prior_sd}).
+#' @param b_prior_sd Specify priors for the random effect parameter, \code{b}.
+#'   (default \code{normal(0, 1.0, autoscale = FALSE)}). See \code{a_prior_sd}
+#'   for details.
+#' 
+#' @param c_prior_sd Specify priors for the random effect parameter, \code{c}.
+#'   (default \code{normal(0, 0.25, autoscale = FALSE)}). See \code{a_prior_sd}
+#'   for details.
+#' 
+#' @param d_prior_sd Specify priors for the random effect parameter, \code{d}.
+#'   (default \code{normal(0, 1.0, autoscale = FALSE)}). See \code{a_prior_sd}
+#'   for details.
+#' 
+#' @param a_cov_prior_sd Specify priors for the covariate(s) included in the
+#'   random effect parameter, \code{a}. (default \code{normal(0, 5.0, autoscale
+#'   = FALSE)}). The approach is the same as described for
+#'   \code{a_cov_prior_beta}, except that no pre-defined options (e.g.,
+#'   \code{'lm'}) are allowed.
 #'
-#'@param b_cov_prior_sd_str Specify priors for the covariate(s) included in the
-#'  random effect parameter, \code{b} when fitting a hierarchical model with
-#'  three or more levels of hierarchy (default \code{NULL}). The approach is
-#'  same as described earlier (see the \code{a_cov_prior_sd_str}).
+#' @param b_cov_prior_sd Specify priors for the covariate(s) included in the
+#'   random effect parameter, \code{b}. (default \code{normal(0, 1.0, autoscale
+#'   = FALSE)}). See \code{a_cov_prior_sd} for details.
 #'
-#'@param c_cov_prior_sd_str Specify priors for the covariate(s) included in the
-#'  random effect parameter, \code{c} when fitting a hierarchical model with
-#'  three or more levels of hierarchy (default \code{NULL}). The approach is
-#'  same as described earlier (see the \code{a_cov_prior_sd_str}).
+#' @param c_cov_prior_sd Specify priors for the covariate(s) included in the
+#'   random effect parameter, \code{c}. (default \code{normal(0, 0.1, autoscale
+#'   = FALSE)}). See \code{a_cov_prior_sd} for details.
 #'
-#'@param d_cov_prior_sd_str Specify priors for the covariate(s) included in the
-#'  random effect parameter, \code{d} when fitting a hierarchical model with
-#'  three or more levels of hierarchy (default \code{NULL}). The approach is
-#'  same as described earlier (see the \code{a_cov_prior_sd_str}).
-#'  
-#'@param sigma_prior_beta Specify priors for the fixed effect distributional
-#'  parameter, \code{sigma} (default \code{student_t(3, 0, 1.0, autoscale =
-#'  FALSE)}). The approach is same as described earlier for the fixed effect
-#'  parameter, \code{a} (See \code{a_prior_beta} for details).
+#' @param d_cov_prior_sd Specify priors for the covariate(s) included in the
+#'   random effect parameter, \code{d}. (default \code{normal(0, 1.0, autoscale
+#'   = FALSE)}). See \code{a_cov_prior_sd} for details.
 #'
-#'@param sigma_cov_prior_beta Specify priors for the covariate(s) included in
-#'  the fixed effect distributional parameter, \code{sigma} (default
-#'  \code{student_t(3, 0, 0.5, autoscale = FALSE)}). The approach is same as
-#'  described earlier for the covariate(s) included the fixed effect parameter,
-#'  \code{a} (see \code{a_cov_prior_beta} for details).
+#' @param a_prior_sd_str Specify priors for the random effect parameter,
+#'   \code{a}, when fitting a hierarchical model with three or more levels of
+#'   hierarchy. (default \code{NULL}). The approach is the same as described for
+#'   \code{a_prior_sd}.
 #'
-#'@param sigma_prior_sd Specify priors for the random effect distributional
-#'  parameter, \code{sigma} (default \code{student_t(3, 0, 0.25, autoscale =
-#'  FALSE)}). The approach is same as described earlier the random effect
-#'  parameter \code{a} (see \code{a_prior_sd} for details).
+#' @param b_prior_sd_str Specify priors for the random effect parameter,
+#'   \code{b}, when fitting a hierarchical model with three or more levels of
+#'   hierarchy. (default \code{NULL}). The approach is the same as described for
+#'   \code{a_prior_sd_str}.
 #'
-#'@param sigma_cov_prior_sd Specify priors for the covariate(s) included in the
-#'  random effect distributional parameter, \code{sigma} (default
-#'  \code{student_t(3, 0, 0.15, autoscale = FALSE)}). The approach is same as
-#'  described earlier for the covariate(s) included in the random effect
-#'  parameter \code{a} (see \code{a_cov_prior_sd} for details).
-#'  
-#'@param sigma_prior_sd_str Specify priors for the the random effect
-#'  distributional parameter, \code{sigma} when fitting a hierarchical model
-#'  with three or more levels of hierarchy (default \code{NULL}). The approach
-#'  is same as described earlier for the random effect parameter, \code{a} (See
-#'  \code{a_prior_sd_str} for details).
+#' @param c_prior_sd_str Specify priors for the random effect parameter,
+#'   \code{c}, when fitting a hierarchical model with three or more levels of
+#'   hierarchy. (default \code{NULL}). The approach is the same as described for
+#'   \code{a_prior_sd_str}.
 #'
-#'@param sigma_cov_prior_sd_str Specify priors for the covariate(s) included in
-#'  the random effect distributional parameter, \code{sigma} when fitting a
-#'  hierarchical model with three or more levels of hierarchy (default
-#'  \code{NULL}). The approach is same as described earlier for the covariate(s)
-#'  included in the random effect parameter, \code{a} (See
-#'  \code{a_cov_prior_sd_str} for details).
+#' @param d_prior_sd_str Specify priors for the random effect parameter,
+#'   \code{d}, when fitting a hierarchical model with three or more levels of
+#'   hierarchy. (default \code{NULL}). The approach is the same as described for
+#'   \code{a_prior_sd_str}.
 #'
-#'@param rsd_prior_sigma Specify priors for the residual standard deviation
-#'  parameter \code{sigma} (default \code{exponential('ysd', autoscale =
-#'  TRUE)}). Note that this argument is evaluated only when both
-#'  \code{dpar_formula} and \code{sigma_formula} are \code{NULL}. For location
-#'  scale based distributions, user can use specify standard deviation
-#'  (\code{ysd}) or the median absolute deviation (\code{ymad}) as scale
-#'  parameter.
+#' @param a_cov_prior_sd_str Specify priors for the covariate(s) included in the
+#'   random effect parameter, \code{a}, when fitting a hierarchical model with
+#'   three or more levels of hierarchy. (default \code{NULL}). The approach is
+#'   the same as described for \code{a_cov_prior_sd}.
 #'
-#'@param dpar_prior_sigma Specify priors for the fixed effect distributional
-#'  parameter \code{sigma} (default \code{student_t(3, 0, 'ysd', autoscale =
-#'  TRUE)}). The argument is evaluated only when
-#'  \code{sigma_formula} is \code{NULL}.
+#' @param b_cov_prior_sd_str Specify priors for the covariate(s) included in the
+#'   random effect parameter, \code{b}, when fitting a hierarchical model with
+#'   three or more levels of hierarchy. (default \code{NULL}). The approach is
+#'   the same as described for \code{a_cov_prior_sd_str}.
 #'
-#'@param dpar_cov_prior_sigma Specify priors for the covariate(s) included in
-#'  the fixed effect distributional parameter \code{sigma} (default
-#'  \code{student_t(3, 0, 1.0, autoscale = FALSE)}). The argument is evaluated
-#'  only when \code{sigma_formula} is \code{NULL}.
+#' @param c_cov_prior_sd_str Specify priors for the covariate(s) included in the
+#'   random effect parameter, \code{c}, when fitting a hierarchical model with
+#'   three or more levels of hierarchy. (default \code{NULL}). The approach is
+#'   the same as described for \code{a_cov_prior_sd_str}.
 #'
-#'@param autocor_prior_acor Specify priors for the autocorrelation parameters
-#'  when fitting a model with the \code{'arma'}, \code{'ar'} or the \code{'ma'}
-#'  autocorrelation structures (see \code{autocor_formula} for details). The
-#'  only allowed distribution is \code{uniform} distribution bounded between -1
-#'  and +1 (default \code{uniform(-1, 1, autoscale = FALSE)}). For the
-#'  unstructured residual correlation structure, a separate argument
-#'  \code{autocor_prior_unstr_acor} is used to specify the priors (see below).
-#'  
-#' @param autocor_prior_unstr_acor Specify priors for the autocorrelation
-#'   parameters when fitting a model with the unstructured (\code{'un'})
-#'   autocorrelation structure (see \code{autocor_formula} for details). The
-#'   only allowed distribution is the \code{lkj} (default \code{lkj(1)}). See
-#'   \code{gr_prior_cor} below for details on setting up the \code{lkj} prior.
+#' @param d_cov_prior_sd_str Specify priors for the covariate(s) included in the
+#'   random effect parameter, \code{d}, when fitting a hierarchical model with
+#'   three or more levels of hierarchy. (default \code{NULL}). The approach is
+#'   the same as described for \code{a_cov_prior_sd_str}.
+#' 
+#' @param sigma_prior_beta Specify priors for the fixed effect distributional
+#'   parameter, \code{sigma}. (default \code{normal(0, 1.0, autoscale =
+#'   FALSE)}). The approach is similar to that for \code{a_prior_beta}.
 #'
-#'@param gr_prior_cor Specify priors for the correlation parameter(s) of
-#'  group-level random effects (default \code{lkj(1)}). The only allowed
-#'  distribution is \code{lkj} that is specified via a single parameter
-#'  \code{eta} (see [brms::prior()] for details).
-#'  
-#'@param gr_prior_cor_str Specify priors for the correlation parameter(s) of
-#'  group-level random effects when fitting a hierarchical model with three or
-#'  more levels of hierarchy (default \code{lkj(1)}). The approach is same as
-#'  described above (See \code{gr_prior_cor}).
+#' @param sigma_cov_prior_beta Specify priors for the covariate(s) included in
+#'   the fixed effect distributional parameter, \code{sigma}. (default
+#'   \code{normal(0, 0.5, autoscale = FALSE)}). Follows the same approach as
+#'   \code{a_cov_prior_beta}.
 #'
-#'@param sigma_prior_cor Specify priors for the correlation parameter(s) of
-#'  distributional random effects \code{sigma} (default \code{lkj(1)}). The only
-#'  allowed distribution is \code{lkj} (see \code{gr_prior_cor} for details).
-#'  Note that currently \code{brms::brm()} does not allow for setting different
-#'  \code{lkj} priors for the group level and distributional random effects that
-#'  share the same group identifier (\code{id}). Therefore, either create a copy
-#'  of group identifier and use that but then this will not allow correlation
-#'  parameter across group random effects and sigma.
-#'  
-#'@param sigma_prior_cor_str Specify priors for the correlation parameter(s) of
-#'  distributional random effects \code{sigma} when fitting a hierarchical model
-#'  with three or more levels of hierarchy (default \code{lkj(1)}). The approach
-#'  is same as described above (See \code{sigma_prior_cor}).
+#' @param sigma_prior_sd Specify priors for the random effect distributional
+#'   parameter, \code{sigma}. (default \code{normal(0, 0.25, autoscale =
+#'   FALSE)}). Same approach as \code{a_prior_sd}.
 #'
-#'@param mvr_prior_rescor Specify priors for the residual correlation parameter
-#'  when fitting a multivariate model (default \code{lkj(1)}). The only allowed
-#'  distribution is \code{lkj} (see \code{gr_prior_cor} for details).
+#' @param sigma_cov_prior_sd Specify priors for the covariate(s) included in the
+#'   random effect distributional parameter, \code{sigma}. (default
+#'   \code{normal(0, 0.15, autoscale = FALSE)}). Follows the same approach as
+#'   \code{a_cov_prior_sd}.
 #'
-#'@param init Initial values for the sampler. If \code{init = '0'}, all
-#'  parameters are initialized to zero. For \code{init = 'random'},
-#'  \strong{Stan} will randomly generate initial values for each parameter
-#'  within a range specified by the \code{init_r} (see below), or between -2 and
-#'  2 in unconstrained space when \code{init_r = NULL}. Another available option
-#'  is \code{init = 'prior'} which sets initial values based on the prior
-#'  specified for each parameter. Lastly, when \code{init = NULL} (default),
-#'  initial value for each parameter is specified by the corresponding init
-#'  arguments defined see below.
+#' @param sigma_prior_sd_str Specify priors for the random effect distributional
+#'   parameter, \code{sigma}, when fitting a hierarchical model with three or
+#'   more levels of hierarchy. (default \code{NULL}). Same approach as
+#'   \code{a_prior_sd_str}.
 #'
-#'@param init_r A positive real value to set range for the random generation of 
-#'  initial values (default \code{NULL}). This argument is evaluated only when
-#'  \code{init = 'random'}.
+#' @param sigma_cov_prior_sd_str Specify priors for the covariate(s) included in
+#'   the random effect distributional parameter, \code{sigma}, when fitting a
+#'   hierarchical model with three or more levels of hierarchy. (default
+#'   \code{NULL}). Follows the same approach as \code{a_cov_prior_sd_str}.
 #'
-#'@param a_init_beta Initial values for the fixed effect parameter, \code{a}
-#'  (default 'lm'). Options available are \code{'0'}, \code{'random'} and
-#'  \code{'prior'}. In addition, user can specify \code{'ymean'} and
-#'  \code{'ymedian'} to set initial as the mean or the median of the response
-#'  variable. Also, option \code{'lm'} can be used to set coefficients obtained
-#'  from the simple linear model fitted to the data as initial values for the
-#'  fixed effect parameter, \code{a}. Note that this is similar to the location
-#'  parameter for prior on the fixed effect parameter \code{a} (see
-#'  \code{a_prior_beta} for details). These options (\code{'ymean'},
-#'  \code{'ymedian'}, and \code{'lm'}) are available only for the fixed effect
-#'  parameter \code{a} and not for other parameters described below. Lastly, For
-#'  \code{univariate_by} and \code{multivariate} models, the initials can be
-#'  same (e.g., \code{a_init_beta = 0}) for sub models or different for each sub
-#'  model such as \cr \code{list(a_init_beta = '0', a_init_beta = 'lm')}.
+#' @param rsd_prior_sigma Specify priors for the residual standard deviation
+#'   parameter \code{sigma} (default \code{normal(0, 'ysd', autoscale =
+#'   FALSE)}). Evaluated when both \code{dpar_formula} and \code{sigma_formula}
+#'   are \code{NULL}. For location-scale based distributions, user can specify
+#'   standard deviation (\code{ysd}) or the median absolute deviation
+#'   (\code{ymad}) of outcome as the scale parameter. Also, residual standard
+#'   deviation from the linear mixed model (\code{nlme::lme()}) or the linear
+#'   model (\code{base::lm()}) fitted to the data. These are specified as
+#'   \code{'lme_rsd'} and \code{'lm_rsd'}, respectively. Note that if
+#'   \code{nlme::lme()} fails to converge, the option \code{'lm_rsd'} is set
+#'   automatically. The argument \code{rsd_prior_sigma} is evaluated when both
+#'   \code{dpar_formula} and \code{sigma_formula} are set to \code{NULL}.
 #'
-#'@param b_init_beta Initial values for the fixed effect parameter, \code{b}
-#'  (default '0'). See \code{a_init_beta} for details.
+#' @param dpar_prior_sigma Specify priors for the fixed effect distributional
+#'   parameter \code{sigma} (default \code{normal(0, 'ysd', autoscale =
+#'   FALSE)}). Evaluated when \code{sigma_formula} is \code{NULL}. See
+#'   \code{rsd_prior_sigma} for details.
 #'
-#'@param c_init_beta Initial values for the fixed effect parameter, \code{c}
-#'  (default '0'). See \code{a_init_beta} for details.
+#' @param dpar_cov_prior_sigma Specify priors for the covariate(s) included in
+#'   the fixed effect distributional parameter \code{sigma}. (default
+#'   \code{normal(0, 1.0, autoscale = FALSE)}). Evaluated when
+#'   \code{sigma_formula} is \code{NULL}.
+#' 
+#' @param autocor_prior_acor Specify priors for the autocorrelation parameters 
+#'   when fitting a model with \code{'arma'}, \code{'ar'}, or \code{'ma'} 
+#'   autocorrelation structures (see \code{autocor_formula}). The only allowed 
+#'   distribution is \code{uniform}, bounded between -1 and +1 (default 
+#'   \code{uniform(-1, 1, autoscale = FALSE)}). For the unstructured residual 
+#'   correlation structure, use \code{autocor_prior_unstr_acor}.
+#' 
+#' @param autocor_prior_unstr_acor Specify priors for the autocorrelation 
+#'   parameters when fitting a model with the unstructured (\code{'un'}) 
+#'   autocorrelation structure (see \code{autocor_formula}). The only allowed 
+#'   distribution is \code{lkj} (default \code{lkj(1)}). See \code{gr_prior_cor} 
+#'   for details on setting up the \code{lkj} prior.
 #'
-#'@param d_init_beta Initial values for the fixed effect parameter, \code{d}
-#'  (default '0'). See \code{a_init_beta} for details.
-#'  
-#'@param s_init_beta  Initial values for the fixed effect parameter, \code{s}
-#'  (default 'lm'). Options available are \code{'0'}, \code{'random'},
-#'  \code{'prior'}, and \code{'lm'}.
+#' @param gr_prior_cor Specify priors for the correlation parameter(s) of 
+#'   group-level random effects (default \code{lkj(1)}). The only allowed 
+#'   distribution is \code{lkj}, specified via a single parameter \code{eta} 
+#'   (see \code{brms::prior()} for details).
 #'
-#'@param a_cov_init_beta Initial values for the covariate(s) included in the
-#'  fixed effect parameter, \code{a} (default '0'). Options available are
-#'  \code{'0'}, \code{'random'}, \code{'prior'} and \code{'lm'}. The option
-#'  \code{'lm'} is available only for the \code{a_cov_init_beta} and not for the
-#'  covariate(s) included in other fixed effect parameters \code{b}, \code{c},
-#'  or \code{d}.
+#' @param gr_prior_cor_str Specify priors for the correlation parameter(s) of
+#'   group-level random effects when fitting a hierarchical model with three or
+#'   more levels of hierarchy (default \code{lkj(1)}). Same as
+#'   \code{gr_prior_cor}.
 #'
-#'@param b_cov_init_beta Initial values for covariate(s) included in the fixed
-#'  effect parameter, \code{b} (default '0'). See \code{a_cov_init_beta} for
-#'  details.
+#' @param sigma_prior_cor Specify priors for the correlation parameter(s) of
+#'   distributional random effects \code{sigma} (default \code{lkj(1)}). The
+#'   only allowed distribution is \code{lkj} (see \code{gr_prior_cor} for
+#'   details). Note that \code{brms::brm()} does not currently allow different
+#'   \code{lkj} priors for the group level and distributional random effects
+#'   sharing the same group identifier (\code{id}).
 #'
-#'@param c_cov_init_beta Initial values for covariate(s) included in the fixed
-#'  effect parameter, \code{c} (default '0'). See \code{a_cov_init_beta} for
-#'  details.
+#' @param sigma_prior_cor_str Specify priors for the correlation parameter(s) of
+#'   distributional random effects \code{sigma} when fitting a hierarchical
+#'   model with three or more levels of hierarchy (default \code{lkj(1)}). Same
+#'   as \code{sigma_prior_cor}.
 #'
-#'@param d_cov_init_beta Initial values for covariate(s) included in the fixed
-#'  effect parameter, \code{d} (default '0'). See \code{a_cov_init_beta} for
-#'  details.
-#'  
-#'@param s_cov_init_beta Initial values for covariate(s) included in the fixed
-#'  effect parameter, \code{s} (default 'lm'). See \code{a_cov_init_beta} for
-#'  details. The option \code{'lm'} will set the spline coefficients obtained
-#'  from the simple linear model fitted to the data. Note that
-#'  \code{s_cov_init_beta} is only a placeholder and is not valuated because
-#'  covariate(s) are not allowed for the \code{s} parameter. See
-#'  \code{s_formula} for details.
-#'
-#'@param a_init_sd Initial value for the standard deviation of group level
-#'  random effect parameter, \code{a} (default 'random'). Options available are
-#'  \code{'0'}, \code{'random'} and \code{'prior'}. In addition, \code{'ysd'},
-#'  \code{'ymad'}, \code{'lme_sd_a'}, and \code{'lm_sd_a'} can be used to
-#'  specify initial values as described below:
+#' @param mvr_prior_rescor Specify priors for the residual correlation parameter
+#'   when fitting a multivariate model (default \code{lkj(1)}). The only allowed
+#'   distribution is \code{lkj} (see \code{gr_prior_cor} for details).
+#' 
+#' @param init Initial values for the sampler. Options include:
 #'  \itemize{
-#'  \item The \code{'ysd'} sets standard deviation (\code{sd}) of the response
-#'  variable as an initial value.
-#'  \item The \code{'ymad'} sets median absolute deviation (\code{mad}) of the
-#'  response variable as an initial value.
-#'  \item The \code{'lme_sd_a'} sets initial value based on the standard 
-#'  deviation of random Intercept obtained from the linear mixed model 
-#'  (\code{nlme::lme()}) fitted to the data. Note that in case 
-#'  \code{nlme::lme()} fails to converge, the option \code{'lm_sd_a'} 
-#'  (see below) is set automatically.
-#'  \item The \code{'lm_sd_a'} sets square root of the residual variance  
-#'  obtained from the simple linear model applied to the data as an initial 
-#'  value.
+#'    \item \code{'0'}: All parameters are initialized to zero. \item
+#'    \code{'random'}: \strong{Stan} randomly generates initial values for each
+#'    parameter within a range defined by \code{init_r} (see below), or between
+#'    -2 and 2 in unconstrained space if \code{init_r = NULL}. \item
+#'    \code{'prior'}: Initializes parameters based on the specified prior. \item
+#'    \code{NULL} (default): Initial values are provided by the corresponding
+#'    init arguments defined below.
 #'  }
-#'  Note that these option described above (\code{'ysd'}, \code{'ymad'},
-#'  \code{'lme_sd_a'}, and \code{'lm_sd_a'}) are available only for the random
-#'  effect parameter \code{a} and not for other group level random effects.
-#'  Lastly, when fitting \code{univariate_by} and \code{multivariate} models,
-#'  user can set same initials for sub models, or different for each sub model.
 #'
-#'@param b_init_sd Initial value for the standard deviation of group level
-#'  random effect parameter, \code{b} (default 'random'). See \code{a_init_sd}
-#'  for details.
+#' @param init_r A positive real value that defines the range for the random
+#'   generation of initial values (default \code{NULL}). This argument is used
+#'   only when \code{init = 'random'}.
 #'
-#'@param c_init_sd Initial values for the group level random effect parameter,
-#'  \code{c} (default 'random'). See \code{a_init_sd} for details.
-#'
-#'@param d_init_sd Initial value for the standard deviation of group level
-#'  random effect parameter, \code{d} (default 'random'). See \code{a_init_sd}
-#'  for details.
-#'
-#'@param a_cov_init_sd Initial values for the covariate(s) included in the
-#'  random effect parameter, \code{a} (default 'random'). Options available are
-#'  \code{'0'}, \code{'random'} and \code{'prior'}.
-#'  
-#'@param b_cov_init_sd Initial values for the covariate(s) included in the
-#'  random effect parameter, \code{b} (default 'random'). See
-#'  \code{a_cov_init_sd} for details.
-#'
-#'@param c_cov_init_sd Initial values for the covariate(s) included in the
-#'  random effect parameter, \code{c} (default 'random'). See
-#'  \code{a_cov_init_sd} for details.
-#'
-#'@param d_cov_init_sd Initial values for the covariate(s) included in the
-#'  random effect parameter, \code{d} (default 'random'). See
-#'  \code{a_cov_init_sd} for details.
-#'
-#'@param sigma_init_beta Initial values for the fixed effect distributional
-#'  parameter, \code{sigma} (default 'random'). Options available are
-#'  \code{'0'}, \code{'random'} and \code{'prior'}.
-#'
-#'@param sigma_cov_init_beta Initial values for the covariate(s)
-#'  included in the fixed effect distributional parameter, \code{sigma} (See
-#'  \code{sigma_init_beta} for details).
-#'
-#'@param sigma_init_sd Initial value for the standard deviation of
-#'  distributional random effect parameter, \code{sigma} (default 'random'). The
-#'  approach is same as described earlier for the group level random effect
-#'  parameters such as \code{a} (See \code{a_init_sd} for details).
-#'
-#'@param sigma_cov_init_sd Initial values for the covariate(s) included in the
-#'  distributional random effect parameter, \code{sigma} (default 'random').
-#'  (See \code{a_cov_init_sd} for details).
-#'
-#'@param gr_init_cor Initial values for the correlation parameters of
-#'  group-level random effects parameters (default 'random'). Allowed options
-#'  are \code{'0'}, \code{'random'} and \code{'prior'}.
-#'
-#'@param sigma_init_cor Initial values for the correlation parameters of
-#'  distributional random effects parameter \code{sigma} (default 'random').
-#'  Allowed options are \code{'0'}, \code{'random'} and \code{'prior'}.
-#'
-#'@param rsd_init_sigma Initial values for the residual standard deviation
-#'  parameter, \code{sigma} (default 'random'). Options available are
-#'  \code{'0'}, \code{'random'} and \code{'prior'}. In addition, options
-#'  \code{'lme_rsd'} and \code{'lm_rsd'} can be used as follows. The
-#'  \code{lme_rsd} sets initial value based on the standard deviation of
-#'  residuals obtained from the linear mixed model (\code{nlme::lme()}) fitted
-#'  to the data. The initial value set by the \code{'lm_rsd'} is the square root
-#'  of the residual variance from the simple linear model applied to the data.
-#'  Note that in case \code{nlme::lme()} fails to converge, then option
-#'  \code{'lm_sd_a'} is set automatically. The argument \code{rsd_init_sigma} is
-#'  evaluated when \code{dpar_formula} and \code{sigma_formula} are set to
-#'  \code{NULL}.
-#'
-#'@param dpar_init_sigma Initial values for the distributional parameter
-#'  \code{sigma} (default 'random'). The approach and options available are same
-#'  as described above for the \code{rsd_init_sigma}. This argument is evaluated
-#'  only when \code{dpar_formula} is not \code{NULL}.
-#'
-#'@param dpar_cov_init_sigma Initial values for the covariate(s) included in the
-#'  distributional parameter, \code{sigma} (default 'random'). Allowed options
-#'  are \code{'0'}, \code{'random'}, and \code{'prior'}.
-#'
-#'@param autocor_init_acor Initial values for autocorrelation parameter (see
-#'  \code{autocor_formula} for details). Allowed options are \code{'0'},
-#'  \code{'random'}, and \code{'prior'} (default 'random').
-#'
-#'@param autocor_init_unstr_acor Initial values for unstructured residual
-#'  autocorrelation parameters (default 'random'). Allowed options are
-#'  \code{'0'}, \code{'random'}, and \code{'prior'}. Note that the approach to
-#'  set initials for \code{autocor_init_unstr_acor} is identical to the
-#'  \code{gr_init_cor}.
-#'
-#'@param mvr_init_rescor Initial values for the residual correlation parameter
-#'  when fitting a \code{multivariate} model (default 'random'). Allowed options
-#'  are \code{'0'}, \code{'random'}, and \code{'prior'}.
-#'
-#'@param r_init_z Initial values for the standardized group level random effect
-#'  parameters (default 'random'). These parameters are part of the Non-Centered
-#'  Parameterization (NCP) approach used in the [brms::brm()].
-#'  
-#'@param vcov_init_0 A logical (default \code{TRUE}) to set initials for
-#'  variance (i.e, standard deviation) and covariance (i.e., correlation)
-#'  parameters as zero. This allows for setting custom initials for the fixed
-#'  effects parameters but zero for variance covariance parameters.
-#'
-#'@param jitter_init_beta A value as proportion (between 0 and 1) to perturb the
-#'  initial values for fixed effect parameters. The default is \code{NULL}
-#'  indicating that same initials are used across all chains. A sensible option
-#'  can be \code{jitter_init_beta = 0.1} as it mildly perturb the initials. Note
-#'  that jitter is not absolute but proportion of the specified initial value.
-#'  For example, if initial value is \code{100}, then \code{jitter_init_beta =
-#'  0.1} implies that the perturbed initial value will be within \code{90} and
-#'  \code{110}. On the other hand, if initial values is \code{10}, then the
-#'  perturbed initial value will be within \code{9} and \code{11}.
-#'
-#'@param jitter_init_sd A value as proportion (between 0 and 1) to perturb
-#'  the initials for standard deviation of random effect parameters. The default
-#'  is \code{NULL} indicating that same initials are used across all chains.
-#'  An option of setting \code{jitter_init_beta = 0.01} looked good during early
-#'  testing.
-#'
-#'@param jitter_init_cor A value as proportion (between 0 and 1) to perturb the
-#'  initials for correlation parameters of random effects. The default is
-#'  \code{NULL} indicating that same initials are used across all chains. An
-#'  option of setting \code{jitter_init_beta = 0.001} looked good during early
-#'  testing.
-#'
-#'@param prior_data An optional argument (a named list, default \code{NULL})
-#'  that can be used to pass information to the prior arguments for each
-#'  parameter (e.g., \code{a_prior_beta}). The \code{prior_data} is particularly
-#'  helpful in passing a long vector or a matrix as priors. These vectors and
-#'  matrices can be created in the R framework and then passed using the
-#'  \code{prior_data}. For example, to pass a vector of location and scale
-#'  parameters when setting priors for covariate coefficients (with 10 dummy
-#'  variables) included in the fixed effects parameter \code{a}, the following
-#'  steps can be used to set covariate priors that each has scale parameter
-#'  (\code{sd}) as 5 but mean values are drawn from a normal distribution with
-#'  \code{mean = 0} and \code{sd = 1}:
+#' @param a_init_beta Initial values for the fixed effect parameter, \code{a}
+#'  (default \code{'random'}). Available options include:
 #'  \itemize{
-#'  \item create the named objects \code{prior_a_cov_location} and
-#'  \code{prior_a_cov_scale} in the R environment as follows: \cr
-#'  \code{prior_a_cov_location <- rnorm(n = 10, mean = 0, sd = 1)} \cr
-#'  \code{prior_a_cov_scale <- rep(5, 10)} \cr
-#'  \item specify the above created objects \code{prior_a_cov_location} and 
-#'  \code{prior_a_cov_scale} in the \code{prior_data} as follows: \cr
+#'    \item \code{'0'}: Initializes the parameter to zero. \item
+#'    \code{'random'}: Initializes with random values within a specified range.
+#'    \item \code{'prior'}: Uses values drawn from the prior distribution. \item
+#'    \code{'ymean'}: Initializes with the mean of the response variable. \item
+#'    \code{'ymedian'}: Initializes with the median of the response variable.
+#'    \item \code{'lm'}: Initializes with the coefficients from a simple linear
+#'    model fitted to the data.
+#'  }
+#'  
+#'  Note that options \code{'ymean'}, \code{'ymedian'}, and \code{'lm'} are only
+#'  available for the fixed effect parameter \code{a}. For \code{univariate_by}
+#'  and \code{multivariate} models, initial values can be the same across
+#'  submodels (e.g., \code{a_init_beta = '0'}) or different for each submodel
+#'  (e.g., \code{list(a_init_beta = '0', a_init_beta = 'lm')}).
+#'
+#' @param b_init_beta Initial values for the fixed effect parameter, \code{b}
+#'   (default \code{'random'}). See \code{a_init_beta} for details on available
+#'   options.
+#' 
+#' @param c_init_beta Initial values for the fixed effect parameter, \code{c}
+#'   (default \code{'random'}). See \code{a_init_beta} for details on available
+#'   options.
+#'
+#' @param d_init_beta Initial values for the fixed effect parameter, \code{d}
+#'   (default \code{'random'}). See \code{a_init_beta} for details on available
+#'   options.
+#' 
+#' @param s_init_beta Initial values for the fixed effect parameter, \code{s} 
+#'  (default \code{'random'}). Available options include:
+#'  \itemize{
+#'    \item \code{'0'}: Initializes the parameter to zero. \item
+#'    \code{'random'}: Initializes with random values within a specified range.
+#'    \item \code{'prior'}: Uses values drawn from the prior distribution. \item
+#'    \code{'lm'}: Initializes with the coefficients from a simple linear model
+#'    fitted to the data.
+#'  }
+#'
+#' @param a_cov_init_beta Initial values for the covariate(s) included in the
+#'   fixed effect parameter, \code{a} (default \code{'random'}). Available
+#'   options include:
+#'  \itemize{
+#'    \item \code{'0'}: Initializes the covariates to zero. \item
+#'    \code{'random'}: Initializes with random values within a specified range.
+#'    \item \code{'prior'}: Uses values drawn from the prior distribution. \item
+#'    \code{'lm'}: Initializes with the coefficients from a simple linear model
+#'    fitted to the data.
+#'  }
+#'  
+#'  Note that the \code{'lm'} option is only available for
+#'  \code{a_cov_init_beta} and not for covariates in other parameters such as
+#'  \code{b}, \code{c}, or \code{d}.
+#'
+#' @param b_cov_init_beta Initial values for the covariate(s) included in the
+#'   fixed effect parameter, \code{b} (default \code{'random'}). See
+#'   \code{a_cov_init_beta} for details.
+#' 
+#' @param c_cov_init_beta Initial values for the covariate(s) included in the
+#'   fixed effect parameter, \code{c} (default \code{'random'}). See
+#'   \code{a_cov_init_beta} for details.
+#'
+#' @param d_cov_init_beta Initial values for the covariate(s) included in the
+#'   fixed effect parameter, \code{d} (default \code{'random'}). See
+#'   \code{a_cov_init_beta} for details.
+#'
+#' @param s_cov_init_beta Initial values for the covariate(s) included in the
+#'   fixed effect parameter, \code{s} (default \code{'lm'}). See
+#'   \code{a_cov_init_beta} for details. The option \code{'lm'} sets the spline
+#'   coefficients obtained from a simple linear model fitted to the data.
+#'   However, note that \code{s_cov_init_beta} serves as a placeholder and is
+#'   not evaluated, as covariates are not allowed for the \code{s} parameter.
+#'   For more details on covariates for \code{s}, refer to \code{s_formula}.
+#' 
+#' @param a_init_sd Initial value for the standard deviation of the group-level
+#'   random effect parameter, \code{a} (default \code{'random'}). Available
+#'   options are:
+#' 
+#'  \itemize{
+#'    \item \code{'random'}: Initializes with random values within a specified
+#'    range. 
+#'    \item \code{'prior'}: Uses values drawn from the prior distribution. 
+#'    \item \code{'ysd'}: Sets the standard deviation (\code{sd}) of the
+#'    response variable as the initial value.
+#'    \item \code{'ymad'}: Sets the median absolute deviation (\code{mad}) of
+#'    the response variable as the initial value.
+#'    \item \code{'lme_sd_a'}: Sets the initial value based on the standard
+#'    deviation of the random intercept obtained from a linear mixed model
+#'    (\code{nlme::lme()}) fitted to the data. If \code{nlme::lme()} fails to
+#'    converge, the option \code{'lm_sd_a'} will be used automatically.
+#'    \item \code{'lm_sd_a'}: Sets the square root of the residual variance
+#'    obtained from a simple linear model applied to the data as the initial
+#'    value.
+#'  }
+#'  
+#'  Note that the options \code{'ysd'}, \code{'ymad'}, \code{'lme_sd_a'}, and
+#'  \code{'lm_sd_a'} are available only for the random effect parameter \code{a}
+#'  and not for other group-level random effects.
+#'  
+#'  Additionally, when fitting \code{univariate_by} and \code{multivariate}
+#'  models, the user can set the same initial values for all sub-models, or
+#'  different initial values for each sub-model.
+#'  
+#' @param b_init_sd Initial value for the standard deviation of the group-level
+#'   random effect parameter, \code{b} (default \code{'random'}). Refer to
+#'   \code{a_init_sd} for available options and details.
+#'
+#' @param c_init_sd Initial value for the standard deviation of the group-level
+#'   random effect parameter, \code{c} (default \code{'random'}). Refer to
+#'   \code{a_init_sd} for available options and details.
+#'  
+#' @param d_init_sd Initial value for the standard deviation of the group-level
+#'   random effect parameter, \code{d} (default \code{'random'}). Refer to
+#'   \code{a_init_sd} for available options and details.
+#'  
+#' @param a_cov_init_sd Initial values for the covariate(s) included in the
+#'   random effect parameter \code{a} (default \code{'random'}). Available
+#'   options include:
+#'  \itemize{
+#'    \item \code{'random'}: Random initialization.
+#'    \item \code{'prior'}: Uses prior distribution values.
+#'  }
+#'  
+#' @param b_cov_init_sd Initial values for the covariate(s) included in the
+#'   random effect parameter \code{b} (default \code{'random'}). Refer to
+#'   \code{a_cov_init_sd} for available options and details.
+#'  
+#' @param c_cov_init_sd Initial values for the covariate(s) included in the
+#'   random effect parameter \code{c} (default \code{'random'}). Refer to
+#'   \code{a_cov_init_sd} for available options and details.
+#'  
+#' @param d_cov_init_sd Initial values for the covariate(s) included in the
+#'   random effect parameter \code{d} (default \code{'random'}). Refer to
+#'   \code{a_cov_init_sd} for available options and details.
+#'  
+#' @param sigma_init_beta Initial values for the fixed effect distributional
+#'   parameter \code{sigma} (default \code{'random'}). Available options
+#'   include:
+#'  \itemize{
+#'    \item \code{'random'}: Random initialization.
+#'    \item \code{'prior'}: Uses prior distribution values.
+#'  }
+#'  
+#' @param sigma_cov_init_beta Initial values for the covariate(s) included in
+#'   the fixed effect distributional parameter \code{sigma} (default
+#'   \code{'random'}). Refer to \code{sigma_init_beta} for available options and
+#'   details.
+#'  
+#' @param sigma_init_sd Initial value for the standard deviation of the
+#'   distributional random effect parameter \code{sigma} (default
+#'   \code{'random'}). The approach is the same as described earlier for the
+#'   group-level random effect parameters such as \code{a} (See \code{a_init_sd}
+#'   for details).
+#'
+#' @param sigma_cov_init_sd Initial values for the covariate(s) included in the
+#'   distributional random effect parameter \code{sigma} (default
+#'   \code{'random'}). The approach is the same as described for
+#'   \code{a_cov_init_sd} (See \code{a_cov_init_sd} for details).
+#' 
+#' @param gr_init_cor Initial values for the correlation parameters of
+#'   group-level random effects parameters (default \code{'random'}). Allowed
+#'   options are:
+#'  \itemize{
+#'    \item \code{'random'}: Random initialization.
+#'    \item \code{'prior'}: Uses prior distribution values.
+#'  }
+#'  
+#' @param sigma_init_cor Initial values for the correlation parameters of
+#'   distributional random effects parameter \code{sigma} (default
+#'   \code{'random'}). Allowed options are:
+#'  \itemize{
+#'    \item \code{'random'}: Random initialization.
+#'    \item \code{'prior'}: Uses prior distribution values.
+#'  }
+#'  
+#' @param rsd_init_sigma Initial values for the residual standard deviation
+#'   parameter, \code{sigma} (default \code{'random'}). Options available are:
+#'  \itemize{
+#'    \item \code{'0'}: Initializes the residual standard deviation to zero.
+#'    \item \code{'random'}: Random initialization of the residual standard
+#'    deviation.
+#'    \item \code{'prior'}: Initializes the residual standard deviation based on
+#'    prior distribution values.
+#'    \item \code{'lme_rsd'}: Sets the initial value based on the standard
+#'    deviation of residuals obtained from the linear mixed model
+#'    (\code{nlme::lme()}) fitted to the data.
+#'    \item \code{'lm_rsd'}: Sets the initial value as the square root of the
+#'    residual variance from the simple linear model fitted to the data.
+#'  }
+#'  
+#'  Note that if \code{nlme::lme()} fails to converge, the option
+#'  \code{'lm_rsd'} is set automatically. The argument \code{rsd_init_sigma} is
+#'  evaluated when both \code{dpar_formula} and \code{sigma_formula} are set to
+#'  \code{NULL}.
+#'  
+#' @param dpar_init_sigma Initial values for the distributional parameter
+#'   \code{sigma} (default \code{'random'}). The approach and available options
+#'   are the same as described for \code{rsd_init_sigma}. This argument is
+#'   evaluated only when \code{dpar_formula} is not \code{NULL}.
+#'
+#' @param dpar_cov_init_sigma Initial values for the covariate(s) included in
+#'   the distributional parameter \code{sigma} (default \code{'random'}).
+#'   Allowed options are \code{'0'}, \code{'random'}, and \code{'prior'}.
+#'
+#' @param autocor_init_acor Initial values for the autocorrelation parameter
+#'   (see \code{autocor_formula} for details). Allowed options are \code{'0'},
+#'   \code{'random'}, and \code{'prior'} (default \code{'random'}).
+#'
+#' @param autocor_init_unstr_acor Initial values for unstructured residual
+#'   autocorrelation parameters (default \code{'random'}). Allowed options are
+#'   \code{'0'}, \code{'random'}, and \code{'prior'}. The approach for setting
+#'   initials for \code{autocor_init_unstr_acor} is the same as for
+#'   \code{gr_init_cor}.
+#'
+#' @param mvr_init_rescor Initial values for the residual correlation parameter
+#'   when fitting a \code{multivariate} model (default \code{'random'}). Allowed
+#'   options are \code{'0'}, \code{'random'}, and \code{'prior'}.
+#'
+#' @param r_init_z Initial values for the standardized group-level random effect
+#'   parameters (default \code{'random'}). These parameters are part of the
+#'   Non-Centered Parameterization (NCP) approach used in the [brms::brm()].
+#'
+#' @param vcov_init_0 A logical (default \code{FALSE}) to set initial values for
+#'   variance (standard deviation) and covariance (correlation) parameters to
+#'   zero. This allows for setting custom initial values for the fixed effects
+#'   parameters while keeping the variance-covariance parameters at zero.
+#' 
+#' @param jitter_init_beta A proportion (between 0 and 1) to perturb the initial
+#'   values for fixed effect parameters. The default is \code{NULL}, which means
+#'   that the same initial values are used across all chains. A sensible option
+#'   might be \code{jitter_init_beta = 0.1}, which mildly perturbs the initial
+#'   values. Note that the jitter is applied as a proportion of the specified
+#'   initial value, not an absolute amount. For example, if the initial value is
+#'   \code{100}, setting \code{jitter_init_beta = 0.1} means the perturbed
+#'   initial value will be within the range \code{90} to \code{110}. Conversely,
+#'   if the initial value is \code{10}, the perturbed value will fall within the
+#'   range \code{9} to \code{11}.
+#'
+#' @param jitter_init_sd A proportion (between 0 and 1) to perturb the initial
+#'   values for the standard deviation of random effect parameters. The default
+#'   is \code{NULL}, which means the same initial values are used across all
+#'   chains. A reasonable option might be \code{jitter_init_sd = 0.01}, which
+#'   was found to work well during early testing.
+#'
+#' @param jitter_init_cor A proportion (between 0 and 1) to perturb the initial
+#'   values for the correlation parameters of random effects. The default is
+#'   \code{NULL}, which means the same initial values are used across all
+#'   chains. An option of setting \code{jitter_init_cor = 0.001} was found to be
+#'   effective during early testing.
+#' 
+#' @param prior_data An optional argument (a named list, default \code{NULL})
+#'   that can be used to pass information to the prior arguments for each
+#'   parameter (e.g., \code{a_prior_beta}). The \code{prior_data} is
+#'   particularly helpful when passing a long vector or matrix as priors. These
+#'   vectors and matrices can be created in the R framework and then passed
+#'   using the \code{prior_data}. For example, to pass a vector of location and
+#'   scale parameters when setting priors for covariate coefficients (with 10
+#'   dummy variables) included in the fixed effects parameter \code{a}, the
+#'   following steps can be used:
+#'  \itemize{
+#'  \item Create the named objects \code{prior_a_cov_location} and 
+#'  \code{prior_a_cov_scale} in the R environment:
+#'  \code{prior_a_cov_location <- rnorm(n = 10, mean = 0, sd = 1)} 
+#'  \code{prior_a_cov_scale <- rep(5, 10)}.
+#'  \item Specify these objects in the \code{prior_data} list:
 #'  \code{prior_data = list(prior_a_cov_location = prior_a_cov_location, 
 #'  prior_a_cov_scale = prior_a_cov_scale)}.
-#'  \item now use the \code{prior_data} objects to set up the priors as: \cr
+#'  \item Use the \code{prior_data} objects to set up the priors:
 #'  \code{a_cov_prior_beta = normal(prior_a_cov_location, prior_a_cov_scale)}.
 #'  }
+#'  
+#' @param init_data An optional argument (a named list, default \code{NULL})
+#'   that can be used to pass information to the initial arguments. The approach
+#'   is identical to how \code{prior_data} is handled (as described above).
 #'
-#'@param init_data An optional argument (a named list, default \code{NULL}) that
-#'  can be used to pass information to the initial arguments. The approach is
-#'  the exact same as described above for the \code{prior_data}.
-#'
-#'@param init_custom Specify a custom initials object (a named list). The named
-#'  list is directly passed to the \code{init} argument without checking for the
-#'  dimensions and name matching. Note that in case initials are set for
-#'  some parameter by using parameter specific argument (e.g., \code{a_init_beta
-#'  = 0}), then \code{init_custom} is only passed to those parameters for which
-#'  initials are missing. If user want to override this behaviors i.e., to pass
-#'  all \code{init_custom} ignoring parameter specific initials, then
-#'  \code{init} should be set as \code{init = 'custom'}.
+#' @param init_custom Specify a custom initialization object (a named list). The
+#'   named list is directly passed to the \code{init} argument without verifying
+#'   the dimensions or name matching. If initial values are set for some
+#'   parameters via parameter-specific arguments (e.g., \code{a_init_beta = 0}),
+#'   \code{init_custom} will only be passed to those parameters that do not have
+#'   initialized values. To override this behavior and use all of
+#'   \code{init_custom} values regardless of parameter-specific initials, set
+#'   \code{init = 'custom'}.
 #'
 #'@param verbose An optional argument (logical, default \code{FALSE}) to
 #'  indicate whether to print information collected during setting up the model
@@ -1173,93 +1377,102 @@
 #'  the desired order of options passed to each such model such as \code{df},
 #'  \code{prior}, \code{initials} etc.
 #'
-#'@param expose_function An optional argument (logical, default \code{FALSE}) to
-#'  indicate whether to expose Stan function used in model fitting.
-#'  
-#'@param get_stancode An optional argument (logical, default \code{FALSE}) to
-#'  get the stancode (see [brms::stancode()] for details).
+#' @param expose_function An optional argument (logical, default \code{FALSE})
+#'   to indicate whether to expose the Stan function used in model fitting.
 #'
-#'@param get_standata An optional argument (logical, default \code{FALSE}) to
-#'  get the standata (see [brms::standata()] for details).
+#' @param get_stancode An optional argument (logical, default \code{FALSE}) to
+#'   retrieve the Stan code (see \code{[brms::stancode()]} for details).
 #'
-#'@param get_formula An optional argument (logical, default \code{FALSE}) to
-#'  get the formula. (see [brms::brmsformula()] for details).
+#' @param get_standata An optional argument (logical, default \code{FALSE}) to
+#'   retrieve the Stan data (see \code{[brms::standata()]} for details).
 #'
-#'@param get_stanvars An optional argument (logical, default \code{FALSE}) to
-#'  get the stanvars (see [brms::stanvar()] for details).
+#' @param get_formula An optional argument (logical, default \code{FALSE}) to
+#'   retrieve the model formula (see \code{[brms::brmsformula()]} for details).
 #'
-#'@param get_priors An optional argument (logical, default \code{FALSE}) to
-#'  get the priors. (see \code{brms::get_prior()} for details). 
+#' @param get_stanvars An optional argument (logical, default \code{FALSE}) to
+#'   retrieve the Stan variables (see \code{[brms::stanvar()]} for details).
 #'
-#'@param get_priors_eval An optional argument (logical, default \code{FALSE}) to
-#'  get the priors specified by the user.
+#' @param get_priors An optional argument (logical, default \code{FALSE}) to
+#'   retrieve the priors (see \code{[brms::get_prior()]} for details).
 #'
-#'@param get_init_eval An optional argument (logical, default \code{FALSE}) to
-#'  get the initial values specified by the user.
+#' @param get_priors_eval An optional argument (logical, default \code{FALSE})
+#'   to retrieve the priors specified by the user.
+#'
+#' @param get_init_eval An optional argument (logical, default \code{FALSE}) to
+#'   retrieve the initial values specified by the user.
+#'
+#' @param validate_priors An optional argument (logical, default \code{FALSE})
+#'   to validate the specified priors (see \code{[brms::validate_prior()]} for
+#'   details).
+#'
+#' @param set_self_priors An optional argument (default \code{NULL}) to manually
+#'   specify the priors. \code{set_self_priors} is passed directly to
+#'   \code{[brms::brm()]} without performing any checks.
+#'
+#' @param add_self_priors An optional argument (default \code{NULL}) to append
+#'   part of the prior object. This is for internal use only.
+#'
+#' @param set_replace_priors An optional argument (default \code{NULL}) to
+#'   replace part of the prior object. This is for internal use only.
+#'
+#' @param set_same_priors_hierarchy An optional argument (default \code{NULL})
+#'   to replace part of the prior object. This is for internal use only.
+#'
+#' @param outliers An optional argument (default \code{NULL}) to remove
+#'   outliers. This should be a named list passed directly to
+#'   \code{[sitar::velout()]} and \code{[sitar::zapvelout()]} functions. This is
+#'   for internal use only.
+#'
+#' @param unused An optional formula defining variables that are unused in the
+#'   model but should still be stored in the model's data frame. Useful when
+#'   variables are needed during post-processing.
+#'
+#' @param chains The number of Markov chains (default 4).
+#'
+#' @param iter The total number of iterations per chain, including warmup
+#'   (default 2000).
 #' 
-#'@param validate_priors An optional argument (logical, default \code{FALSE}) to
-#'  validate the specified priors. (see [brms::validate_prior()] for details).
+#' @param warmup A positive integer specifying the number of warmup (aka
+#'   burn-in) iterations. This also specifies the number of iterations used for
+#'   stepsize adaptation, so warmup draws should not be used for inference. The
+#'   number of warmup iterations should not exceed \code{iter}, and the default
+#'   is \code{iter/2}.
 #'
-#'@param set_self_priors An optional argument (default \code{NULL}) to manually
-#'  specify the priors. Note that \code{set_self_priors} is passed directly to
-#'  the [brms::brm()] without performing any checks.
+#' @param thin A positive integer specifying the thinning interval. Set
+#'   \code{thin > 1} to save memory and computation time if \code{iter} is
+#'   large. Thinning is often used in cases with high autocorrelation of MCMC
+#'   draws. An indication of high autocorrelation is poor mixing of chains
+#'   (i.e., high \code{rhat} values) despite the model recovering parameters
+#'   well. A useful diagnostic to check for autocorrelation of MCMC draws is the
+#'   \code{mcmc_acf} function from the \pkg{bayesplot} package.
+#'
+#' @param cores Number of cores to be used when executing the chains in
+#'   parallel. See [brms::brm()] for details. Unlike [brms::brm()], which
+#'   defaults the \code{cores} argument to \code{cores=getOption("mc.cores",
+#'   1)}, the default \code{cores} in the \pkg{bsitar} package is
+#'   \code{cores=getOption("mc.cores", 'optimize')}, which optimizes the
+#'   utilization of system resources. The maximum number of cores that can be
+#'   deployed is calculated as the maximum number of available cores minus 1.
+#'   When the number of available cores exceeds the number of chains (see
+#'   \code{chains}), then the number of cores is set equal to the number of
+#'   chains.
 #'  
-#'@param set_replace_priors An optional argument (default \code{NULL}) to
-#'  replace part of prior object. This is for internal use only.
-#' 
-#'@param set_same_priors_hierarchy An optional argument (default \code{NULL}) to
-#'  replace part of the prior object. This is for internal use only.
-#'  
-#'@param outliers An optional argument (default \code{NULL}) to remove outliers.
-#'  The argument should be a named list which is passed directly to the
-#'  [sitar::velout()] and [sitar::zapvelout()] functions. This is for internal
-#'  use only.
-#'
-#'@param unused An optional formula that defines variables that are unused in
-#'  the model but should still be stored in the model's data frame. This can be
-#'  useful when variables are required during the post-processing.
-#'
-#'@param chains Number of Markov chains (default 4).
-#'
-#'@param iter Number of total iterations per chain, including warmup (default
-#'  2000)
-#'
-#'@param warmup A positive integer specifying the number of warmup (aka burnin)
-#'  iterations. This also specifies the number of iterations used for stepsize
-#'  adaptation, so warmup draws should not be used for inference. The number of
-#'  warmup should not be larger than \code{iter} and the default is
-#'  \code{iter/2}.
-#'
-#'@param thin A positive integer. Set \code{thin > 1} to save memory and
-#'  computation time if \code{iter} is large. The \code{thin > 1} is often used
-#'  in cases with high autocorrelation of MCMC draws An indication of high
-#'  autocorrelation is poor mixing of chain ( i.e., high \code{rhat} values)
-#'  despite the fact that model recovers the parameters well. An easy diagnostic
-#'  to check for autocorrelation of MCMC draws is to use the \code{mcmc_acf}
-#'  function from the \pkg{bayesplot}.
-#'
-#'@param cores Number of cores to be used when executing the chains in parallel.
-#'  See [brms::brm()] for details. Note that unlike [brms::brm()], which sets
-#'  default \code{cores} argument as \code{cores=getOption("mc.cores", 1)}, the
-#'  default \code{cores} in \pkg{bsitar} package is
-#'  \code{cores=getOption("mc.cores", 'optimize')} which optimizes the
-#'  utilization of system resources. The maximum number of cores that can be
-#'  deployed is calculated as the maximum number of available cores minus 1.
-#'  When the number of available cores is greater than the number of chains (see
-#'  \code{chains}), then number of cores is set equal to the number of chains.
 #'  Another option is to set \code{cores} as \code{getOption("mc.cores",
-#'  'maximise')} which sets the number of cores as the maximum number of cores
-#'  available from the system regardless of the number of chains specified. Note
-#'  that the user can also set \code{cores} argument similar to the
-#'  [brms::brm()] i.e., \code{getOption("mc.cores", 1)}. All these three options
-#'  can be set globally as \code{options(mc.cores = x}) where x can be
-#'  \code{'optimize'}, \code{'maximise'} or \code{1}. Lastly, the \code{cores}
-#'  can set by directly by specifying an integer e.g., \code{cores = 4}.
-#'
-#'@param backend A character string naming the package to be used when executing
-#'  the the Stan model. Options are \code{"rstan"} (the default) or
-#'  \code{"cmdstanr"}. Can be set globally for the current \R session via the
-#'  \code{"brms.backend"}. See [brms::brm()] for details.
+#'  'maximise')}, which sets the number of cores to the maximum number of cores
+#'  available on the system regardless of the number of chains specified.
+#'  Alternatively, the user can specify \code{cores} in the same way as
+#'  [brms::brm()] with \code{getOption("mc.cores", 1)}.
+#'  
+#'  These options can be set globally using \code{options(mc.cores = x)}, where
+#'  \code{x} can be \code{'optimize'}, \code{'maximise'}, or \code{1}. The
+#'  \code{cores} argument can also be directly specified as an integer (e.g.,
+#'  \code{cores = 4}).
+#'  
+#' @param backend A character string specifying the package to be used when
+#'   executing the Stan model. The available options are \code{"rstan"} (the
+#'   default) or \code{"cmdstanr"}. The backend can also be set globally for the
+#'   current \R session using the \code{"brms.backend"} option. See
+#'   [brms::brm()] for more details.
 #'
 #'@param threads Number of threads to be used in within-chain parallelization.
 #'  Note that unlike the [brms::brm()] which sets the \code{threads} argument as
@@ -1279,147 +1492,200 @@
 #'  = threading(x)} where \code{X} is an integer. Other arguments that can be
 #'  passed to the \code{threads} are \code{grainsize} and the \code{static}. See
 #'  [brms::brm()] for further details on within-chain parallelization.
+#'  
+#' @param opencl The platform and device IDs of the OpenCL device to use for GPU
+#'   support during model fitting. If you are unsure about the IDs of your
+#'   OpenCL device, \code{c(0,0)} is typically the default that should work. For
+#'   more details on how to find the correct platform and device IDs, refer to
+#'   [brms::opencl()]. This parameter can also be set globally for the current
+#'   \R session using the \code{"brms.opencl"} option.
+#' 
+#' @param normalize Logical flag indicating whether normalization constants
+#'   should be included in the Stan code (default is \code{TRUE}). If set to
+#'   \code{FALSE}, normalization constants are omitted, which may increase
+#'   sampling efficiency. However, this requires Stan version >= 2.25. Note that
+#'   setting \code{normalize = FALSE} will disable some post-processing
+#'   functions, such as [brms::bridge_sampler()]. This option can be controlled
+#'   globally via the \code{brms.normalize} option.
 #'
-#'@param opencl The platform and device IDs of the OpenCL device to use for
-#'  fitting using GPU support. If you don't know the IDs of your OpenCL device,
-#'  \code{c(0,0)} is most likely what you need. For more details, see
-#'  \code{\link{opencl}}. Can be set globally for the current \R session via the
-#'  \code{"brms.opencl"} option.
+#' @param algorithm A character string specifying the estimation method to use. 
+#'  Available options are:
+#'  \itemize{
+#'    \item \code{"sampling"} (default): Markov Chain Monte Carlo (MCMC) method.
+#'    \item \code{"meanfield"}: Variational inference with independent normal
+#'    distributions.
+#'    \item \code{"fullrank"}: Variational inference with a multivariate normal
+#'    distribution.
+#'    \item \code{"fixed_param"}: Sampling from fixed parameter values.
+#'  }
+#'  This parameter can be set globally via the \code{"brms.algorithm"} option
+#'  (see \code{\link{options}} for more details).
 #'
-#'@param normalize Indicates whether normalization constants should be included
-#'  in the Stan code (default \code{TRUE}). Setting it to \code{FALSE} requires
-#'  Stan version >= 2.25. If \code{FALSE}, sampling efficiency may be increased
-#'  but some post processing functions such as [brms::bridge_sampler()] will not
-#'  be available. This option can be controlled globally via the
-#'  \code{brms.normalize} option.
+#' @param control A named \code{list} to control the sampler's behavior. The
+#'   default settings are the same as those in [brms::brm()], with one
+#'   exception: the \code{max_treedepth} has been increased from 10 to 12 to
+#'   better explore the typically challenging posterior geometry in nonlinear
+#'   models. However, the \code{adapt_delta}, which is often increased for
+#'   nonlinear models, retains its default value of 0.8 to avoid unnecessarily
+#'   increasing sampling time. For full details on control parameters and their
+#'   default values, refer to [brms::brm()].
+#' 
+#' @param pathfinder_args A named \code{list} of arguments passed to the
+#'   \code{'pathfinder'} algorithm. This is used to set
+#'   \code{'pathfinder'}-based initial values for the \code{'MCMC'} sampling.
+#'   Note that \code{'pathfinder_args'} currently only works when \code{backend
+#'   = "cmdstanr"}. If \code{pathfinder_args} is not \code{NULL} and the user
+#'   specifies \code{backend = "rstan"}, the backend will automatically be
+#'   changed to \code{cmdstanr}.
 #'
-#'@param algorithm Character string naming the estimation approach to use.
-#'  Options are \code{"sampling"} for MCMC (the default), \code{"meanfield"} for
-#'  variational inference with independent normal distributions,
-#'  \code{"fullrank"} for variational inference with a multivariate normal
-#'  distribution, or \code{"fixed_param"} for sampling from fixed parameter
-#'  values. Can be set globally for the current \R session via the
-#'  \code{"brms.algorithm"} option (see \code{\link{options}}).
+#' @param pathfinder_init A logical value (default \code{FALSE}) indicating
+#'   whether to use initial values from the \code{'pathfinder'} algorithm when
+#'   fitting the final model (i.e., \code{'MCMC'} sampling). Note that
+#'   \code{'pathfinder_args'} currently works only when \code{backend =
+#'   "cmdstanr"}. If \code{pathfinder_args} is not \code{NULL} and the user
+#'   specifies \code{backend = "rstan"}, the backend will automatically switch
+#'   to \code{cmdstanr}. The arguments passed to the \code{'pathfinder'}
+#'   algorithm are specified via \code{'pathfinder_args'}; if
+#'   \code{'pathfinder_args'} is \code{NULL}, the default arguments from
+#'   \code{'cmdstanr'} will be used.
 #'
-#'@param control A named \code{list} to control the sampler's behavior. The
-#'  default are same as [brms::brm()] with the exception that the
-#'  \code{max_treedepth} has been increased form 10 to 12 to allow better
-#'  exploration of typically challenging posterior geometry posed by the
-#'  nonlinear model. However, another control parameter, the \code{adpat_delta}
-#'  which is also  often need to be increased for nonlinear model, has be set to
-#'  default setting as in [brms::brm()] i.e, 0.8. This is to avoid unnecessarily
-#'  increasing the sampling time. See [brms::brm()] for full details on control
-#'  parameters and their default values.
+#' @param sample_prior A character string indicating whether to draw samples
+#'   from the priors in addition to the posterior draws. Options are \code{"no"}
+#'   (the default), \code{"yes"}, and \code{"only"}. These prior draws can be
+#'   used for various purposes, such as calculating Bayes factors for point
+#'   hypotheses via [brms::hypothesis()]. Note that improper priors (including
+#'   the default improper priors used by \code{brm}) are not sampled. For proper
+#'   priors, see [brms::set_prior()]. Also, prior draws for the overall
+#'   intercept are not obtained by default for technical reasons. See
+#'   [brms::brmsformula()] for instructions on obtaining prior draws for the
+#'   intercept. If \code{sample_prior} is set to \code{"only"}, draws will be
+#'   taken solely from the priors, ignoring the likelihood, which allows you to
+#'   generate draws from the prior predictive distribution. In this case, all
+#'   parameters must have proper priors.
 #'
-#'@param sample_prior Indicates whether to draw sample from priors in addition
-#'  to the posterior draws. Options are \code{"no"} (the default), \code{"yes"},
-#'  and \code{"only"}. Among others, these draws can be used to calculate Bayes
-#'  factors for point hypotheses via [brms::hypothesis()]. Please note that
-#'  improper priors are not sampled, including the default improper priors used
-#'  by \code{brm}. See [brms::set_prior()] on how to set (proper) priors. Please
-#'  also note that prior draws for the overall intercept are not obtained by
-#'  default for technical reasons. See [brms::brmsformula()] how to obtain prior
-#'  draws for the intercept. If \code{sample_prior} is set to \code{"only"},
-#'  draws are drawn solely from the priors ignoring the likelihood, which allows
-#'  among others to generate draws from the prior predictive distribution. In
-#'  this case, all parameters must have proper priors.
+#' @param save_pars An object generated by [brms::save_pars()] that controls
+#'   which parameters should be saved in the model. This argument does not
+#'   affect the model fitting process itself but provides control over which
+#'   parameters are retained in the final output.
 #'
-#'@param save_pars An object generated by \code{\link{save_pars}} controlling
-#'  which parameters should be saved in the model. The argument has no impact on
-#'  the model fitting itself.
+#' @param drop_unused_levels A logical value indicating whether unused factor
+#'   levels in the data should be dropped. The default is \code{TRUE}.
 #'
-#'@param drop_unused_levels Should unused factors levels in the data be dropped?
-#'  Defaults to \code{TRUE}.
+#' @param stan_model_args A \code{list} of additional arguments passed to
+#'   \code{\link[rstan:stan_model]{rstan::stan_model}} when using the
+#'   \code{backend = "rstan"} or \code{backend = "cmdstanr"}. This allows
+#'   customization of how models are compiled.
+#' 
+#' @param refresh An integer specifying the frequency of printing every nth
+#'   iteration. By default, \code{NULL} indicates that the refresh rate will be
+#'   automatically set by [brms::brm()]. Setting \code{refresh} is especially
+#'   useful when \code{thin} is greater than \code{1}, in which case the refresh
+#'   rate is recalculated as (\code{refresh} * \code{thin}) / \code{thin}.
 #'
-#'@param stan_model_args A \code{list} of further arguments passed to
-#'   \code{\link[rstan:stan_model]{rstan::stan_model}} for \code{backend =
-#'   "rstan"} or \code{backend = "cmdstanr"}, which allows to change how
-#'  models are compiled.
+#' @param silent A verbosity level between \code{0} and \code{2}. When set to
+#'   \code{1} (the default), most informational messages from the compiler and
+#'   sampler are suppressed. Setting it to \code{2} suppresses even more
+#'   messages. The sampling progress is still printed. To turn off all printing,
+#'   set \code{refresh = 0}. Additionally, when using \code{backend = "rstan"},
+#'   you can prevent the opening of additional progress bars by setting
+#'   \code{open_progress = FALSE}.
+#' 
+#' @param seed An integer or \code{NA} (default) specifying the seed for random
+#'   number generation, ensuring reproducibility of results. If set to
+#'   \code{NA}, \pkg{Stan} will randomly select the seed.
 #'
-#'@param refresh An integer to set the printing of every nth iteration. Default
-#'  \code{NULL} indicates that refresh will be set automatically by the
-#'  [brms::brm()]. Setting  \code{refresh} is useful especially when \code{thin}
-#'  is greater than \code{1}. In that case, the \code{refresh} is recalculated
-#'  as (\code{refresh} * \code{thin}) / \code{thin}.
+#' @param save_model A character string or \code{NULL} (default). If provided,
+#'   the Stan code for the model will be saved in a text file with the name
+#'   corresponding to the string specified in \code{save_model}.
 #'
-#'@param silent Verbosity level between \code{0} and \code{2}. If \code{1} (the
-#'  default), most of the informational messages of compiler and sampler are
-#'  suppressed. If \code{2}, even more messages are suppressed. The actual
-#'  sampling progress is still printed. Set \code{refresh = 0} to turn this off
-#'  as well. If using \code{backend = "rstan"} you can also set
-#'  \code{open_progress = FALSE} to prevent opening additional progress bars.
+#' @param fit An instance of class \code{brmsfit} from a previous fit (default
+#'   is \code{NA}). If a \code{brmsfit} object is provided, the compiled model
+#'   associated with the fitted result is reused, and any arguments that modify
+#'   the model code or data are ignored. It is generally recommended to use the
+#'   \code{\link[brms:update.brmsfit]{update}} method for this purpose, rather
+#'   than directly passing the \code{fit} argument.
 #'
-#'@param seed The seed for random number generation to make results
-#'  reproducible. If \code{NA} (the default), \pkg{Stan} will set the seed
-#'  randomly.
+#' @param file Either \code{NULL} or a character string. If a character string
+#'   is provided, the fitted model object is saved using \code{\link{saveRDS}}
+#'   in a file named after the string supplied in \code{file}. The \code{.rds}
+#'   extension is automatically added. If the specified file already exists, the
+#'   existing model object is loaded and returned instead of refitting the
+#'   model. To overwrite an existing file, you must manually remove the file or
+#'   specify the \code{file_refit} argument. The file name is stored within the
+#'   \code{brmsfit} object for later use.
 #'
-#'@param save_model A character string or \code{NULL} (default). If not
-#'  \code{NULL}, then the model's Stan code is saved via in a text file named
-#'  after the string supplied in \code{save_model}.
+#' @param file_refit Modifies when the fit stored via the \code{file} argument
+#'   is re-used. This can be set globally for the current \R session via the
+#'   \code{"brms.file_refit"} option (see \code{\link{options}}). The possible
+#'   options are:
+#'  \itemize{
+#'    \item \code{"never"} (default): The fit is always loaded if it exists, and
+#'    fitting is skipped.
+#'    \item \code{"always"}: The model is always refitted, regardless of
+#'    existing fits.
+#'    \item \code{"on_change"}: The model is refitted only if the model, data,
+#'    algorithm, priors, \code{sample_prior}, \code{stanvars}, covariance
+#'    structure, or similar parameters have changed.
+#'  }
+#'  
+#'  If you believe a false positive occurred, you can use
+#'  \code{[brms::brmsfit_needs_refit()]} to investigate why a refit is deemed
+#'  necessary. A refit will not be triggered for changes in additional
+#'  parameters of the fit (e.g., initial values, number of iterations, control
+#'  arguments). A known limitation is that a refit will be triggered if
+#'  within-chain parallelization is switched on/off.
+#'  
 #'
-#'@param fit An instance of S3 class \code{brmsfit} derived from a previous fit;
-#'  defaults to \code{NA}. If \code{fit} is of class \code{brmsfit}, the
-#'  compiled model associated with the fitted result is re-used and all
-#'  arguments modifying the model code or data are ignored. It is not
-#'  recommended to use this argument directly, but to call the
-#'  \code{\link[brms:update.brmsfit]{update}} method, instead.
+#' @param future Logical; If \code{TRUE}, the \pkg{\link[future:future]{future}}
+#'   package is used for parallel execution of the chains. In this case, the
+#'   \code{cores} argument will be ignored. The execution type is controlled via
+#'   \code{\link[future:plan]{plan}} (see the examples section below). This
+#'   argument can be set globally for the current \R session via the
+#'   \code{"future"} option.
 #'
-#'@param file Either \code{NULL} or a character string. In the latter case, the
-#'  fitted model object is saved via \code{\link{saveRDS}} in a file named after
-#'  the string supplied in \code{file}. The \code{.rds} extension is added
-#'  automatically. If the file already exists, \code{brm} will load and return
-#'  the saved model object instead of refitting the model. Unless you specify
-#'  the \code{file_refit} argument as well, the existing files won't be
-#'  overwritten, you have to manually remove the file in order to refit and save
-#'  the model under an existing file name. The file name is stored in the
-#'  \code{brmsfit} object for later usage.
-#'
-#'@param file_refit Modifies when the fit stored via the \code{file} argument is
-#'  re-used. Can be set globally for the current \R session via the
-#'  \code{"brms.file_refit"} option (see \code{\link{options}}). For
-#'  \code{"never"} (default) the fit is always loaded if it exists and fitting
-#'  is skipped. For \code{"always"} the model is always refitted. If set to
-#'  \code{"on_change"}, brms will refit the model if model, data or algorithm as
-#'  passed to Stan differ from what is stored in the file. This also covers
-#'  changes in priors, \code{sample_prior}, \code{stanvars}, covariance
-#'  structure, etc. If you believe there was a false positive, you can use
-#'  \code{\link{brmsfit_needs_refit}} to see why refit is deemed necessary.
-#'  Refit will not be triggered for changes in additional parameters of the fit
-#'  (e.g., initial values, number of iterations, control arguments, ...). A
-#'  known limitation is that a refit will be triggered if within-chain
-#'  parallelization is switched on/off.
-#'
-#'@param future Logical; If \code{TRUE}, the \pkg{\link[future:future]{future}}
-#'  package is used for parallel execution of the chains and argument
-#'  \code{cores} will be ignored. Can be set globally for the current \R session
-#'  via the \code{"future"} option. The execution type is controlled via
-#'  \code{\link[future:plan]{plan}} (see the examples section below).
-#'
-#'@param parameterization A character string to specify Non-centered
-#'  parameterization, NCP (\code{'ncp'}) or the Centered parameterization, CP
-#'  (\code{'cp'}) to draw group level random effect. The NCP is generally
-#'  recommended when likelihood is not strong (e.g., a few number of
-#'  observations per individual). The NCP is the default (and only) approach
-#'  implemented in the [brms::brm()]. The CP parameterization, on the other
-#'  hand, is often considered more efficient than NCP when a relatively large
-#'  number of observations are available across individual. The 'relatively
-#'  large number' is not defined in the literature and we follow a general
-#'  approach wherein CP parameterization is used when each individual provides
-#'  at least 10 repeated measurements and NCP otherwise. Note this automatic
-#'  behavior is set only when the argument \code{parameterization = NULL}. To
-#'  set CP parameterization, use \code{parameterization = 'cp'}. The default is
-#'  \code{parameterization = 'ncp'}. Note that since [brms::brm()] does not
-#'  offer CP parameterization, the [brms::brm()] generated \code{stancode} is
-#'  first edited internally and then the model is fit using the [rstan::rstan()]
-#'  or \code{cmdstanr}, depending on the \code{backend} choice. Therefore, we
-#'  caution that CP parameterization should be considered experimental and it
-#'  may fail if structure of the [brms::brm()] generated \code{stancode} changes
-#'  in future.
+#' @param parameterization A character string specifying the type of
+#'   parameterization to use for drawing group-level random effects. Options
+#'   are: \code{'ncp'} for Non-Centered Parameterization (NCP), and \code{'cp'}
+#'   for Centered Parameterization (CP).
+#'  
+#'  The NCP is generally recommended when the likelihood is weak (e.g., few
+#'  observations per individual) and is the default approach (and only option)
+#'  in [brms::brm()].
+#'  
+#'  The CP parameterization is typically more efficient when a relatively large
+#'  number of observations are available across individuals. We consider a
+#'  'relatively large number' as at least 10 repeated measurements per
+#'  individual. If there are fewer than 10, NCP is used automatically. This
+#'  behavior applies only when \code{parameterization = NULL}. To explicitly set
+#'  CP parameterization, use \code{parameterization = 'cp'}.
+#'  
+#'  Note that since [brms::brm()] does not support CP, the \code{stancode}
+#'  generated by [brms::brm()] is edited internally before fitting the model
+#'  using [rstan::rstan()] or \code{"cmdstanr"}, depending on the chosen
+#'  \code{backend}. Therefore, CP parameterization is considered experimental
+#'  and may fail if the structure of the generated \code{stancode} changes in
+#'  future versions of [brms::brm()].
 #'   
-#'@param ... Further arguments passed to [brms::brm()]
+#' @param ... Further arguments passed to [brms::brm()]. This can include
+#'   additional arguments that are either passed directly to the underlying
+#'   model fitting function or used for internal purposes. Specifically, the
+#'   \code{...} can also be used to pass arguments used for testing and
+#'   debugging, such as: \code{match_sitar_a_form}, \code{match_sitar_d_form},
+#'   \code{sigmamatch_sitar_a_form}, \code{displayit}, \code{setcolh},
+#'   \code{setcolb}.
+#'  
+#'  These internal arguments are typically not used in regular model fitting but
+#'  can be relevant for certain testing scenarios or advanced customization.
+#'  Users are generally not expected to interact with these unless working on
+#'  debugging or testing specific features of the model fitting process.
 #'
-#'@return An object of class \code{brmsfit, bsiatr}, that contains the posterior
-#'  draws and other useful information about the model.
+#' @return An object of class \code{brmsfit, bsitar}, which contains the
+#'   posterior draws, model coefficients, and other useful information related
+#'   to the model fitting. This object includes details such as the fitted
+#'   model, the data used, prior distributions, and any other relevant outputs
+#'   from the Stan model fitting process. The resulting object can be used for
+#'   further analysis, diagnostics, and post-processing, including model summary
+#'   statistics, predictions, and visualizations.
 #'
 #'@export
 #'
@@ -1440,8 +1706,10 @@
 #'
 #'@import brms
 #'
-#'@note The package is under continuous development and new models and 
-#'  post-processing features will be added soon.
+#' @note The package is under continuous development, and new models,
+#'   post-processing features, and improvements are being actively worked on.
+#'   Keep an eye on future releases for additional functionality and updates to
+#'   enhance model fitting, diagnostics, and analysis capabilities.
 #'
 #' @seealso [brms::brm()] [brms::brmsformula()] [brms::prior()]
 #'
@@ -1452,27 +1720,28 @@
 #' 
 #' @examples
 #' 
-#' # Examples below fits SITAR model to the 'berkeley_exdata' which is a subset
-#' # of the  Berkley height data. The same subset of the  Berkley height data
-#' # has been used as an example data in the vignette for the 'sitar' package.
-#' #
-#' # The Berkley height data comprise of repeated growth measurements made on
-#' # 66 boys and 70 girls (birth to 21 years). 
-#' #
-#' # The subset of the Berkley height data analysed here include growth 
-#' # measurements for 70 girls (8 to 18 years).
-#' #
-#' # See 'sitar' package documentation for details on Berkley height data   
-#' # (help file ?sitar::berkeley ). The details on subset data for 70 girls is 
-#' # provided in the vignette('Fitting_models_with_SITAR', package = 'sitar').
-#'   
-#' # Fit frequentist SITAR model with df = 5 by using the sitar package 
+#' \donttest{
 #' 
-#' # Get 'berkeley_exdata' data that has been already saved
+#' # Below, we fit a SITAR model to a subset of the Berkley height data, 
+#' # specifically the data for 70 girls between the ages of 8 and 18.  
+#' # This subset is used as an example in the vignette for the 'sitar' package.
+#' #
+#' # The original Berkley height data contains repeated growth measurements for
+#' # 66 boys and 70 girls (ages 0-21). For this example, we use a subset of the 
+#' # data for 70 girls aged 8 to 18 years.
+#' #
+#' # For details on the full Berkley height dataset, refer to 'sitar' package
+#' # documentation (help file: ?sitar::berkeley). Further details on the subset
+#' # of the data used here can be found in the vignette ('Fitting_models_with_SITAR', 
+#' # package = 'sitar').
+#' 
+#' # Load the 'berkeley_exdata' that has been pre-saved
 #' berkeley_exdata <- getNsObject(berkeley_exdata)
 #' 
+#' # Fit frequentist SITAR model with df = 3 using the sitar package 
+#' 
 #' model_ml <- sitar::sitar(x = age, y = height, id = id, 
-#'                           df = 5, 
+#'                           df = 3, 
 #'                           data = berkeley_exdata, 
 #'                           xoffset = 'mean',
 #'                           fixed = 'a+b+c', 
@@ -1485,21 +1754,24 @@
 #' 
 #' # Fit Bayesian SITAR model 
 #' 
-#' # To avoid mode estimation which takes time, the Bayesian SITAR model fit to  
-#' # the 'berkeley_exdata' has been saved as an example fit ('berkeley_exfit').
-#' # The model is fit using 2 chain (2000 iterations per) with thin set as 4 to 
-#' # save time and memory.
+#' # To avoid time-consuming model estimation, the Bayesian SITAR model fit has 
+#' # been saved as an example fit ('berkeley_exfit'). This model was fit using 
+#' # 2 chains (2000 iterations per chain) with thinning set to 5 for memory  
+#' # efficiency. Users are encouraged to refit the model using default settings 
+#' # (4 chains, 2000 iterations per chain, thin = 1) as suggested by the Stan team.
+#' # Note that with thinning set to 5 (thin = 5), only one fifth of total draws 
+#' # will be saved and hence the effective sample size is expected to be small.
 #' 
-#' # Check and confirm whether model fit object 'berkeley_exfit' exists
+#' # Check if the pre-saved model 'berkeley_exfit' exists
 #' # berkeley_exfit <- bsitar:::berkeley_exfit
-#'  berkeley_exfit <- getNsObject(berkeley_exfit)
+#' 
+#' berkeley_exfit <- getNsObject(berkeley_exfit)
 #'  
-#'  print(berkeley_exfit)
 #' if(exists('berkeley_exfit')) {
 #'   model <- berkeley_exfit
 #' } else {
-#'  # Fit model with default priors 
-#'  # See documentation for prior on each parameter
+#'   # Fit model with default priors
+#'   # Refer to the documentation for prior on each parameter
 #'   model <- bsitar(x = age, y = height, id = id, 
 #'                   df = 3, 
 #'                   data = berkeley_exdata,
@@ -1510,61 +1782,37 @@
 #'                   b_formula = ~1, 
 #'                   c_formula = ~1, 
 #'                   threads = brms::threading(NULL),
-#'                   chains = 2, cores = 2, iter = 6000, thin = 15)
+#'                   chains = 2, cores = 2, iter = 2000, thin = 5)
 #'                   
-#' # Note that we can test for the sensitivity to the priors by re fitting the
-#' # above model with flat (i.e., uniform) priors on the regression coefficients
-#' # for parameters a, b and c.
-#' model <- bsitar(x = age, y = height, id = id, 
-#'                   df = 3, 
-#'                   data = berkeley_exdata,
-#'                   xoffset = 'mean', 
-#'                   fixed = 'a+b+c', 
-#'                   random = 'a+b+c',
-#'                   a_formula = ~1, 
-#'                   b_formula = ~1, 
-#'                   c_formula = ~1, 
-#'                   a_prior_beta = flat,
-#'                   b_prior_beta = flat,
-#'                   c_prior_beta = flat,
-#'                   threads = brms::threading(NULL),
-#'                   chains = 2, cores = 2, iter = 6000, thin = 15)
 #' }
 #' 
 #' # Generate model summary
 #' summary(model)
 #' 
-#' # Compare model summary with the maximum likelihood SITAR model
+#' # Compare model summary with the frequentist SITAR model
 #' print(model_ml)
 #' 
-#' \donttest{
-#' # Check model fit via posterior predictive checks. The plot_ppc is a based
-#' # on the pp_check function from the brms package.  
-#' 
+#' # Check model fit via posterior predictive checks using plot_ppc.
+#' # This function is based on pp_check from the 'brms' package.
 #' plot_ppc(model, ndraws = 100)
 #' 
-#' # Plot distance and velocity curves using plot_conditional_effects() function.
-#' # This function works exactly same as as conditional_effects() from the brms
-#' # package with the exception that plot_conditional_effects allows for 
-#' # plotting velocity curve also.
+#' # Plot distance and velocity curves using plot_conditional_effects.
+#' # This function works like conditional_effects from the 'brms' package,
+#' # with the added option to plot velocity curves.
 #' 
-#' # Distance
+#' # Distance curve
 #' plot_conditional_effects(model, deriv = 0)
 #' 
-#' # Velocity
+#' # Velocity curve
 #' plot_conditional_effects(model, deriv = 1)
 #' 
-#' # Plot distance and velocity curve along with the parameter estimates using 
-#' # the plot_curves() function. This function works exactly the same way as 
-#' # plot.sitar from the sitar package
-#' 
+#' # Plot distance and velocity curves along with parameter estimates using 
+#' # plot_curves (similar to plot.sitar from the sitar package).
 #' plot_curves(model, apv = TRUE)
 #' 
-#' # Compare plot with the maximum likelihood SITAR model
-#' 
+#' # Compare plots with the frequentist SITAR model
 #' plot(model_ml)
 #' }
-#' 
 #'
 bsitar <- function(x,
                    y,
@@ -1580,6 +1828,7 @@ bsitar <- function(x,
                    xfun = NULL,
                    yfun = NULL,
                    bound = 0.04,
+                   stype = nsp,
                    terms_rhs = NULL,
                    a_formula = ~ 1,
                    b_formula = ~ 1,
@@ -1598,6 +1847,17 @@ bsitar <- function(x,
                    sigma_formula = NULL,
                    sigma_formula_gr = NULL,
                    sigma_formula_gr_str = NULL,
+                   sigma_formula_manual = NULL,
+                   sigmax = NULL,
+                   sigmadf = 4,
+                   sigmaknots = NA,
+                   sigmafixed = a + b + c,
+                   sigmarandom = "",
+                   sigmaxoffset = mean,
+                   sigmabstart = sigmaxoffset,
+                   sigmacstart = 0,
+                   sigmaxfun = NULL,
+                   sigmabound = 0.04,
                    dpar_formula = NULL,
                    autocor_formula = NULL,
                    family = gaussian(),
@@ -1621,24 +1881,24 @@ bsitar <- function(x,
                    multivariate = list(mvar = FALSE,
                                        cor = un,
                                        rescor = TRUE),
-                   a_prior_beta = student_t(3, ymean, ysd, autoscale = TRUE),
-                   b_prior_beta = student_t(3, 0, 3.5, autoscale = FALSE),
-                   c_prior_beta = student_t(3, 0, 1.5, autoscale = FALSE),
-                   d_prior_beta = student_t(3, 0, 1.0, autoscale = TRUE),
-                   s_prior_beta = student_t(3, 0, lm, autoscale = TRUE),
-                   a_cov_prior_beta = student_t(3, 0, 5.0, autoscale = FALSE),
-                   b_cov_prior_beta = student_t(3, 0, 1.0, autoscale = FALSE),
-                   c_cov_prior_beta = student_t(3, 0, 0.1, autoscale = FALSE),
-                   d_cov_prior_beta = student_t(3, 0, 1.0, autoscale = FALSE),
-                   s_cov_prior_beta = student_t(3, 0, 10.0, autoscale = FALSE),
-                   a_prior_sd = student_t(3, 0, ysd, autoscale = TRUE),
-                   b_prior_sd = student_t(3, 0, 2.0, autoscale = FALSE),
-                   c_prior_sd = student_t(3, 0, 1.25, autoscale = FALSE),
-                   d_prior_sd = student_t(3, 0, 1.0, autoscale = TRUE),
-                   a_cov_prior_sd = student_t(3, 0, 5.0, autoscale = FALSE),
-                   b_cov_prior_sd = student_t(3, 0, 1.0, autoscale = FALSE),
-                   c_cov_prior_sd = student_t(3, 0, 0.1, autoscale = FALSE),
-                   d_cov_prior_sd = student_t(3, 0, 1.0, autoscale = FALSE),
+                   a_prior_beta = normal(lm, ysd, autoscale = TRUE),
+                   b_prior_beta = normal(0, 1.5, autoscale = FALSE),
+                   c_prior_beta = normal(0, 0.5, autoscale = FALSE),
+                   d_prior_beta = normal(0, 1.0, autoscale = TRUE),
+                   s_prior_beta = normal(lm, lm, autoscale = TRUE),
+                   a_cov_prior_beta = normal(0, 5.0, autoscale = FALSE),
+                   b_cov_prior_beta = normal(0, 1.0, autoscale = FALSE),
+                   c_cov_prior_beta = normal(0, 0.1, autoscale = FALSE),
+                   d_cov_prior_beta = normal(0, 1.0, autoscale = FALSE),
+                   s_cov_prior_beta = normal(lm, lm, autoscale = TRUE),
+                   a_prior_sd = normal(0, ysd, autoscale = FALSE),
+                   b_prior_sd = normal(0, 1.0, autoscale = FALSE),
+                   c_prior_sd = normal(0, 0.25, autoscale = FALSE),
+                   d_prior_sd = normal(0, 1.0, autoscale = TRUE),
+                   a_cov_prior_sd = normal(0, 5.0, autoscale = FALSE),
+                   b_cov_prior_sd = normal(0, 1.0, autoscale = FALSE),
+                   c_cov_prior_sd = normal(0, 0.1, autoscale = FALSE),
+                   d_cov_prior_sd = normal(0, 1.0, autoscale = FALSE),
                    a_prior_sd_str = NULL,
                    b_prior_sd_str = NULL,
                    c_prior_sd_str = NULL,
@@ -1647,15 +1907,15 @@ bsitar <- function(x,
                    b_cov_prior_sd_str = NULL,
                    c_cov_prior_sd_str = NULL,
                    d_cov_prior_sd_str = NULL,
-                   sigma_prior_beta = student_t(3, 0, 1, autoscale = FALSE),
-                   sigma_cov_prior_beta = student_t(3, 0, 0.5, autoscale = FALSE),
-                   sigma_prior_sd = student_t(3, 0, 0.25, autoscale = FALSE),
-                   sigma_cov_prior_sd = student_t(3, 0, 0.15, autoscale = FALSE),
+                   sigma_prior_beta = normal(0, 1, autoscale = FALSE),
+                   sigma_cov_prior_beta = normal(0, 0.5, autoscale = FALSE),
+                   sigma_prior_sd = normal(0, 0.25, autoscale = FALSE),
+                   sigma_cov_prior_sd = normal(0, 0.15, autoscale = FALSE),
                    sigma_prior_sd_str = NULL,
                    sigma_cov_prior_sd_str = NULL,
-                   rsd_prior_sigma = exponential(ysd, autoscale = TRUE),
-                   dpar_prior_sigma = student_t(3, 0, ysd, autoscale = TRUE),
-                   dpar_cov_prior_sigma = student_t(3, 0, 1, autoscale = FALSE),
+                   rsd_prior_sigma = normal(0, ysd, autoscale = FALSE),
+                   dpar_prior_sigma = normal(0, ysd, autoscale = FALSE),
+                   dpar_cov_prior_sigma = normal(0, 1, autoscale = FALSE),
                    autocor_prior_acor = uniform(-1, 1, autoscale = FALSE),
                    autocor_prior_unstr_acor = lkj(1),
                    gr_prior_cor = lkj(1),
@@ -1668,13 +1928,13 @@ bsitar <- function(x,
                    a_init_beta = lm,
                    b_init_beta = 0,
                    c_init_beta = 0,
-                   d_init_beta = 0,
+                   d_init_beta = random,
                    s_init_beta = lm,
-                   a_cov_init_beta = 0,
-                   b_cov_init_beta = 0,
-                   c_cov_init_beta = 0,
-                   d_cov_init_beta = 0,
-                   s_cov_init_beta = lm,
+                   a_cov_init_beta = random,
+                   b_cov_init_beta = random,
+                   c_cov_init_beta = random,
+                   d_cov_init_beta = random,
+                   s_cov_init_beta = random,
                    a_init_sd = random,
                    b_init_sd = random,
                    c_init_sd = random,
@@ -1696,7 +1956,7 @@ bsitar <- function(x,
                    autocor_init_unstr_acor = random,
                    mvr_init_rescor = random,
                    r_init_z = random,
-                   vcov_init_0 = TRUE,
+                   vcov_init_0 = FALSE,
                    jitter_init_beta = NULL,
                    jitter_init_sd = NULL,
                    jitter_init_cor = NULL,
@@ -1714,6 +1974,7 @@ bsitar <- function(x,
                    get_init_eval = FALSE,
                    validate_priors = FALSE,
                    set_self_priors = NULL,
+                   add_self_priors = NULL,
                    set_replace_priors = NULL,
                    set_same_priors_hierarchy = FALSE,
                    outliers = NULL, 
@@ -1729,6 +1990,10 @@ bsitar <- function(x,
                    normalize = getOption("brms.normalize", TRUE),
                    algorithm = getOption("brms.algorithm", "sampling"),
                    control = list(adapt_delta = 0.8, max_treedepth = 15),
+                   empty = FALSE,
+                   rename = TRUE,
+                   pathfinder_args = NULL,
+                   pathfinder_init = FALSE,
                    sample_prior = "no",
                    save_pars = NULL,
                    drop_unused_levels = TRUE,
@@ -1745,7 +2010,19 @@ bsitar <- function(x,
                    parameterization = 'ncp',
                    ...) {
   
-  mcall <- mcall_ <- match.call()
+  # Note
+  # Need to work on data argument when using 'sigma_formula_manual' via nlf/lf
+  # This is to deal with how 'data' be prepared, used, and stored
+  # This is needed to set up separate x for mu and sigma
+  # some work done on 20.09.2024
+  # The specific areas to look further for are:
+  # 'prepare_data' 'data.org.in' 'sigmaxsi' 'setsigma_formula_manual'
+  
+  
+  
+  mcall <- match.call()
+  
+  mcall <- mcall_ <- mcall_dictionary(mcall, envir = NULL, xenvir = NULL)
   
   newcall_checks <- c('threads', 'save_pars')
   
@@ -1764,16 +2041,19 @@ bsitar <- function(x,
         mcall[[set_name_uns]] <- dots_allias[[set_name_dot]]
       } else if (!eval(bquote(missing(.(set_name_uns)))) ) { 
         err_msg <- paste0("both '", set_name_uns, "' and '" , 
-                          set_name_dot, "' found, ignoring '",set_name_dot, "'")
+                          set_name_dot, "' found, ignoring '",
+                          set_name_dot, "'")
         if(verbose) warning(err_msg)
       }
     }
   }
   
+  # These must be removed to avoid conflict with 'brms' dot arguments
   for (collect_dot_namesi in collect_dot_names) {
     if(!is.null(mcall[[collect_dot_namesi]])) 
       mcall[[collect_dot_namesi]] <- NULL
   }
+  
   
   # Check and set Alias argument for d_adjusted (SITAR)
   collect_dot_names <- c()
@@ -1786,12 +2066,14 @@ bsitar <- function(x,
         mcall[[set_name_uns]] <- dots_allias[[set_name_dot]]
       } else if (!eval(bquote(missing(.(set_name_uns)))) ) { 
         err_msg <- paste0("both '", set_name_uns, "' and '" , 
-                          set_name_dot, "' found, ignoring '",set_name_dot, "'")
+                          set_name_dot, "' found, ignoring '",
+                          set_name_dot, "'")
         if(verbose) warning(err_msg)
       }
     }
   }
   
+  # These must be remove to avoid conflict with brms dot arguments
   for (collect_dot_namesi in collect_dot_names) {
     if(!is.null(mcall[[collect_dot_namesi]])) 
       mcall[[collect_dot_namesi]] <- NULL
@@ -1800,19 +2082,18 @@ bsitar <- function(x,
   # Clear alias argument for formula and adjusted
   rm(dots_allias)
   
-  
   mcall <- mcall_ <- mcall
   
   no_default_args <- c("x", "y", "id", "data", "...")
   
   # Problem with rethinking occurs during the expose_model_function
   if("rethinking" %in% (.packages())){
-    message("Package 'rethinking' detached and unloaded as it creates conflict",
+    message("Package 'rethinking' detached and unloaded ato avoid conflict",
             " \nwith the rstan version ", utils::packageVersion('rstan'))
     detach("package:rethinking", unload=TRUE) 
   }
- 
-  if(utils::packageVersion('rstan') < 2.26) {
+  
+  if(utils::packageVersion('rstan') < "2.26") {
     if(expose_function) stop("Argument 'expose_function' not allowed ",
                              "for this rstan version ",
                              utils::packageVersion('rstan'))
@@ -1850,7 +2131,8 @@ bsitar <- function(x,
        }
        temp_init_call_c <- gsub("[[:space:]]", "", temp_init_call_c)
        temp_init_call_c <- paste0("list(", 
-                                  paste(temp_init_call_c, collapse = ",") , ")")
+                                  paste(temp_init_call_c, 
+                                        collapse = ",") , ")")
        temp_init_call_c <- str2lang(temp_init_call_c)
      } else if(is.symbol(temp_init_call_in)) { 
        temp_init_call_c <- deparse(substitute(temp_init_call_c))
@@ -2062,41 +2344,28 @@ bsitar <- function(x,
   onepic <- NULL;
   temp1 <- NULL;
   temp2 <- NULL;
-  
-  
-  # override but check using 'log_and_divide' to see if  'err.' correctly 
-  # assigned and not passed to the outer .G environment 
-  # Seems enverr. <- environment() works fine
-  # Note that same 'enverr.' is passed to the model_info
-  
+  sigma_formula_manualsi <- NULL;
+  sigmaxsi <- NULL;
+  sigmadfsi <- NULL;
+  sigmaknotssi <- NULL;
+  sigmafixedsi <- NULL;
+  sigmarandomsi <- NULL;
+  sigmaxoffsetsi <- NULL;
+  sigmaxfunsi <- NULL;
+  sigmaboundsi <- NULL;
+  sigmabstartsi <- NULL;
+  sigmacstartsi <- NULL;
+  sigmaids <- NULL;
+  sigmaxoffset <- NULL;
+  sigmadfs <- NULL;
+  ixfuntransformsi <- NULL;
+  iyfuntransformsi <- NULL;
+  isigmaxfuntransformsi <- NULL;
+  nsp <- NULL;
+  nsk <- NULL;
+  rcs <- NULL;
 
   enverr. <- environment()
-  
-  # assign('err.', FALSE, envir = enverr.)
-  # log_and_divide <- function(x, y){
-  #   tryCatch(
-  #     {
-  #       result = log(x) / y
-  #       return(result)
-  #     },
-  #     error=function(e) {
-  #       assign('err.', TRUE, envir = enverr.)
-  #       message('An Error Occurred')
-  #       
-  #     },
-  #     warning=function(w) {
-  #       message('A Warning Occurred')
-  #       
-  #       return(NA)
-  #     }
-  #   )
-  # }
-  # print(err.)
-  # log_and_divide(10)
-  # print(err.)
-  
-  
-  
   for (i in names(mcall)[-1]) {
     no_default_args_plus_family <- c(no_default_args, "family")
     if (!i %in% no_default_args_plus_family) {
@@ -2185,7 +2454,31 @@ bsitar <- function(x,
     c(arguments, f_funx_arg[names(f_funx_arg) %!in% nf_funx_arg_names])
   
   
+  setdepar0sgub <- c("sigma_formula", 
+                     "sigma_formula_gr", 
+                     "sigma_formula_manual")
   
+  for (argumentsnamesi in names(arguments)) {
+    if(argumentsnamesi %in% setdepar0sgub) {
+      if(!is.null(arguments[[argumentsnamesi]])) {
+        if(grepl("^list", arguments[[argumentsnamesi]] )[1]) {
+          argumentsnamesi_li <- as.list(arguments[[argumentsnamesi]])
+          argumentsnamesi_li <- argumentsnamesi_li[-1]
+          argumentsnamesi_c_list <- list()
+          for (ixz in 1:length(argumentsnamesi_li)) {
+            argumentsnamesi_c_list[[ixz]] <- argumentsnamesi_li[[ixz]] %>% 
+              deparse_0() %>% gsub_space()
+          }
+          arguments[[argumentsnamesi]] <- argumentsnamesi_c_list %>% unlist()
+        } else {
+          arguments[[argumentsnamesi]] <- arguments[[argumentsnamesi]] %>% 
+            deparse_0() %>% gsub_space()
+        }
+      }
+    }
+  }
+  
+
   familyzzzx <- arguments$family
   if(grepl("^c\\(", deparse_0(familyzzzx), fixed = F)) {
     stop("Argument family should be a list() and not a vector 'c()'")
@@ -2212,11 +2505,18 @@ bsitar <- function(x,
   }
   
   
+  checks_start_names <- c('sigmabstart', 'sigmacstart')
+  for (checks_start_namesi in checks_start_names) {
+    if(checks_start_namesi %in% names(mcall_)) {
+      if(is.null(mcall_[[checks_start_namesi]])) {
+        arguments[[checks_start_namesi]] <- 'NULL'
+      }
+    }
+  }
   
   
   # Override when restricting to abcd
   override_select_model <- TRUE # FALSE
-  
   if(override_select_model) arguments$select_model <- select_model <- 'sitar'
   
   # Override when restricting to rcs
@@ -2264,22 +2564,383 @@ bsitar <- function(x,
     }
     select_model <- 'rcs'
   }
-    
-  match_sitar_d_form <- FALSE
-  if(grepl('sitar4', select_model)) {
-    if(select_model == 'sitar4fr') match_sitar_d_form <- FALSE
-    if(select_model == 'sitar4f')  match_sitar_d_form <- FALSE
-    if(select_model == 'sitar4r')  match_sitar_d_form <- TRUE
-    if(select_model == 'sitar4')   match_sitar_d_form <- FALSE
-    sitar_nparms <- 4
-    select_model <- 'sitar'
-  } else if(select_model == 'sitar') {
-    sitar_nparms <- 3
-    select_model <- 'sitar'
-    match_sitar_d_form <- FALSE
+  
+  
+  # For ns() based SITAR, a intercept is matched if rcs based s1 is adjusted as
+  # A=a-(s1*min(knots))
+  # We keeping same form for mu (match_sitar_a_form = TRUE) but not for sigma
+  # Note below that these can be controlled via ... dots
+  
+  
+  # 24.08.2024
+  getdotslist <- list(...)
+  
+  # spline types supported are 'rcs', 'nsp' and 'nsk'
+  # The argument . is exposed that allows setting spline type as string 
+  # However for developmental purposes, an additional option is allowed that 
+  # pass a named list ('smat') via ... that allows a more elaborate control on 
+  # various aspects of splines. These are currently tested and will be exposed
+  # later. These are 
+  # 1. type - a character tring to set spline type i.e, rcs, nsp and nsk
+  # 2. normalize - a logical (T/F) to specify to normalize H matrix
+  # 3. centerval -a real number to center the intercept a given value
+  # 4. intercept -a logical (T/F) to specify whether or not to return matrix 
+  # with intercept
+  # 5. preH - a logical (T/F) to use precomputed H matrix to compute within 
+  # the function 
+  # 6. include - a logical (T/F) to indicate if .stan splines be included 
+  # via '#include' or 
+  # read it and include as it is in the function block 
+  
+  
+  allowed_spline_type <- c('rcs', 'nsp', 'nsk')
+  allowed_spline_type_exception_msg <- 
+    paste("The options available are:", 
+          paste(paste(paste0("'", allowed_spline_type, "'"), collapse =", "), 
+                collapse =", ")
+    )
+  
+
+  
+  stype_temp_str <- deparse(substitute(stype))
+  if(grepl("^list\\(", stype_temp_str)) {
+    # stype[[1]] <- deparse(substitute(stype[[1]]))
+    # stype[[1]] <- gsub("\"", "", stype[[1]])
+    stype <- stype
   } else {
-    match_sitar_d_form <- FALSE
+    stype <- stype_temp_str
+    stype <- gsub("\"", "", stype)
   }
+  
+
+  spline_type_via_stype <- FALSE
+  if(!is.null(getdotslist[['smat']])) {
+    spline_type <- getdotslist[['smat']]
+  } else {
+    spline_type <- stype
+    spline_type_via_stype <- TRUE
+  } 
+  
+  if(any(spline_type == "NULL")) {
+    spline_type_via_stype <- FALSE
+  }
+  
+  if(is.null(getdotslist[['smat']]) & !spline_type_via_stype) {
+    spline_type <- 'rcs'
+    # if(verbose) message("'rcs' set as default spline type")
+  }
+    
+
+  # Only expose type and normalize for stype 
+  allowed_spline_type_list_names_c <- c('type', 
+                                        # 'intercept', 
+                                        # 'centerval', 
+                                        # 'preH',
+                                        # 'include',
+                                        'normalize')
+  
+  allowed_spline_type_list_names_msg <- 
+    paste("argument 'spline_type' must be a named list, allowed names are:\n", 
+          paste(paste(paste0("'", allowed_spline_type_list_names_c, "'"), 
+                      collapse =", "), 
+                collapse =", ")
+    )
+    
+    
+  spline_type_list <- list()
+  if(is.null(spline_type)) {
+    spline_type_list[['type']]        <- NULL
+    spline_type_list[['centerval']]   <- 0
+    spline_type_list[['intercept']]   <- FALSE
+    spline_type_list[['normalize']]   <- FALSE
+    spline_type_list[['derivs']]      <- FALSE
+    spline_type_list[['preH']]        <- FALSE
+    spline_type_list[['include']]     <- TRUE
+  } else if(!is.null(spline_type)) {
+    if(is.list(spline_type)) {
+      if(length(spline_type) > 0) {
+        # if only type specified and unnamed, name it
+        if(is.null(names(spline_type))) { 
+          if(length(spline_type) == 1) {
+            names(spline_type) <- 'type'
+          } else if(length(spline_type) == 2) {
+            # if only type and normalize specified and unnamed, name them
+            # This is only when spline type set via stype argument and not ...
+            if(spline_type_via_stype) {
+              names(spline_type) <- c('type', 'normalize')
+              if(verbose) message("stype arguments named as 'type', 'normalize'")
+            } else {
+              stop(allowed_spline_type_list_names_msg)
+            }
+          } else {
+            stop(allowed_spline_type_list_names_msg)
+          }
+        }
+        if(!is.null(spline_type[['type']])) {
+          if(!is.character(spline_type[['type']])) {
+            stop(paste0(spline_type[['type']], " must be a character string"))
+          } else {
+            spline_type_list[['type']] <- spline_type[['type']]
+          }
+        } else if(is.null(spline_type[['type']])) {
+          # 
+        }
+        
+        if(!is.null(spline_type[['intercept']])) {
+          if(!is.logical(as.logical(spline_type[['intercept']]))) {
+            stop(paste0(spline_type[['intercept']], 
+                        " must be logical i.e., TRUE/FALSE"))
+          } else {
+            spline_type_list[['intercept']] <- spline_type[['intercept']]
+          }
+        } else if(is.null(spline_type[['intercept']])) {
+          spline_type_list[['intercept']] <- FALSE
+        }
+        
+        if(!is.null(spline_type[['normalize']])) {
+          if(!is.logical(as.logical(spline_type[['normalize']]))) {
+            stop(paste0(spline_type[['normalize']], 
+                        " must be logical i.e., TRUE/FALSE"))
+          } else {
+            spline_type_list[['normalize']] <- spline_type[['normalize']]
+          }
+        } else if(is.null(spline_type[['normalize']])) {
+          spline_type_list[['normalize']] <- FALSE
+          if(verbose) message(paste0("'", FALSE ,
+                                     "' set as default spline normalize"))
+        }
+        
+        if(!is.null(spline_type[['derivs']])) {
+          if(!is.logical(as.logical(spline_type[['derivs']]))) {
+            stop(paste0(spline_type[['derivs']], 
+                        " must be logical i.e., TRUE/FALSE"))
+          } else {
+            spline_type_list[['derivs']] <-  spline_type[['derivs']] 
+          }
+        } else if(is.null(spline_type[['derivs']])) {
+          spline_type_list[['derivs']]    <- FALSE
+        }
+        
+        if(!is.null(spline_type[['preH']])) {
+          if(!is.logical(as.logical(spline_type[['preH']]))) {
+            stop(paste0(spline_type[['preH']], 
+                        " must be logical i.e., TRUE/FALSE"))
+          } else {
+            spline_type_list[['preH']]    <-  spline_type[['preH']] 
+          }
+        } else if(is.null(spline_type[['preH']])) {
+          spline_type_list[['preH']]    <- FALSE
+        }
+        
+        if(!is.null(spline_type[['include']])) {
+          if(!is.logical(as.logical(spline_type[['include']]))) {
+            stop(paste0(spline_type[['include']], 
+                        " must be logical i.e., TRUE/FALSE"))
+          } else {
+            spline_type_list[['include']]    <-  spline_type[['include']] 
+          }
+        } else if(is.null(spline_type[['include']])) {
+          spline_type_list[['include']]    <- TRUE
+        }
+        
+        if(!is.null(spline_type[['path']])) {
+          if(!is.character(spline_type[['path']])) {
+            stop(paste0(spline_type[['path']], " must be a character string"))
+          } else {
+            spline_type_list[['path']]    <-  spline_type[['path']] 
+          }
+        } else if(is.null(spline_type[['path']])) {
+          spline_type_list[['path']]    <- NULL
+        }
+        
+        
+        if(!is.null(spline_type[['centerval']])) {
+          if(!is.numeric(spline_type[['centerval']])) {
+            stop(paste0(spline_type[['centerval']], 
+                        " must be logical i.e., TRUE/FALSE"))
+          } else {
+            spline_type_list[['centerval']] <- spline_type[['centerval']]
+          }
+        } else if(is.null(spline_type[['centerval']])) {
+          spline_type_list[['centerval']] <- 0
+        }
+        
+      } else if(length(spline_type) == 0) {
+        spline_type_list[['type']]        <- NULL
+        spline_type_list[['intercept']]   <- FALSE
+        spline_type_list[['centerval']]   <- 0
+        spline_type_list[['normalize']]   <- FALSE
+        spline_type_list[['derivs']]      <- FALSE
+        spline_type_list[['preH']]        <- FALSE
+        spline_type_list[['include']]     <- TRUE
+        spline_type_list[['path']]        <- NULL
+      } # if(length(spline_type) > 0) {
+    } else if(!is.list(spline_type)) {
+      if(is.character(spline_type)) {
+        spline_type_list[['type']]        <- spline_type
+        spline_type_list[['intercept']]   <- FALSE
+        spline_type_list[['centerval']]   <- 0
+        spline_type_list[['normalize']]   <- FALSE
+        spline_type_list[['derivs']]      <- FALSE
+        spline_type_list[['preH']]        <- FALSE
+        spline_type_list[['include']]     <- TRUE
+        spline_type_list[['path']]        <- NULL
+      } else if(!is.character(spline_type)) {
+        stop('augument spline_type must be a character string or a named list')
+      } # if(is.character(spline_type)) {
+    } # else if(!is.null(spline_type)) {
+  } # if(is.null(spline_type)) {
+  
+  
+  
+  smat <- spline_type_list[['type']] 
+  
+   # This to check spline type set using the ... smat
+   if(!smat %in% allowed_spline_type)
+     stop(paste0("The spline type must be a character string.", 
+                 "\n  ",
+                 allowed_spline_type_exception_msg)
+     )
+
+  if(smat == 'rcs') {
+    
+  } else if(smat == 'ns') {
+    getdotslist[['match_sitar_a_form']] <- match_sitar_a_form <- FALSE
+  } else if(smat == 'nsp') {
+    getdotslist[['match_sitar_a_form']] <- match_sitar_a_form <- FALSE
+  } else if(smat == 'nsk') {
+    getdotslist[['match_sitar_a_form']] <- match_sitar_a_form <- FALSE
+  }
+  
+  
+  
+  if((smat == 'nsp' | smat == 'nsk') & spline_type_via_stype) {
+    smat_intercept    <- as.integer(spline_type_list[['intercept']])
+    smat_centerval    <- as.numeric(spline_type_list[['centerval']])
+    smat_normalize    <- as.integer(spline_type_list[['normalize']])
+    smat_derivs       <- as.integer(spline_type_list[['derivs']])
+    smat_preH         <- as.integer(spline_type_list[['preH']])
+    smat_include_stan <- as.integer(spline_type_list[['include']])
+    smat_include_path <- spline_type_list[['path']]
+    SplinefunxPre  <- 'GS'
+    Splinefunxsuf  <- '_call'
+    SplinefunxR    <- paste0(SplinefunxPre, "_", smat, Splinefunxsuf)
+    SplinefunxStan <- paste0(SplinefunxR, "_", 'stan')
+    # when spline type set via 'stype', set normalize = F & include T
+  } else if((smat == 'nsp' | smat == 'nsk') & !spline_type_via_stype) {
+    smat_intercept <- 0
+    smat_centerval <- 0
+    smat_normalize <- as.integer(spline_type_list[['normalize']])
+    smat_derivs    <- 0
+    smat_preH      <- 0
+    smat_include_stan <- 0
+    smat_include_path <- NULL
+    SplinefunxPre  <- 'GS'
+    Splinefunxsuf  <- '_call'
+    SplinefunxR    <- paste0(SplinefunxPre, "_", smat, Splinefunxsuf)
+    SplinefunxStan <- paste0(SplinefunxR, "_", 'stan')
+  } else if(smat == 'rcs') { # placeholder to assign these values to envir 
+    smat_intercept <- 0
+    smat_centerval <- 0
+    smat_normalize <- 0
+    smat_derivs    <- 0
+    smat_preH      <- 0
+    smat_include_stan <- 0
+    smat_include_path <- NULL
+    SplinefunxPre  <- NULL
+    Splinefunxsuf  <- NULL
+    SplinefunxR    <- NULL
+    SplinefunxStan <- NULL
+  } else {
+    # allow further checks - for later use
+  }
+   
+  # TODO work on smat_preH smat_include_stan to male them compatible
+  
+  # 'smat_preH' is not allowed because adding two #include does not
+  # work in package
+  # Hence preH is added to main .stan files 
+  # i.e., over riding smat = list(preH = 1)
+  if(smat_preH == 1) {
+    # stop("Please set preH = 0")
+    smat_preH <- 0
+   # if(verbose) message("'preH' is set to '0'")
+  }
+  
+  # 'smat_include_stan' is also not working i.e., even single #include also not
+  # working in package
+  # Hence 'smat_include_stan' is set to 0 and will be pasted to .stan files
+  # i.e., over riding smat = list(smat_include_stan = 1)
+  if(smat_include_stan == 1) {
+    # stop("Please set smat_include_stan = 0")
+    smat_include_stan <- 0
+   # if(verbose) message("'smat_include_stan' is set to '0'")
+  }
+ 
+   
+   if(verbose) {
+     message(paste0("setting spline type as '", smat, "'"))
+     if(smat != "rcs") {
+       message(paste0("setting intercept for spline type '",
+                      spline_type_list[['type']], "' as: ", smat_intercept))
+       message(paste0("setting normalize for spline type '",
+                      spline_type_list[['type']], "' as: ", smat_normalize))
+       message(paste0("setting centerval for spline type '",
+                      spline_type_list[['type']], "' as: ", smat_centerval))
+     }
+   }
+   
+
+  # 24.08.2024
+  if(is.null(getdotslist[['match_sitar_a_form']])) {
+    match_sitar_a_form <- TRUE
+  } else {
+    match_sitar_a_form <- getdotslist[['match_sitar_a_form']]
+  }
+  
+  
+  # 24.08.2024
+  if(is.null(getdotslist[['sigmamatch_sitar_a_form']])) {
+    sigmamatch_sitar_a_form <- FALSE
+  } else {
+    sigmamatch_sitar_a_form <- getdotslist[['sigmamatch_sitar_a_form']]
+  }
+  
+  
+  
+  # 24.08.2024
+  if(is.null(getdotslist[['sigmad_adjusted']])) {
+    sigmad_adjusted <- FALSE
+  } else {
+    sigmad_adjusted <- getdotslist[['sigmad_adjusted']]
+  }
+  
+  # 24.08.2024
+  if(is.null(getdotslist[['match_sitar_d_form']])) { 
+    match_sitar_d_form <- FALSE
+    if(grepl('sitar4', select_model)) {
+      if(select_model == 'sitar4fr') match_sitar_d_form <- FALSE
+      if(select_model == 'sitar4f')  match_sitar_d_form <- FALSE
+      if(select_model == 'sitar4r')  match_sitar_d_form <- TRUE
+      if(select_model == 'sitar4')   match_sitar_d_form <- FALSE
+      sitar_nparms <- 4
+      select_model <- 'sitar'
+    } else if(select_model == 'sitar') {
+      sitar_nparms <- 3
+      select_model <- 'sitar'
+      match_sitar_d_form <- FALSE
+    } else {
+      match_sitar_d_form <- FALSE
+    }
+  } else {
+    if(select_model == 'sitar4r')  {
+      match_sitar_d_form <- getdotslist[['match_sitar_d_form']]
+    } else {
+      if(getdotslist[['match_sitar_d_form']])
+        stop("match_sitar_d_form = TRUE only allowed for sitar model 'sitar4r'")
+    }
+  }
+  
   
  
   sitar_models    <- c('sitar', 'sitar3', 'sitar4', 
@@ -2351,6 +3012,8 @@ bsitar <- function(x,
       'normalize',
       'algorithm',
       'control',
+      'empty',
+      'rename',
       'sample_prior',
       'save_pars',
       'drop_unused_levels',
@@ -2387,6 +3050,36 @@ bsitar <- function(x,
   
   brms_arguments <- mget(brms_arguments_list)
   
+  # Set path for s files
+  if(smat == 'nsp' | smat == 'nsk') {
+    if(smat_include_stan) {
+      if(is.null(brms_arguments$stan_model_args)) {
+        brms_arguments$stan_model_args <- list()
+        brms_arguments$stan_model_args[['include_paths']] <- "."
+        if(verbose) 
+          message("path for .stan file(s) set to '.' via 'stan_model_args'")
+      } else if(!is.null(brms_arguments$stan_model_args)) {
+        if(is.list(brms_arguments$stan_model_args)) {
+          if(is.null(brms_arguments$stan_model_args[['include_paths']])) {
+            brms_arguments$stan_model_args[['include_paths']] <- "."
+            if(verbose) 
+              message("path for .stan file(s) set to '.' via 'stan_model_args'")
+          }
+        }
+      } # if(is.null(brms_arguments$stan_model_args)) {
+    } # if(smat_include_stan) {
+  } # if(smat == 'nsp' | smat == 'nsk') {
+
+  
+  if(smat == 'nsp' | smat == 'nsk') {
+    if(smat_include_stan) {
+      if(is.null( brms_arguments$stan_model_args[['include_paths']])) {
+        stop("Please specify path for .stan file(s) via 'stan_model_args'")
+      }
+    }
+  }
+  
+  
   if (eval(brms_arguments$backend) != "rstan" &
       eval(brms_arguments$backend) != "mock" &
       eval(brms_arguments$backend) != "cmdstanr") {
@@ -2397,30 +3090,27 @@ bsitar <- function(x,
   }
   
   
+  if(is.null(getdotslist[['displayit']])) { 
+    displayit <- 'col'
+  } else {
+    displayit <- getdotslist[['displayit']]
+  }
   
   
-  # threads_check <- brms_arguments$threads
-  # threads_check <- deparse(substitute(threads_check))
-  # if( grepl('threading', threads_check) &
-  #     !grepl('brms::', threads_check)) {
-  #   threads_check <- paste0('brms::', threads_check)
-  # } else if( grepl('threading', threads_check) &
-  #            grepl('brms::', threads_check)) {
-  #   threads_check <- threading
-  # } else if(!grepl('threading', threads_check)) {
-  #   # stop("Argument threads should be specified as brmsfamily(threading,...)")
-  # }
-  # threads_check <- threads_check
+  if(is.null(getdotslist[['setcolh']])) { 
+    setcolh <- 47
+  } else {
+    setcolh <- getdotslist[['setcolh']]
+  }
+  
+  
+  if(is.null(getdotslist[['setcolb']])) { 
+    setcolb <- 3
+  } else {
+    setcolb <- getdotslist[['setcolb']]
+  }
+  
  
-  
-  
-  
-  
-  
-  displayit <- 'col'
-  setcolh   <- 47 
-  setcolb   <- 3
-  
   # Quote unquoted character (e.g., sex to 'sex')
   list_to_quoted_if_not <- function(x) {
     splitmvar <- x
@@ -2451,7 +3141,8 @@ bsitar <- function(x,
       majors2 <- gsub("\"", "", majors2)
       majors3 <- paste0("\"", majors2, "\"")
       if (gsubs_c_counter == 1) {
-        splitmvar2 <- gsub(noquote(majors2), majors3, splitmvar, fixed = F)
+        splitmvar2 <- gsub(noquote(majors2), majors3, 
+                           splitmvar, fixed = F)
       } else {
         # splitmvar2 <- gsub(noquote(majors2), majors3, splitmvar2, fixed = F)
         splitmvar2 <- gsub(paste0('\\<', noquote(majors2), '\\>'), majors3, 
@@ -2476,10 +3167,9 @@ bsitar <- function(x,
       )
       err. <- get('err.', envir = enverr.)
       if (!err.) {
-        # if brms::brmsfamily(family), eval eliminates family 16 1 24
+        # if brms::brmsfamily(family), eval eliminates family 16 1. 2024
         if(z != "family") c_c_ <- eval(parse(text = zzz[[z]]))
         if(z == "family") c_c_ <- zzz[[z]] 
-        # c_c_ <- eval(parse(text = zzz[[z]]))
         checkclass <- class(c_c_)
         if (checkclass == "NULL")
           checkclass_ <- NULL
@@ -2878,7 +3568,6 @@ bsitar <- function(x,
          " denoting the group idetifier")
   }
   
-
   
   # Set up sigma_group_arg arguments 
   if (!paste(deparse(substitute(sigma_group_arg)), collapse = "") == "NULL"  &
@@ -3001,9 +3690,8 @@ bsitar <- function(x,
                              deparse(substitute(sigma_group_arg)),
                              collapse = ""
                            )), ",")[[1]]) > 1) {
-    ttt <-
-      gsub("\\s", "", paste(deparse(substitute(sigma_group_arg)), 
-                            collapse = ""))
+    ttt <- gsub("\\s", "", paste(deparse(substitute(sigma_group_arg)), 
+                                 collapse = ""))
     sigma_group_arg <- list_to_quoted_if_not(ttt)
   }
   if (length(sigma_group_arg) == 0) {
@@ -3133,8 +3821,6 @@ bsitar <- function(x,
     if (is.null(univariate_by$terms))
       univariate_by$terms <- "subset"
   }
-  
-  
   
   
   
@@ -3334,6 +4020,7 @@ bsitar <- function(x,
     "validate_priors",
     "get_init_eval",
     "set_self_priors",
+    "add_self_priors",
     "set_replace_priors",
     "set_same_priors_hierarchy",
     "outliers",
@@ -3342,6 +4029,8 @@ bsitar <- function(x,
     "parameterization",
     "custom_family",
     "custom_stanvars",
+    'pathfinder_args',
+    'pathfinder_init',
     "..."
   )
   
@@ -3392,6 +4081,10 @@ bsitar <- function(x,
     yfuns <- rep('NULL', length(ys))
   }
   
+  
+  if(is.list(sigmaxfuns) & length(sigmaxfuns) == 0) {
+    sigmaxfuns <- rep('NULL', length(ys))
+  }
 
   if(!is.null(outliers)) {
     if(is.null(outliers$remove))    outliers$remove <- TRUE
@@ -3402,6 +4095,8 @@ bsitar <- function(x,
     if(is.null(outliers$linearise)) outliers$linearise <- FALSE
     if(is.null(outliers$verbose))   outliers$verbose <- FALSE
   }
+  
+  
   
   data.org.in <- data
   uvarby <- NULL
@@ -3414,7 +4109,8 @@ bsitar <- function(x,
                        xfuns = xfuns, 
                        yfuns = yfuns,
                        outliers = outliers,
-                       subset = FALSE)
+                       subset = FALSE,
+                       envir = enverr.)
   
   ys <- attr(data, "ys")
   subindicators <- attr(data, "subindicators")
@@ -3479,6 +4175,35 @@ bsitar <- function(x,
   
   d_adjustedvaluelist <- d_adjustednamelist <- funlist
   
+  
+  ####
+  sigmaspfncname_c <- c()
+  sigmaspfun_collect <- funlist
+  
+  sigmafunlist_r <- sigmafunlist_rnamelist <- sigmafunlist_rvaluelist <- list()
+  
+  sigmafunlist <- funlist
+  sigmafunlist_r <- funlist_r
+  sigmagq_funs <- gq_funs
+  
+  sigmaxfunvaluelist <- sigmaxfunnamelist <- funlist
+  sigmaxxfunvaluelist <- sigmaxxfunnamelist <- funlist
+  sigmafixedvaluelist <- sigmafixednamelist <- funlist
+  sigmarandomvaluelist <- sigmarandomnamelist <- sigmagroupvarvaluelist <- funlist
+  
+  sigmad_adjustedvaluelist <- sigmad_adjustednamelist <- funlist
+  
+  xfuntransformvaluelist <- xfuntransformnamelist <- funlist
+  ixfuntransformvaluelist <- ixfuntransformnamelist <- funlist
+  
+  yfuntransformvaluelist <- yfuntransformnamelist <- funlist
+  iyfuntransformvaluelist <- iyfuntransformnamelist <- funlist
+  
+  sigmaxfuntransformvaluelist <- sigmaxfuntransformnamelist <- funlist
+  isigmaxfuntransformvaluelist <- isigmaxfuntransformnamelist <- funlist
+ 
+  
+  
   # Start loop over response
   for (ii in 1:length(ys)) {
     if (nys > 1)
@@ -3495,9 +4220,11 @@ bsitar <- function(x,
     }
     
     
-    if (is.null(group_arg$groupvar))
-       group_arg$groupvar <- idsi
-    
+    if (is.null(group_arg$groupvar)) {
+      group_arg$groupvar <- idsi
+    }
+      
+   
     
     if (is.null(sigma_group_arg$groupvar))
       sigma_group_arg$groupvar <- idsi
@@ -3507,8 +4234,28 @@ bsitar <- function(x,
       stop("either df or knots must be specified")
     }
     if (is.numeric(ept(dfsi)) & is.numeric(ept(knotssi))) {
-      stop("both df and knots specified. Specify one of them\n")
+      # stop("both df and knots specified. Specify one of them\n")
+      dfsi <- 'NULL'
+      if(verbose) {
+        message("The user specified knots are used, hence",
+                " the df argument ignored")
+      }
     }
+    
+    
+    
+    if (!is.numeric(ept(sigmadfsi)) & !is.numeric(ept(sigmaknotssi))) {
+      stop("either df or knots must be specified for sigma")
+    }
+    if (is.numeric(ept(sigmadfsi)) & is.numeric(ept(sigmaknotssi))) {
+      # stop("both df and knots specified. Specify one of them\n")
+      dfsi <- 'NULL'
+      if(verbose) {
+        message("The user specified knots are used for sigma, hence",
+                " the df argument ignored")
+      }
+    }
+    
     
     
 
@@ -3682,7 +4429,6 @@ bsitar <- function(x,
     
     
     # Model specific number of fixed and random parameters
-    
     allowed_parm_letters <- NULL
     if(select_model == 'sitar') allowed_parm_letters <- letters[1:sitar_nparms]
     if(select_model == 'pb1')   allowed_parm_letters <- letters[1:5]
@@ -3752,8 +4498,6 @@ bsitar <- function(x,
     }
     
     
-    
-    
     if(select_model == 'rcs') {
       if(!any(grepl('s', fixedsi))) fixedsi <- paste0(fixedsi, "+", "s")
       if(!any(grepl('s', randomsi)) & rcs_add_re_spline) {
@@ -3767,9 +4511,6 @@ bsitar <- function(x,
              "Please check your 'select_model' and 'random' arguments")
       }
     }
-    
-    
-    
     
     
     # Add missing parameters to the dpar_formula
@@ -3826,7 +4567,6 @@ bsitar <- function(x,
       }
     }
     
-
     
     # Check for higher level model and update level 2 random formula
     f_checks_gr_gr_str <- function(a, b) {
@@ -4064,21 +4804,53 @@ bsitar <- function(x,
       }
     }
     
-    a_formula_grsi <- gsub("[()]", "", a_formula_grsi)
-    b_formula_grsi <- gsub("[()]", "", b_formula_grsi)
-    c_formula_grsi <- gsub("[()]", "", c_formula_grsi)
-    if(!is.null(d_formula_grsi)) d_formula_grsi <- gsub("[()]", "", 
-                                                        d_formula_grsi)
-    e_formula_grsi <- gsub("[()]", "", e_formula_grsi)
-    f_formula_grsi <- gsub("[()]", "", f_formula_grsi)
-    g_formula_grsi <- gsub("[()]", "", g_formula_grsi)
-    h_formula_grsi <- gsub("[()]", "", h_formula_grsi)
-    i_formula_grsi <- gsub("[()]", "", i_formula_grsi)
-    s_formula_grsi <- gsub("[()]", "", s_formula_grsi)
     
     
-    sigma_formula_grsi <- gsub("[()]", "", sigma_formula_grsi)
- 
+    # 24.08.2024
+    gsub_paranth_formula_grsi <- function(x) {
+      if(!is.null(x)) {
+        x_formula_grsi <- x
+        strpartstrx <- strsplit(x_formula_grsi, "|", fixed = T)[[1]]
+        strpartstrx_form <- strpartstrx[1]
+        # strpartstrx_form2 <- strsplit(strpartstrx_form, "(", fixed = T)[[1]] [1]
+        # strpartstrx_form <- paste0(, collapse = "")
+        strpartstrx_form <-  gsub("~(", "~",  strpartstrx_form, fixed = T)
+        if(length(strpartstrx) > 1 ) {
+          strpartstrx_grpa <- strpartstrx[2:length(strpartstrx)]
+          strpartstrx_grpa <- gsub("[()]", "", strpartstrx_grpa)
+          strpartstrx_grpa2 <- paste0("", strpartstrx_grpa, collapse = "|")
+          x_formula_grsi <- paste0(strpartstrx_form, "|", strpartstrx_grpa2)
+        } else {
+          x_formula_grsi <- strpartstrx_form
+        }
+      } else if(is.null(x)) {
+        x_formula_grsi <- NULL
+      }
+      
+      if(!is.null(x_formula_grsi)) {
+        if(grepl("^\\(", x_formula_grsi)) {
+          x_formula_grsi <- gsub("^\\(", "", x_formula_grsi)
+        }
+      }
+      
+      x_formula_grsi
+    }
+    
+
+    a_formula_grsi <- gsub_paranth_formula_grsi(a_formula_grsi)
+    b_formula_grsi <- gsub_paranth_formula_grsi(b_formula_grsi)
+    c_formula_grsi <- gsub_paranth_formula_grsi(c_formula_grsi)
+    if(!is.null(d_formula_grsi))  d_formula_grsi <- 
+      gsub_paranth_formula_grsi(d_formula_grsi)
+    e_formula_grsi <- gsub_paranth_formula_grsi(e_formula_grsi)
+    f_formula_grsi <- gsub_paranth_formula_grsi(f_formula_grsi)
+    g_formula_grsi <- gsub_paranth_formula_grsi(g_formula_grsi)
+    h_formula_grsi <- gsub_paranth_formula_grsi(h_formula_grsi)
+    i_formula_grsi <- gsub_paranth_formula_grsi(i_formula_grsi)
+    
+    sigma_formula_grsi <- gsub_paranth_formula_grsi(sigma_formula_grsi)
+    
+    
     set_higher_levels <- TRUE
     if(is.null(a_fcgs_out) & 
        is.null(b_fcgs_out) & 
@@ -4258,6 +5030,50 @@ bsitar <- function(x,
 
     N_J_all <- length(unique(data[[idsi]]))
     
+    
+    ##########################
+    setsigma_formula_manual <- FALSE
+    if (is.null(sigma_formula_manualsi[[1]][1])) {
+      setsigma_formula_manual <- FALSE
+    } else if(sigma_formula_manualsi == "NULL") {
+      setsigma_formula_manual <- FALSE
+    } else {
+      setsigma_formula_manual <- TRUE
+    }
+    
+    
+    # 20.09.2024
+    if (!is.null(sigmaxsi[[1]][1]) & sigmaxsi != "NULL") {
+      if(identical(sigmaxsi, xsi)) {
+        if(verbose) {
+          message("Since both ", sigmaxsi, " and ", xsi, " are identical, ",
+                  "\n ", 
+                  "the ", sigmaxsi, " has been renamed as ", 
+                  paste0("sigma", xsi)
+          )
+        }
+        sigmaxsi <- paste0("sigma", xsi)
+      } else {
+        sigmaxsi <- sigmaxsi
+      }
+      data[[sigmaxsi]] <- data[[xsi]]
+    } 
+    
+    # Even if not modelling location scale model, create data[[sigmaxsi]]
+    # Need to thing how to shut it off compleletely
+    if (is.null(sigmaxsi[[1]][1]) | sigmaxsi == "NULL") {
+      sigmaxsi <- paste0("sigma", xsi) 
+      # if(verbose) {
+      #   message("The predictor for distrubutional parameter (i.e., sigma) is set same as mu i.e, ", xsi, ".",
+      #           "\n ", 
+      #           "However, it has been renamed as ", 
+      #           paste0("sigma", xsi)
+      #   )
+      # }
+      data[[sigmaxsi]] <- data[[xsi]]
+    }
+
+    
     if (!(is.na(univariate_by$by) | univariate_by$by == "NA")) {
       sortbylayer <- NA
       data <- data %>%
@@ -4272,6 +5088,28 @@ bsitar <- function(x,
                                                   unique(!!as.name(idsi)))) %>% 
         dplyr::select(-sortbylayer)
       
+      
+      
+      # if (!is.null(sigmaxsi[[1]][1]) & sigmaxsi != "NULL") {
+      #   if(identical(sigmaxsi, xsi)) {
+      #     if(verbose) {
+      #       message("Since both ", sigmaxsi, " and ", xsi, " are identical, ",
+      #               "\n ", 
+      #               "the ", sigmaxsi, " has been renamed as ", 
+      #               paste0("sigma", xsi)
+      #               )
+      #     }
+      #     sigmaxsi <- paste0("sigma", sigmaxsi)
+      #   }
+      #   sigmaxsi <- sigmaxsi
+      #   data[[sigmaxsi]] <- data[[sigmaxsi]]
+      # } else {
+      #   sigmaxsi <- paste0("sigma", xsi) 
+      #   data[[sigmaxsi]] <- data[[xsi]]
+      #   if(verbose) message("predictor for sigma is set same as for mu")
+      # }
+      # 
+     
       
       datai <- data %>%
         dplyr::filter(eval(parse(text = subindicatorsi)) == 1) %>%
@@ -4331,50 +5169,210 @@ bsitar <- function(x,
     }
     
 
-    
     fit_edited_scode <- FALSE
     
     if(select_model == 'logistic1e' |
        select_model == 'logistic2e' |
        select_model == 'logistic3e' |
-       parameterization == 'cp'
-    ) {
-      
+       parameterization == 'cp') {
       fit_edited_scode <- TRUE
-      
     }
     
     
+    # Refactor to use function() for transformations
+    # This will allow using optimize_x = list(function(x) log(x + 3/4))
+    # Note that instead of calling log(data[[xsi]]), 'xfuntransformsi' will be used 
+   
+    # Check if xfunsi set
+    set_xfunsi <- check_if_arg_set(xfunsi)
     
-    if (!is.null(xfunsi[[1]][1]) & xfunsi != "NULL") {
-      if (xfunsi != "log" & xfunsi != "sqrt") {
-        stop("only log and sqrt options allowed for xfun argument")
-      }
+    # Note that y transformation is done within the prepare_data function,
+    # see data <- prepare_data(
+    
+    # Check if yfunsi set
+    set_yfunsi <- check_if_arg_set(yfunsi)
+    
+    # Check if sigmaxfunsi called
+    set_sigmaxfunsi <- check_if_arg_set(sigmaxfunsi)
+   
+
+    if (!set_xfunsi) {
+      xfuntransformsi <- function(x)x
+      assign('xfuntransformsi', xfuntransformsi, envir = enverr.)
     }
     
-    
-    if (!is.null(xfunsi[[1]][1]) & xfunsi != "NULL") {
-      if (xfunsi == "log") {
-        datai[[xsi]] <- log(datai[[xsi]])
-      } else if (xfunsi == "sqrt") {
-        datai[[xsi]] <- sqrt(datai[[xsi]])
+    if (set_xfunsi) {
+      if(xfunsi == "log") {
+        xfuntransformsi <- function(x)log(x)
+      } else if(xfunsi == "sqrt") {
+        xfuntransformsi <- function(x)sqrt(x)
+      } else  if(is.function(ept(xfunsi))) {
+        xfuntransformsi <- ept(xfunsi)
       } else {
-        stop("only log and sqrt options allowed for xfun argument")
+        stop(paste0("The xfun argument must be either a string ('log' or 'sqrt'),", 
+                    "\n  ",
+                    "or a function such as function(x)log(x)"))
       }
+      assign('xfuntransformsi', xfuntransformsi, envir = enverr.)
     }
     
     
-    if (!is.null(xfunsi[[1]][1]) & xfunsi != "NULL") {
+    if (!set_yfunsi) {
+      yfuntransformsi <- function(x)x
+      assign('yfuntransformsi', yfuntransformsi, envir = enverr.)
+    }
+    
+    if (set_yfunsi) {
+      if(yfunsi == "log") {
+        yfuntransformsi <- function(x)log(x)
+      } else if(yfunsi == "sqrt") {
+        yfuntransformsi <- function(x)sqrt(x)
+      } else  if(is.function(ept(yfunsi))) {
+        yfuntransformsi <- ept(yfunsi)
+      } else {
+        stop(paste0("The xfun argument must be either a string ('log' or 'sqrt'),", 
+                    "\n  ",
+                    "or a function such as function(x)log(x)"))
+      }
+      assign('yfuntransformsi', yfuntransformsi, envir = enverr.)
+    }
+    
+    
+    if (!is.null(sigmaxoffset[[1]][1]) & sigmaxoffset != "NULL") {
+      sigmaxoffset <- sigmaxoffset
+    } else {
+      sigmaxoffset <- xoffset
+      if(verbose) message("xoffset for sigma is set same as for mu")
+    }
+    
+    
+    if (!is.null(sigmaxoffsetsi[[1]][1]) & sigmaxoffsetsi != "NULL") {
+      sigmaxoffsetsi <- sigmaxoffsetsi
+    } else {
+      sigmaxoffsetsi <- xoffsetsi
+      if(verbose) message("xoffset for sigma is set same as for mu")
+    }
+    
+    
+    
+    check_for_nan_inf <- function(x) {
+      suppressWarnings({
+        nan_inf <- FALSE
+        if(is.infinite(x)) {
+          nan_inf <- TRUE
+        } else if(is.na(x)) {
+          nan_inf <- TRUE
+        } else if(is.nan(x)) {
+          nan_inf <- TRUE
+        }
+      })
+      nan_inf
+    }
+    
+    
+    datai[[xsi]] <- xfuntransformsi(datai[[xsi]])
+    
+    if(check_is_numeric_like(xoffsetsi)) {
+      zm <- as.numeric(xoffsetsi)
+      if(check_for_nan_inf(xfuntransformsi(zm))) {
+        if(verbose) message("'xoffset' value '", zm, 
+                            "' can not be transformed to", 
+                           " match the xfun based transformation of x " ,"")
+      } else {
+        xoffsetsi <- round(xfuntransformsi(zm), 2)
+        if(verbose) message("'xoffset' value '", zm, "' transformed to '", 
+                            xoffsetsi ,"'")
+      }
+      rm('zm')
+    }
+   
+    
+    if (set_xfunsi) {
       xfunvalue <- xfunsi
     } else {
       xfunvalue <- NULL
     }
     
-    if (!is.null(yfunsi[[1]][1]) & yfunsi != "NULL") {
+    if (set_yfunsi) {
       yfunvalue <- yfunsi
     } else {
       yfunvalue <- NULL
     }
+    
+  
+    if (!set_sigmaxfunsi) {
+      sigmaxfuntransformsi <- function(x)x
+      assign('sigmaxfuntransformsi', sigmaxfuntransformsi, envir = enverr.)
+    }
+    
+    
+    if (set_sigmaxfunsi) {
+      if(sigmaxfunsi == "log") {
+        sigmaxfuntransformsi <- function(x)log(x)
+      } else if(sigmaxfunsi == "sqrt") {
+        sigmaxfuntransformsi <- function(x)sqrt(x)
+      } else  if(is.function(ept(sigmaxfunsi))) {
+        sigmaxfuntransformsi <- ept(sigmaxfunsi)
+      } else {
+        stop(paste0("The xfun argument must be either 'log' or 'sqrt',", 
+                    "\n  ",
+                    "or a function such as function(x)log(x)"))
+      }
+      assign('sigmaxfuntransformsi', sigmaxfuntransformsi, envir = enverr.)
+    }
+    
+    
+    
+    if (!is.null(sigmaxfunsi[[1]][1]) & sigmaxfunsi != "NULL") {
+      datai[[sigmaxsi]] <- sigmaxfuntransformsi(datai[[sigmaxsi]])
+      if(check_is_numeric_like(sigmaxoffsetsi)) {
+        zm <- as.numeric(sigmaxoffsetsi)
+        if(check_for_nan_inf(sigmaxfuntransformsi(zm))) {
+          if(verbose) message("'sigmaxoffset' value '", zm, 
+                              "' can not be transformed to", 
+                              " match the xfun based transformation of x" ,"")
+        } else {
+          sigmaxoffsetsi <- round(sigmaxfuntransformsi(zm), 2)
+          if(verbose) message("'xoffset' value '", zm, "' transformed to '", 
+                              sigmaxoffsetsi ,"'")
+        }
+        rm('zm')
+      }
+    }
+    
+    
+    # Assign reverse functions also
+    assign("ixfuntransformsi",  sitar::ifun(base::body(xfuntransformsi)), 
+           envir = enverr.)
+    
+    
+    assign("iyfuntransformsi",  sitar::ifun(base::body(yfuntransformsi)), 
+           envir = enverr.)
+    
+    
+    assign("isigmaxfuntransformsi",  sitar::ifun(base::body(sigmaxfuntransformsi)), 
+           envir = enverr.)
+    
+    
+    
+    xfuntransformvalue  <- xfuntransformsi
+    ixfuntransformvalue <- ixfuntransformsi
+    
+    yfuntransformvalue  <- yfuntransformsi
+    iyfuntransformvalue <- iyfuntransformsi
+    
+    
+    sigmaxfuntransformvalue  <- sigmaxfuntransformsi
+    isigmaxfuntransformvalue <- isigmaxfuntransformsi
+    
+    
+    
+    if (set_sigmaxfunsi) {
+      sigmaxfunvalue <- sigmaxfunsi
+    } else {
+      sigmaxfunvalue <- NULL
+    }
+    
     
     
     if (nys == 1) {
@@ -4382,12 +5380,30 @@ bsitar <- function(x,
       yfun_name <- "yfun"
       xxfun_name <- "xvar_xfun"
       yyfun_name <- "yvar_yfun"
+      sigmaxfun_name <- "sigmaxfun"
+      sigmayfun_name <- "sigmayfun"
+      xfuntransform_name <- "xfuntransform"
+      ixfuntransform_name <- "ixfuntransform"
+      yfuntransform_name <- "yfuntransform"
+      iyfuntransform_name <- "iyfuntransform"
+      sigmaxfuntransform_name <- "sigmaxfuntransform"
+      isigmaxfuntransform_name <- "isigmaxfuntransform"
+      
     } else if (nys > 1) {
       xfun_name <- paste0("xfun", "_", ysi)
       yfun_name <- paste0("yfun", "_", ysi)
       xxfun_name <- paste0("xvar_xfun", "_", ysi)
       yyfun_name <- paste0("yvar_yfun", "_", ysi)
+      sigmaxfun_name <- paste0("sigmaxfun", "_", ysi)
+      sigmayfun_name <- paste0("sigmayfun", "_", ysi)
+      xfuntransform_name <- paste0("xfuntransform", "_", ysi)
+      ixfuntransform_name <- paste0("ixfuntransform", "_", ysi)
+      yfuntransform_name <- paste0("yfuntransform", "_", ysi)
+      iyfuntransform_name <- paste0("iyfuntransform", "_", ysi)
+      sigmaxfuntransform_name <- paste0("sigmaxfuntransform", "_", ysi)
+      isigmaxfuntransform_name <- paste0("isigmaxfuntransform", "_", ysi)
     }
+    
     
     xfunvaluelist[[ii]] <- xfunvalue
     xfunnamelist[[ii]] <- xfun_name
@@ -4395,20 +5411,51 @@ bsitar <- function(x,
     yfunvaluelist[[ii]] <- yfunvalue
     yfunnamelist[[ii]] <- yfun_name
     
-    if (!is.null(xfunsi[[1]][1]) & xfunsi != "NULL") {
+    sigmaxfunvaluelist[[ii]] <- sigmaxfunvalue
+    sigmaxfunnamelist[[ii]] <- sigmaxfun_name
+    
+    xfuntransformvaluelist[[ii]] <- xfuntransformvalue
+    xfuntransformnamelist[[ii]]  <- xfuntransform_name
+    
+    ixfuntransformvaluelist[[ii]] <- ixfuntransformvalue
+    ixfuntransformnamelist[[ii]]  <- ixfuntransform_name
+    
+    yfuntransformvaluelist[[ii]] <- yfuntransformvalue
+    yfuntransformnamelist[[ii]]  <- yfuntransform_name
+    
+    iyfuntransformvaluelist[[ii]] <- iyfuntransformvalue
+    iyfuntransformnamelist[[ii]]  <- iyfuntransform_name
+    
+    sigmaxfuntransformvaluelist[[ii]] <- sigmaxfuntransformvalue
+    sigmaxfuntransformnamelist[[ii]]  <- sigmaxfuntransform_name
+    
+    isigmaxfuntransformvaluelist[[ii]] <- isigmaxfuntransformvalue
+    isigmaxfuntransformnamelist[[ii]]  <- isigmaxfuntransform_name
+    
+    
+    if (set_xfunsi) {
       xxfunvaluelist[[ii]] <- paste0(xfunsi, "(", xsi, ")")
     } else {
       xxfunvaluelist[[ii]] <- NULL
     }
     
-    if (!is.null(yfunsi[[1]][1]) & yfunsi != "NULL") {
+    if (set_sigmaxfunsi) {
+      sigmaxxfunvaluelist[[ii]] <- paste0(sigmaxfunsi, "(", sigmaxsi, ")")
+    } else {
+      sigmaxxfunvaluelist[[ii]] <- NULL
+    }
+    
+    
+    if (set_yfunsi) {
       yyfunvaluelist[[ii]] <- paste0(yfunsi, "(", ysi, ")")
     } else {
       yyfunvaluelist[[ii]] <- NULL
     }
     
     xxfunnamelist[[ii]] <- xxfun_name
-    yyfunnamelist[[ii]] <- xxfun_name
+    yyfunnamelist[[ii]] <- yyfun_name # xxfun_name
+    
+    sigmaxxfunnamelist[[ii]] <- sigmaxfun_name
     
     gkn <- function(x, df, bounds) {
       c(min(x) - bounds * (max(x) - min(x)),
@@ -4422,6 +5469,16 @@ bsitar <- function(x,
     }
     if (is.numeric(ept(dfsi))) {
       knots <- (unname(gkn(datai[[xsi]], ept(dfsi), ept(boundsi))))
+    }
+    
+   
+    
+    if (is.numeric(ept(sigmaknotssi))) {
+      sigmaknots <- ept(sigmaknotssi)
+    }
+    if (is.numeric(ept(sigmadfsi))) {
+      sigmaknots <- (unname(gkn(datai[[sigmaxsi]], 
+                                ept(sigmadfsi), ept(sigmaboundsi))))
     }
     
     
@@ -4441,40 +5498,6 @@ bsitar <- function(x,
     nabcrei <-
       length(strsplit(gsub("\\+", " ", randomsi), " ")[[1]])
    
-    make_spline_matrix <- function(x, knots) {
-      X <- x
-      N <- length(X)
-      nk <- length(knots)
-      basis_evals <- matrix(0, N, nk - 1)
-      basis_evals[, 1] <- X
-      basis_evals[, 1] <- X
-      Xx <- matrix(0, N, nk)
-      km1 <- nk - 1
-      j <- 1
-      knot1 <- knots[1]
-      knotnk <- knots[nk]
-      knotnk1 <- knots[nk - 1]
-      kd <- (knotnk - knot1) ^ (2)
-      for (ia in 1:N) {
-        for (ja in 1:nk) {
-          Xx[ia, ja] <- ifelse(X[ia] - knots[ja] > 0, X[ia] - knots[ja], 0)
-        }
-      }
-      while (j <= nk - 2) {
-        jp1 <- j + 1
-        basis_evals[, jp1] <-
-          (
-            Xx[, j] ^ 3 - (Xx[, km1] ^ 3) * (knots[nk] - knots[j]) /
-              (knots[nk] - knots[km1]) + (Xx[, nk] ^ 3) *
-              (knots[km1] - knots[j]) / (knots[nk] - knots[km1])
-          ) /
-          (knots[nk] - knots[1]) ^ 2
-        j <- j + 1
-      }
-      return(basis_evals)
-    }
-    
-    
     
     eval_xoffset_bstart_args <-
       function(x, y, knots, data, eval_arg, xfunsi, arg = 'xoffset') {
@@ -4485,7 +5508,26 @@ bsitar <- function(x,
         } else if (eval_arg == "max") {
           eval_arg.o <- max(data[[x]])
         } else if (eval_arg == "apv") {
-          mat_s <- make_spline_matrix(data[[x]], knots)
+          # mat_s <- make_spline_matrix(data[[x]], knots)
+          if(smat == 'rcs') {
+            mat_s <- make_spline_matrix(data[[x]], knots)
+          } else if(smat == 'nsp') {
+            iknots <- knots[2:(length(knots)-1)]
+            bknots <- c(knots[1], knots[length(knots)])
+            mat_s <- GS_nsp_call(x = data[[x]], knots = iknots, bknots = bknots, 
+                                intercept = smat_intercept, derivs = smat_derivs, 
+                                centerval = smat_centerval, 
+                                normalize = smat_normalize,
+                                preH = smat_preH)
+          } else if(smat == 'nsk') {
+            iknots <- knots[2:(length(knots)-1)]
+            bknots <- c(knots[1], knots[length(knots)])
+            mat_s <- GS_nsk_call(x = data[[x]], knots = iknots, bknots = bknots, 
+                                intercept = smat_intercept, derivs = smat_derivs, 
+                                centerval = smat_centerval, 
+                                normalize = smat_normalize,
+                                preH = smat_preH)
+          }
           lmform <- as.formula(paste0(y, "~1+", "mat_s"))
           lmfit <- lm(lmform, data = data)
           eval_arg.o <- sitar::getPeak(data[[x]],
@@ -4510,7 +5552,30 @@ bsitar <- function(x,
     eval_xoffset_cstart_args <-
       function(x, y, knots, data, eval_arg, xfunsi) {
         if (eval_arg == "pv") {
-          mat_s <- make_spline_matrix(data[[x]], knots)
+          # mat_s <- make_spline_matrix(data[[x]], knots)
+          if(smat == 'rcs') {
+            mat_s <- make_spline_matrix(data[[x]], knots)
+          } else if(smat == 'nsp') {
+            iknots <- knots[2:(length(knots)-1)]
+            bknots <- c(knots[1], knots[length(knots)])
+            mat_s <- GS_nsp_call(x = data[[x]], 
+                                 knots = iknots, bknots = bknots, 
+                                intercept = smat_intercept, 
+                                derivs = smat_derivs, 
+                                centerval = smat_centerval, 
+                                normalize = smat_normalize,
+                                preH = smat_preH)
+          } else if(smat == 'nsk') {
+            iknots <- knots[2:(length(knots)-1)]
+            bknots <- c(knots[1], knots[length(knots)])
+            mat_s <- GS_nsk_call(x = data[[x]], 
+                                 knots = iknots, bknots = bknots, 
+                                 intercept = smat_intercept, 
+                                 derivs = smat_derivs, 
+                                 centerval = smat_centerval, 
+                                 normalize = smat_normalize,
+                                 preH = smat_preH)
+          }
           lmform <- as.formula(paste0(y, "~1+", "mat_s"))
           lmfit <- lm(lmform, data = data)
           eval_arg.o <- sitar::getPeak(data[[x]],
@@ -4540,6 +5605,7 @@ bsitar <- function(x,
       }
     }
     
+    
     if(bstartsi == 'xoffset') {
       bstartsi <- xoffsetsi
     }
@@ -4566,22 +5632,79 @@ bsitar <- function(x,
     nknots <- length(knots)
     df <- length(knots) - 1
    
-    mat_s <- make_spline_matrix(datai[[xsi]], knots)
+    # mat_s <- make_spline_matrix(datai[[xsi]], knots)
+    
+    if(smat == 'rcs') {
+      mat_s <- make_spline_matrix(datai[[xsi]], knots)
+    } else if(smat == 'nsp') {
+      iknots <- knots[2:(length(knots)-1)]
+      bknots <- c(knots[1], knots[length(knots)])
+      mat_s <- GS_nsp_call(x = datai[[xsi]], 
+                           knots = iknots, bknots = bknots, 
+                          intercept = smat_intercept, 
+                          derivs = smat_derivs, 
+                          centerval = smat_centerval, 
+                          normalize = smat_normalize,
+                          preH = smat_preH)
+    } else if(smat == 'nsk') {
+      iknots <- knots[2:(length(knots)-1)]
+      bknots <- c(knots[1], knots[length(knots)])
+      mat_s <- GS_nsk_call(x = datai[[xsi]], 
+                           knots = iknots, bknots = bknots, 
+                           intercept = smat_intercept, 
+                           derivs = smat_derivs, 
+                           centerval = smat_centerval, 
+                           normalize = smat_normalize,
+                           preH = smat_preH)
+    }
+    
+    
+
+    
+    if(sigmabstartsi == 'sigmaxoffset') {
+      sigmabstartsi <- sigmaxoffsetsi
+    }
+    
+    if(sigmaxoffsetsi == "apv") stop("xoffset can not be apv for sigma")
+    
+    sigmaxoffset <-
+      eval_xoffset_bstart_args(sigmaxsi, ysi, sigmaknots, datai, 
+                               sigmaxoffsetsi, sigmaxfunsi, arg = 'offset')
+    
+    sigmabstart <-
+      eval_xoffset_bstart_args(sigmaxsi, ysi, sigmaknots, datai, 
+                               sigmabstartsi, sigmaxfunsi, arg = 'bstart')
+    
+    sigmabstart <- sigmabstart - sigmaxoffset
+    
+    sigmacstart <-eval_xoffset_cstart_args(sigmaxsi, ysi, sigmaknots, datai, 
+                               sigmacstartsi, sigmaxfunsi)
+    
+    sigmaxoffset <- round(sigmaxoffset, 8)
+    datai[[sigmaxsi]] <- datai[[sigmaxsi]] - sigmaxoffset
+    sigmaknots <- sigmaknots - sigmaxoffset
+    sigmaknots <- round(sigmaknots, 8)
+    sigmanknots <- length(sigmaknots)
+    sigmadf <- length(sigmaknots) - 1
+    
     
     # Define names for Stan functions 
     SplineFun_name  <- paste0(toupper(select_model), "", 'Fun') # "DefFun" 
     getX_name       <- "getX"
     getKnots_name   <- "getKnots"
     
+    getpreH_name   <- "getpreH"
     
     if (nys > 1) {
       spfncname <- paste0(ysi, "_", SplineFun_name)
       getxname <- paste0(ysi, "_", getX_name)
       getknotsname <- paste0(ysi, "_", getKnots_name)
+      getpreHname <- paste0(ysi, "_", getKnots_name)
     } else if (nys == 1) {
       spfncname <- SplineFun_name
       getxname <- getX_name
       getknotsname <- getKnots_name
+      getpreHname <- getpreH_name
     }
     
     spfncname_c <- c(spfncname_c, spfncname)
@@ -4595,7 +5718,6 @@ bsitar <- function(x,
       decomp_editcode <- FALSE
     }
     
-    
     # For QR decomp to pass to prepare_function 
     # This to check s covs - re
     checkscovsi <-  getcovlist(s_formulasi)
@@ -4603,7 +5725,6 @@ bsitar <- function(x,
     # This can be set to TRUE for RCS
     if(!is.null(checkscovsi)) {
       add_b_Qr_genquan_s_coef <- FALSE
-      # if(select_model == 'rcs') add_b_Qr_genquan_s_coef <- TRUE
     } else {
       add_b_Qr_genquan_s_coef <- FALSE
     }
@@ -4611,8 +5732,6 @@ bsitar <- function(x,
     # This control whether to add scode for genquant block for QR model
     # Relevant in both and prepare_function
     add_rcsfunmatqrinv_genquant <- FALSE # TRUE
-    
-    
     
 
     internal_function_args_names <-
@@ -4622,6 +5741,8 @@ bsitar <- function(x,
         "spfncname",
         "getxname",
         "getknotsname",
+        "getpreHname",
+        "match_sitar_a_form",
         'match_sitar_d_form',
         "d_adjustedsi",
         'xfunsi',
@@ -4635,7 +5756,19 @@ bsitar <- function(x,
         'checkscovsi',
         'add_b_Qr_genquan_s_coef',
         'add_rcsfunmatqrinv_genquant',
-        "verbose"
+        "verbose",
+        "smat",
+        "smat_intercept",
+        "smat_derivs",
+        "smat_centerval",
+        "smat_normalize",
+        "smat_preH",
+        "smat_include_stan",
+        "smat_include_path",
+        "SplinefunxPre",
+        "Splinefunxsuf",
+        "SplinefunxR",
+        "SplinefunxStan"
       )
     
     internal_function_args <- list()
@@ -4655,24 +5788,237 @@ bsitar <- function(x,
     
   
     
+    if(smat == 'rcs') {
+      get_s_r_funs <- 
+        prepare_function(
+          x = xsi,
+          y = ysi,
+          id = idsi,
+          knots = knots,
+          nknots = nknots,
+          data = datai,
+          internal_function_args = internal_function_args
+        )
+    } else if(smat == 'nsp') {
+      get_s_r_funs <- 
+        prepare_function_nsp(
+          x = xsi,
+          y = ysi,
+          id = idsi,
+          knots = knots,
+          nknots = nknots,
+          data = datai,
+          internal_function_args = internal_function_args
+        )
+    } else if(smat == 'nsk') {
+      get_s_r_funs <- 
+        prepare_function_nsp(
+          x = xsi,
+          y = ysi,
+          id = idsi,
+          knots = knots,
+          nknots = nknots,
+          data = datai,
+          internal_function_args = internal_function_args
+        )
+    }
     
-    get_s_r_funs <- 
-      prepare_function(
-      x = xsi,
-      y = ysi,
-      id = idsi,
-      knots = knots,
-      nknots = nknots,
-      data = datai,
-      internal_function_args = internal_function_args
-    )
+    
+    
     
     funlist[ii] <- get_s_r_funs[['rcsfun']]
     funlist_r[[ii]] <- get_s_r_funs[['r_funs']]
-    
     gq_funs[[ii]] <- get_s_r_funs[['gq_funs']]
     
+    include_fun_names <- get_s_r_funs[['include_fun_names']]
     
+    
+    #################################################
+    #################################################
+    #################################################
+    #################################################
+    # moved up at 42..
+    # setsigma_formula_manual <- FALSE
+    # if (is.null(sigma_formula_manualsi[[1]][1])) {
+    #   setsigma_formula_manual <- FALSE
+    # } else if(sigma_formula_manualsi == "NULL") {
+    #   setsigma_formula_manual <- FALSE
+    # } else {
+    #   setsigma_formula_manual <- TRUE
+    # }
+    
+    
+    # Define sigma function
+    if(setsigma_formula_manual) {
+      # Define names for Stan functions 
+      sigmaSplineFun_name  <- paste0("sigma", SplineFun_name)
+      sigmagetX_name       <- paste0("sigma", getX_name)
+      sigmagetKnots_name   <- paste0("sigma", getKnots_name)
+      sigmagetpreH_name    <- paste0("sigma", getpreH_name)
+      
+      # sigmaSplineFun_name  <- paste0("sigma", toupper(select_model), "", 'Fun')
+      # sigmagetX_name       <- paste0("sigma", "getX")
+      # sigmagetKnots_name   <- paste0("sigma", "getKnots")
+      
+      
+      if (nys > 1) {
+        sigmaspfncname <- paste0(ysi, "_", sigmaSplineFun_name)
+        sigmagetxname <- paste0(ysi, "_", sigmagetX_name)
+        sigmagetknotsname <- paste0(ysi, "_", sigmagetKnots_name)
+        sigmagetpreHname <- paste0(ysi, "_", sigmagetpreH_name)
+        
+      } else if (nys == 1) {
+        sigmaspfncname <- sigmaSplineFun_name
+        sigmagetxname <- sigmagetX_name
+        sigmagetknotsname <- sigmagetKnots_name
+        sigmagetpreHname <- sigmagetpreH_name
+      }
+      
+      sigmaspfncname_c <- c(sigmaspfncname_c, sigmaspfncname)
+      
+      sigmaspfun_collect <-
+        c(sigmaspfun_collect, c(sigmaspfncname, 
+                                paste0(sigmaspfncname, "_", 
+                                       c("d1",
+                                         "d2"))))
+      
+      sigmadecomp_editcode <- FALSE
+      if(select_model == 'rcs') {
+        sigmadecomp_editcode <- FALSE
+      }
+      
+      
+      # For QR decomp to pass to prepare_function 
+      # This to check s covs - re
+      sigmacheckscovsi <-  getcovlist(s_formulasi)
+      
+      # This can be set to TRUE for RCS
+      if(!is.null(sigmacheckscovsi)) {
+        sigmaadd_b_Qr_genquan_s_coef <- FALSE
+        # if(select_model == 'rcs') add_b_Qr_genquan_s_coef <- TRUE
+      } else {
+        sigmaadd_b_Qr_genquan_s_coef <- FALSE
+      }
+      
+      # This control whether to add scode for genquant block for QR model
+      # Relevant in both and prepare_function
+      sigmaadd_rcsfunmatqrinv_genquant <- FALSE # TRUE
+      
+      
+      # copy internal_function_args but later replace them by sigma args
+      sigmainternal_function_args <- internal_function_args
+      
+      # These are defined for sigma via bsitar()
+      # These are copied from the mu part
+      sigmamatch_sitar_d_form          <- match_sitar_d_form
+      sigmad_adjustedsi                <- d_adjustedsi
+      sigmayfunsi                      <- yfunsi
+      sigmabrms_arguments              <- brms_arguments
+      sigmaselect_model                <- select_model
+      sigmadecomp                      <- decomp
+      sigmadecomp_editcode             <- decomp_editcode
+      sigmanys                         <- nys
+      sigmacheckscovsi                 <- checkscovsi
+      sigmaadd_b_Qr_genquan_s_coef     <- add_b_Qr_genquan_s_coef
+      sigmaadd_rcsfunmatqrinv_genquant <- add_rcsfunmatqrinv_genquant
+      
+      
+      sigmainternal_function_args[['fixedsi']] <- 
+        sigmafixedsi
+      sigmainternal_function_args[['randomsi']] <- 
+        sigmarandomsi
+      sigmainternal_function_args[['spfncname']] <- 
+        sigmaspfncname
+      sigmainternal_function_args[['getxname']] <- 
+        sigmagetxname
+      sigmainternal_function_args[['getknotsname']] <- 
+        sigmagetknotsname
+      sigmainternal_function_args[['match_sitar_a_form']] <- 
+        sigmamatch_sitar_a_form
+      sigmainternal_function_args[['match_sitar_d_form']] <- 
+        sigmamatch_sitar_d_form
+      sigmainternal_function_args[['d_adjustedsi']] <- 
+        sigmad_adjustedsi
+      sigmainternal_function_args[['xfunsi']] <- 
+        sigmaxfunsi
+      sigmainternal_function_args[['yfunsi']] <- 
+        sigmayfunsi
+      sigmainternal_function_args[['xoffset']] <- 
+        sigmaxoffset
+      sigmainternal_function_args[['brms_arguments']] <- 
+        sigmabrms_arguments
+      sigmainternal_function_args[['select_model']] <- 
+        sigmaselect_model
+      sigmainternal_function_args[['decomp']] <- 
+        sigmadecomp
+      sigmainternal_function_args[['decomp_editcode']] <- 
+        sigmadecomp_editcode
+      sigmainternal_function_args[['nys']] <- 
+        sigmanys
+      sigmainternal_function_args[['checkscovsi']] <- 
+        sigmacheckscovsi
+      sigmainternal_function_args[['add_b_Qr_genquan_s_coef']] <- 
+        sigmaadd_b_Qr_genquan_s_coef
+      sigmainternal_function_args[['add_rcsfunmatqrinv_genquant']] <- 
+        sigmaadd_rcsfunmatqrinv_genquant
+
+      
+
+      
+      
+      if (verbose) {
+        if (ii == 1) {
+          setmsgtxt <- paste0("\n Preparing function for sigma")
+          if (displayit == 'msg') {
+            message(setmsgtxt)
+          } else if (displayit == 'col') {
+            col <- setcolh
+            cat(paste0("\033[0;", col, "m", setmsgtxt, "\033[0m", "\n"))
+          }
+        }
+      }
+      
+      
+      # These are defined for sigma via bsitar()
+      # sigmaxsi <- xsi
+      # sigmaknots <- knots
+      # sigmanknots <- nknots
+      
+      # These are copied from the mu part
+      # Note that idsi is not used and ysi is placeholder
+      sigmaysi <- ysi
+      sigmaidsi <- idsi
+      sigmadatai <- datai
+      
+      sigmaxs <- sigmaxs
+      sigmaids <- sigmaids
+      
+      
+      sigmaget_s_r_funs <-
+        prepare_function_sigma(
+          x = sigmaxsi,
+          y = sigmaysi,
+          id = sigmaidsi,
+          knots = sigmaknots,
+          nknots = sigmanknots,
+          data = sigmadatai,
+          internal_function_args = sigmainternal_function_args
+        )
+      
+      sigmafunlist[ii] <- sigmaget_s_r_funs[['rcsfun']]
+      sigmafunlist_r[[ii]] <- sigmaget_s_r_funs[['r_funs']]
+      sigmagq_funs[[ii]] <- sigmaget_s_r_funs[['gq_funs']]
+      
+    } # if(setsigma_formula_manual) {
+    
+    
+    if(!setsigma_formula_manual) {
+      sigmad_adjustedsi <- 'NULL'
+    }
+    
+    
+
+    #################################################
     internal_formula_args_names <-
       c(
         "a_formulasi",
@@ -4698,6 +6044,7 @@ bsitar <- function(x,
         "terms_rhssi",
         "sigma_formulasi",
         "sigma_formula_grsi",
+        "sigma_formula_manualsi",
         "dpar_formulasi",
         "autocor_formi",
         "subindicatorsi",
@@ -4716,6 +6063,7 @@ bsitar <- function(x,
         'custom_family',
         'xfunsi',
         'xoffset',
+        'match_sitar_a_form',
         'match_sitar_d_form',
         "a_formula_gr_strsi",
         "b_formula_gr_strsi",
@@ -4732,7 +6080,19 @@ bsitar <- function(x,
         "sigma_set_higher_levels",
         "select_model",
         "verbose",
-        "unusedsi"
+        "unusedsi",
+        "smat",
+        "smat_intercept",
+        "smat_derivs",
+        "smat_centerval",
+        "smat_normalize",
+        "smat_preH",
+        "smat_include_stan",
+        "smat_include_path",
+        "SplinefunxPre",
+        "Splinefunxsuf",
+        "SplinefunxR",
+        "SplinefunxStan"
       )
     
     
@@ -4751,16 +6111,43 @@ bsitar <- function(x,
       }
     }
     
-    formula_bf <-
-      prepare_formula(
-        x = xsi,
-        y = ysi,
-        id = idsi,
-        knots = knots,
-        nknots = nknots,
-        data = datai,
-        internal_formula_args = internal_formula_args
-      )
+   
+    
+    if(smat == 'rcs') {
+      formula_bf <-
+        prepare_formula(
+          x = xsi,
+          y = ysi,
+          id = idsi,
+          knots = knots,
+          nknots = nknots,
+          data = datai,
+          internal_formula_args = internal_formula_args
+        )
+    } else if(smat == 'nsp') {
+      formula_bf <-
+        prepare_formula(
+          x = xsi,
+          y = ysi,
+          id = idsi,
+          knots = knots,
+          nknots = nknots,
+          data = datai,
+          internal_formula_args = internal_formula_args
+        )
+    } else if(smat == 'nsk') {
+      formula_bf <-
+        prepare_formula(
+          x = xsi,
+          y = ysi,
+          id = idsi,
+          knots = knots,
+          nknots = nknots,
+          data = datai,
+          internal_formula_args = internal_formula_args
+        )
+    }
+    
     
     
     
@@ -4793,10 +6180,10 @@ bsitar <- function(x,
     
     lm_val_list_not <-
       names(eout)[!names(eout) %in%
-                    names(eout)[grep(pattern = "^lm_|^lme_", names(eout))]]
+                    names(eout)[grep(pattern = "^lm_|^lme_", 
+                                     names(eout))]]
     lm_val_list_not <- sort(lm_val_list_not)
-    
-    
+   
     
     cov_list_names <- ls()[grepl(pattern = "_cov", ls())]
     cov_list_names <-
@@ -4809,6 +6196,21 @@ bsitar <- function(x,
     
     bflist[[ii]] <- formula_bf
     
+    
+    
+    ######################################################
+    # formula_bf_sigma <-
+    #   prepare_formula_sigma(
+    #     x = xsi,
+    #     y = ysi,
+    #     id = idsi,
+    #     knots = knots,
+    #     nknots = nknots,
+    #     data = datai,
+    #     internal_formula_args = internal_formula_args
+    #   )
+
+    ######################################################
     
     loess_fit <- paste0("loess(", ysi, "~", xsi, ",", 'datai', ")")
     loess_fitx <- eval(parse(text = loess_fit))
@@ -4887,7 +6289,6 @@ bsitar <- function(x,
     
     if(is.na(ymeanxmidxmaxdiff)) ymeanxmidxmaxdiff <- (ymeanxmax + ymeanxmin)/2
     
-    ###
     # Add missing arguments when restricting to abcd
     if(is.null(pvsi))   pvsi  <- list(NULL)
     if(is.null(apvsi))  apvsi <- list(NULL)
@@ -4895,13 +6296,11 @@ bsitar <- function(x,
     
     if (!is.null(pvsi[[1]][1]) & pvsi != "NULL") {
       setpv <- (eval(parse(text = pvsi)))
-      # setpv <- log(eval(parse(text = pvsi)))
       if(grepl("sitar", select_model)) cstart <- setpv
       if(grepl("pb", select_model))    cstart <- setpv / 5.0
       if(grepl("pb", select_model))    dstart <- setpv
     } else if (!is.null(cstartsi[[1]][1]) & cstartsi != "NULL") {
       setpv <- (cstart)
-      # setpv <- log(cstart)
       if(grepl("sitar", select_model)) cstart <- setpv
       if(grepl("pb", select_model))    cstart <- setpv / 5.0
       if(grepl("pb", select_model))    dstart <- setpv
@@ -5021,6 +6420,7 @@ bsitar <- function(x,
         "sigma_formulasi",
         "sigma_formula_grsi",
         "sigma_formula_gr_strsi",
+        "sigma_formula_manualsi",
         "autocor_formi",
         "randomsi",
         "nabci",
@@ -5040,6 +6440,7 @@ bsitar <- function(x,
         "dpar_formulasi",
         "normalize",
         "seed",
+        'match_sitar_a_form',
         'match_sitar_d_form',
         'cortimeNlags_var',
         'cortimeNlags',
@@ -5215,12 +6616,7 @@ bsitar <- function(x,
       set_default_priors(select_model_arg, h_prior_sdsi)
     if(!is.null(i_prior_sdsi)) i_prior_sdsi <- 
       set_default_priors(select_model_arg, i_prior_sdsi)
-    
-    
-    
-    
-    
-    
+   
     set_priors_initials_agrs <- list()
 
     set_priors_initials_agrs $ a_prior_beta <- a_prior_betasi
@@ -5313,6 +6709,7 @@ bsitar <- function(x,
       set_randomsi_higher_levsl <- c(set_randomsi_higher_levsl, 'sigma')
     }
     
+    
     evaluate_higher_level_sd_priors <- function(set_nlpar_, 
                                                 set_class,
                                                 set_prior,
@@ -5348,7 +6745,12 @@ bsitar <- function(x,
         # this for adding _prior_cor 
         
        counter_start_from_one_for_prior <- 0
-        for (istrx in 2:length(eval_what)) {
+       
+       # 24.08.2024
+       # Somehow now after 24.08.2024, 1:length(eval_what) needed, why?
+       
+       for (istrx in 1:length(eval_what)) {
+        # for (istrx in 2:length(eval_what)) {
           counter_start_from_one_for_prior <- 
             counter_start_from_one_for_prior + 1
           if(set_nlpar_ == 'sigma') {
@@ -5405,10 +6807,26 @@ bsitar <- function(x,
     for (set_randomsi_higher_levsli in set_randomsi_higher_levsl) {
       set_nlpar_what <- set_randomsi_higher_levsli
       set_env_what   <- environment()
-      n_higher_str   <- length(eval(parse(text = paste0(set_nlpar_what,
-                                                        "covcoefnames_gr_str")),
+      # n_higher_str   <- length(eval(parse(text = paste0(set_nlpar_what,
+      #                                                   "covcoefnames_gr_str")),
+      #                               envir = set_env_what))
+      
+      # 24.08.2024
+      # Somehow now after 24.08.2024, n_higher_str <- n_higher_str needed, why?
+      
+      # n_higher_str   <- n_higher_str - 1
+      
+      if(set_nlpar_what == "sigma") {
+        n_higher_str <- length(eval(parse(text = paste0(set_nlpar_what, "_",
+                                                        "hierarchical_gr_names")),
                                     envir = set_env_what))
+      } else {
+        n_higher_str <- length(eval(parse(text = paste0("",
+                                                        "hierarchical_gr_names")),
+                                    envir = set_env_what))
+      }
       n_higher_str   <- n_higher_str - 1
+     
       
       if(n_higher_str > 0) {
         set_assign_prior_what <- '_prior'
@@ -5611,7 +7029,12 @@ bsitar <- function(x,
         gr_str_id <- id_higher_str
         
         counter_start_from_one_for_prior <- 0
-        for (istrx in 2:length(gr_str_id)) {
+        
+        # 24.08.2024
+        # Somehow now after 24.08.2024, 2:length(eval_what) needed, why?
+        
+        for (istrx in 1:length(gr_str_id)) {
+        # for (istrx in 2:length(gr_str_id)) {
           counter_start_from_one_for_prior <- 
             counter_start_from_one_for_prior + 1
           get_corr_higher_str_tf <- corr_higher_str_tf[istrx]
@@ -5689,7 +7112,23 @@ bsitar <- function(x,
                              envir = set_env_what)
       
       n_higher_str   <- length(id_higher_str)
+      
+      # 24.08.2024
+      # Somehow now after 24.08.2024, 2:length(eval_what) needed, why?
+      
+      # n_higher_str   <- n_higher_str - 1
+      
+      if(set_nlpar_what == "sigma") {
+        n_higher_str <- length(eval(parse(text = paste0(set_nlpar_what, "_",
+                                                        "hierarchical_gr_names")),
+                                    envir = set_env_what))
+      } else {
+        n_higher_str <- length(eval(parse(text = paste0("",
+                                                        "hierarchical_gr_names")),
+                                    envir = set_env_what))
+      }
       n_higher_str   <- n_higher_str - 1
+      
       corr_higher_str_tf <- eval(parse(text = paste0(set_nlpar_what, 
                                                      "_str_corr_tf")),
                                  envir = set_env_what)
@@ -5848,6 +7287,9 @@ bsitar <- function(x,
       cov_name <- "cov"
       cov_name_sigma <- "cov_sigma"
       d_adjusted_name <- "d_adjusted"
+      sigmafixed_name <- "sigmafixed"
+      sigmarandom_name <- "sigmarandom"
+      sigmad_adjusted_name <- "sigmad_adjusted"
     } else if (nys > 1) {
       xoffset_name <- paste0("xoffset", "_", ysi)
       knots_name <- paste0("knots", "_", ysi)
@@ -5862,12 +7304,21 @@ bsitar <- function(x,
       cov_name <- paste0("cov", "_", ysi)
       cov_name_sigma <- paste0("cov_sigma", "_", ysi)
       d_adjusted_name <- paste0("d_adjusted", "_", ysi)
+      sigmafixed_name <- paste0("sigmafixed", "_", ysi)
+      sigmarandom_name <- paste0("sigmarandom", "_", ysi)
+      sigmad_adjusted_name <- paste0("sigmad_adjusted", "_", ysi)
     }
     
     
     funlist_r_name <- 'funlist_r'
     funlist_rnamelist[[ii]] <- funlist_r_name
     funlist_rvaluelist[[ii]] <- funlist_r %>% unlist()
+  
+    
+    sigmafunlist_r_name <- 'sigmafunlist_r'
+    sigmafunlist_rnamelist[[ii]] <- sigmafunlist_r_name
+    sigmafunlist_rvaluelist[[ii]] <- sigmafunlist_r %>% unlist()
+    
     
     xoffsetnamelist[[ii]] <- xoffset_name
     xoffsetvaluelist[[ii]] <- xoffset
@@ -5879,9 +7330,17 @@ bsitar <- function(x,
     fixedvaluelist[[ii]] <-
       strsplit(gsub("\\+", " ", fixedsi), " ")[[1]]
     
+    sigmafixednamelist[[ii]] <- sigmafixed_name
+    sigmafixedvaluelist[[ii]] <-
+      strsplit(gsub("\\+", " ", sigmafixedsi), " ")[[1]]
+    
     randomnamelist[[ii]] <- random_name
     randomvaluelist[[ii]] <-
       strsplit(gsub("\\+", " ", randomsi), " ")[[1]]
+    
+    sigmarandomnamelist[[ii]] <- sigmarandom_name
+    sigmarandomvaluelist[[ii]] <-
+      strsplit(gsub("\\+", " ", sigmarandomsi), " ")[[1]]
     
     
     groupvarnamelist[[ii]] <- groupvar_name
@@ -5913,22 +7372,37 @@ bsitar <- function(x,
     d_adjustedvaluelist[[ii]] <- ept(d_adjustedsi)
     
     
-    if (!is.null(xfunsi[[1]][1]) & xfunsi != "NULL") {
-      if (xfunsi == "log") {
-        datai[[xsi]] <- exp(datai[[xsi]] + xoffset)
-      } else if (xfunsi == "sqrt") {
-        datai[[xsi]] <- (datai[[xsi]] + xoffset) ^ 2
-      }
-    } else if (is.null(xfunsi[[1]][1]) | xfunsi == "NULL") {
-      datai[[xsi]] <- (datai[[xsi]] + xoffset)
-    }
+    sigmad_adjustednamelist[[ii]] <- sigmad_adjusted_name
+    sigmad_adjustedvaluelist[[ii]] <- ept(sigmad_adjustedsi)
+    
+    
+    # restoring original data
+    
+    datai[[xsi]] <- ixfuntransformsi(datai[[xsi]] + xoffset) 
+    
+    # if (!is.null(xfunsi[[1]][1]) & xfunsi != "NULL") {
+    #   if (xfunsi == "log") {
+    #     datai[[xsi]] <- exp(datai[[xsi]] + xoffset)
+    #   } else if (xfunsi == "sqrt") {
+    #     datai[[xsi]] <- (datai[[xsi]] + xoffset) ^ 2
+    #   }
+    # } else if (is.null(xfunsi[[1]][1]) | xfunsi == "NULL") {
+    #   datai[[xsi]] <- (datai[[xsi]] + xoffset)
+    # }
+    
+    
     
     if (!(is.na(univariate_by$by) | univariate_by$by == "NA"))
       dataout <- rbind(dataout, datai)
     else
       dataout <- datai
 
+    # 20.09.2024
+    # remove sigmaxsi if not using
+    if(!setsigma_formula_manual) datai[[sigmaxsi]] <- NULL
     
+      
+      
     if (!(is.na(univariate_by$by) | univariate_by$by == "NA"))
       uvarbyTF <- TRUE
     else
@@ -5966,7 +7440,9 @@ bsitar <- function(x,
   brmsdata <- dataout
   brmspriors <- priorlist
   
-  # IMP - brms does not allow different lb for sd parsm (e.e, all to be NA)
+  # brmspriorsx <<- brmspriors
+
+  # IMP - brms does not allow different lb for sd params (e.e, all to be NA)
   # Error: Conflicting boundary information for coefficients of class 'sd'.
   # Because prior function automatically sets lb 0 for positive priors 
   # such as exponential the following is need (again done at line 4753 )
@@ -6000,11 +7476,26 @@ bsitar <- function(x,
   }
   
   
-  fun_scode <- paste(funlist, collapse = "\n")
+  if(!setsigma_formula_manual) {
+    fun_scode <- paste(funlist, collapse = "\n")
+  }
+  
+  if(setsigma_formula_manual) {
+    fun_scode <- paste(funlist, sigmafunlist, collapse = "\n")
+  }
+  
   fun_scode <- paste0("functions {", "\n", fun_scode, "\n", "}")
 
-  bstanvars <-
-    brms::stanvar(scode = paste(funlist, collapse = "\n"), block = "function")
+  if(!setsigma_formula_manual) {
+    bstanvars <-
+      brms::stanvar(scode = paste(funlist, collapse = "\n"), block = "function")
+  }
+  
+  if(setsigma_formula_manual) {
+    bstanvars <-
+      brms::stanvar(scode = paste(funlist, sigmafunlist, collapse = "\n"), 
+                    block = "function")
+  }
   
   prior_stanvarlistlist <- c()
   for (i in 1:nys) {
@@ -6120,7 +7611,8 @@ bsitar <- function(x,
      
       c_it <- "sd_"
       brmsinits_names <- names(brmsinits)
-      brmsinits_names <- brmsinits_names[!grepl('^_nu$|sd_nu', brmsinits_names)]
+      brmsinits_names <- brmsinits_names[!grepl('^_nu$|sd_nu', 
+                                                brmsinits_names)]
       keys <- brmsinits_names[grepl(c_it, brmsinits_names)]
       temppp <- brmsinits[names(brmsinits) %in% keys]
       temppp <- unlist(unname(temppp))
@@ -6150,7 +7642,8 @@ bsitar <- function(x,
      
       c_it <- "sd_"
       brmsinits_names <- names(brmsinits)
-      brmsinits_names <- brmsinits_names[!grepl('^_nu$|sd_nu', brmsinits_names)]
+      brmsinits_names <- brmsinits_names[!grepl('^_nu$|sd_nu', 
+                                                brmsinits_names)]
       keys <- brmsinits_names[grepl(c_it, brmsinits_names)]
       temppp <- brmsinits[names(brmsinits) %in% keys]
       temppp <- unlist(unname(temppp))
@@ -6348,8 +7841,24 @@ bsitar <- function(x,
       temp_prior <- set_self_priors
     }
       
-  
-      
+    
+    
+    # 24.08.2024
+    if(get_priors) {
+      tempriorstr <- brms::get_prior(formula = bformula,
+                               stanvars = bstanvars,
+                               prior = temp_prior,
+                               data = brmsdata)
+      return(tempriorstr)
+    }
+
+    
+
+    # 24.08.2024
+    if(setsigma_formula_manual) {
+      temp_prior <- temp_prior %>% dplyr::filter(class != "sigma")
+    }
+   
     temp_stancode2 <- brms::make_stancode(formula = bformula,
                                     stanvars = bstanvars,
                                     prior = temp_prior,
@@ -6359,9 +7868,7 @@ bsitar <- function(x,
                                     prior = temp_prior,
                                     data = brmsdata)
     
-    
 
-   
     move_from_model_to_qq_for_bqinv <- 
       function(temp_stancode2x, 
                section = 'model',
@@ -6508,7 +8015,8 @@ bsitar <- function(x,
         gq_funs_2 <- paste0(qgcode, '\n', gq_funs_2)
         
         bstanvars <- bstanvars + 
-          brms::stanvar(scode = gq_funs_2, block = "genquant", position = "end")
+          brms::stanvar(scode = gq_funs_2, block = "genquant", 
+                        position = "end")
       } # if(add_rcsfunmatqrinv_genquant ) {
       
       
@@ -6545,9 +8053,6 @@ bsitar <- function(x,
                                                position = "end")
       } # if(decomp_editcode & add_rcsfunmatqrinv_genquant) {
     } # if(!is.null(decomp)) {
-    
-    
-   
     
     
     
@@ -6836,9 +8341,24 @@ bsitar <- function(x,
       if (eval(setarguments$backend) == "cmdstanr") {
         if (is.list(eval(setarguments$stan_model_args)) &
             eval(length(setarguments$stan_model_args)) == 0) {
-          setarguments$stan_model_args <- list(stanc_options = list("O1"))
+          setarguments$stan_model_args <- list(
+            # pedantic = FALSE,
+            stanc_options = list("O1")
+            # , cpp_options = list(#'STAN_CPP_OPTIMS=true',
+            #                      # 'CXXFLAGS = -O2',
+            #                      # 'STANCFLAGS+= --warn-pedantic --O0',
+            #                      'STAN_NO_RANGE_CHECKS=true'
+            #                      )
+            )
         }
       }
+      
+      
+      if(verbose) {
+        message(setarguments$stan_model_args)
+      }
+      
+      
       
       if (eval(setarguments$backend) == "rstan" & 
           packageVersion("rstan") < "2.26.1") {
@@ -6874,6 +8394,20 @@ bsitar <- function(x,
   
   brmsdots_ <- list(...)
   
+  # 24.08.2024
+  getdotslistnames <- c("match_sitar_a_form",
+                         "match_sitar_d_form",
+                         "sigmamatch_sitar_a_form",
+                         "displayit", "setcolh", "setcolb",
+                        "smat"
+                        )
+  
+  for (getdotslisti in getdotslistnames) {
+    brmsdots_[[getdotslisti]] <- NULL
+  }
+  
+  
+  
   for (collect_dot_namesi in collect_dot_names) {
     if(!is.null(brmsdots_[[collect_dot_namesi]])) 
       brmsdots_[[collect_dot_namesi]] <- NULL
@@ -6898,7 +8432,7 @@ bsitar <- function(x,
       setarguments = brms_arguments,
       brmsdots = brmsdots_
     )
-  
+ 
   if(!is.null(custom_family)) {
     brm_args$family <- custom_family
   }
@@ -6982,8 +8516,11 @@ bsitar <- function(x,
   
   brm_args$prior <- brmspriors
   
-  if(!is.null(set_self_priors) & !is.null(set_replace_priors)) {
-    stop("Amongst 'set_self_priors' and 'set_replace_priors' arguments,",
+  if(!is.null(set_self_priors) & 
+     !is.null(add_self_priors) & 
+     !is.null(set_replace_priors)) {
+    stop("Amongst 'set_self_priors', 
+         'add_self_priors' and 'set_replace_priors' arguments,",
          "\n ",
          " only one can be specified at a time")
   }
@@ -7032,7 +8569,9 @@ bsitar <- function(x,
   brmspriors <-   tempprior_hold
   
   
-  if(!is.null(set_self_priors) & is.null(set_replace_priors)) {
+  if(!is.null(set_self_priors) & 
+     is.null(add_self_priors) &
+     is.null(set_replace_priors)) {
     brmspriors <- set_self_priors
   }
   
@@ -7041,17 +8580,39 @@ bsitar <- function(x,
     brmspriors <- brmspriors
   }
   
-  
+
+
+  # 24.08.2024
+  if(!is.null(add_self_priors)) {
+    add_self_priors <- add_self_priors %>%  
+      dplyr::filter(source == 'user' & coef != "")
+    
+    if (is.null(sigma_formula_manualsi[[1]][1])) {
+      brmspriors_toadd <- brmspriors
+    } else if(sigma_formula_manualsi == "NULL") {
+      brmspriors_toadd <- brmspriors
+    } else {
+      brmspriors_toadd <-  brmspriors %>% 
+        dplyr::filter(., !grepl('sigma', .data[['nlpar']]))
+    }
+    
+    brmspriors <- brmspriors_toadd %>% dplyr::bind_rows(., add_self_priors)
+  } # if(!is.null(add_self_priors)) {
   
   
   
 
   
-  # brmspriors <- brmspriors %>% 
-  #   dplyr::mutate(prior = dplyr::if_else(prior == "", "''", prior))
-  # brmspriors <- brmspriors %>% dplyr::filter(!grepl("''", prior, fixed = F))
-  # brmspriorsx <<- brmspriors
   
+  
+  
+
+  # 24.08.2024
+  if(setsigma_formula_manual) {
+    brmspriors <- brmspriors %>% dplyr::filter(class != "sigma")
+  }
+  
+ 
   
   brm_args$prior <- brmspriors
   
@@ -7095,6 +8656,7 @@ bsitar <- function(x,
     lines_all <- gsub(dvciit, dvciby, lines_all, fixed = T)
     return(lines_all)
   }
+  
   
   
   scode_final  <- do.call(brms::make_stancode, brm_args)
@@ -7145,7 +8707,7 @@ bsitar <- function(x,
     if(!is.null(init_custom)) full_custom <- TRUE
   }
   
-
+  
   if(!exe_model_fit) {
     if(get_priors) {
       return(do.call(brms::get_prior, brm_args))
@@ -7225,9 +8787,7 @@ bsitar <- function(x,
         new_init_append <- list()
         init_old <- brm_args$init
         init_append <- init_custom
-        # for (ilen in 1:length(init_old)) {
-        #   new_init_append[[ilen]] <- c(init_old[[ilen]], init_append[[ilen]])
-        # }
+        
         additional_init_names <- 
           setdiff(names(init_append[[1]]), names(init_old[[1]]))
         for (ilen in 1:length(init_old)) {
@@ -7306,48 +8866,63 @@ bsitar <- function(x,
                                         algorithm = brm_args$algorithm,
                                         verbose = FALSE)
 
-    # pathfinderargs <- c('num_paths', 'single_path_draws', 
-    #                     'draws', 'history_size', 'max_lbfgs_iters')
-    # 
-    # for (i in pathfinderargs) {
-    #   if(!is.null(brm_args[[i]])) brm_args[[i]] <- NULL
-    # }
-    # 
-    # brm_argsx <<- brm_args
-    # brm_args$init <- brm_args$init[[1]]
-    # brm_args$init <- list(brm_args$init)
-
+    if(brm_args$backend == "cmdstanr" |
+       !is.null(pathfinder_args) | 
+       pathfinder_init) {
+      clinenumber <- getOption("cmdstanr.print_line_numbers")
+      options("cmdstanr.print_line_numbers" = TRUE)
+      on.exit(options("cmdstanr.print_line_numbers" = clinenumber), add = TRUE)
+      
+      cmaxrows <- getOption("cmdstanr_max_rows")
+      options("cmdstanr_max_rows" = 20)
+      on.exit(options("cmdstanr_max_rows" = cmaxrows), add = TRUE)
+      
+      cwarninits <- getOption("cmdstanr_warn_inits")
+      options("cmdstanr_warn_inits" = FALSE)
+      on.exit(options("cmdstanr_warn_inits" = cwarninits), add = TRUE)
+    }
+    
+    
     
 
     if(fit_edited_scode) {
       if(brm_args$backend == "cmdstanr") {
-         stop("Please use 'rstan' as backend for CP parameterization")
-        # brmsfit <- brms_via_cmdstanr(scode_final, sdata, brm_args)
+         brmsfit <- brms_via_cmdstanr(scode_final, sdata, brm_args, 
+                                      brms_arguments,
+                                      pathfinder_args = pathfinder_args,
+                                      pathfinder_init = pathfinder_init)
       }
       if(brm_args$backend == "rstan") {
-        brmsfit  <- brms_via_rstan(scode_final, sdata, brm_args)
+        brmsfit  <- brms_via_rstan(scode_final, sdata, brm_args, 
+                                   brms_arguments)
       }
     } else if(!fit_edited_scode) {
-      brmsfit <- do.call(brms::brm, brm_args)
-    }
+      if(!is.null(pathfinder_args) | pathfinder_init) {
+        brmsfit <- brms_via_cmdstanr(scode_final, sdata, brm_args,
+                                     brms_arguments,
+                                     pathfinder_args = pathfinder_args,
+                                     pathfinder_init = pathfinder_init)
+      } else {
+        brmsfit <- do.call(brms::brm, brm_args)
+      }
+    } # if(fit_edited_scode) {
+    
+    
     
     
     if(brm_args$backend == "mock") {
       brmsfit <- do.call(brms::brm, brm_args)
     }
-   
     
-    # Add attr so that expose_model_functions() works on bgmfit
+
+    # Add class attributes and the model info for post-processing
     attr(brmsfit, 'class') <- c(attr(brmsfit, 'class'), 'bgmfit')
     
     model_info <- list()
-    
     model_info[['emodel']] <- scode_final
-    
     model_info[['parameterization']] <- parameterization
-    
     model_info[['d_adjusted']] <- d_adjusted
-
+    
     for (i in 1:length(funlist_rnamelist)) {
       model_info[[funlist_rnamelist[[i]]]] <- funlist_rvaluelist[[i]]
     }
@@ -7405,10 +8980,6 @@ bsitar <- function(x,
       model_info[[covnamelist[[i]]]] <- covvaluelist[[i]]
     }
     
-    for (i in 1:length(sigmacovnamelist)) {
-      model_info[[sigmacovnamelist[[i]]]] <- sigmacovvaluelist[[i]]
-    }
-    
     if(!is.na(univariate_by$by)) {
       model_info[['subindicators']] <- subindicators
     } 
@@ -7416,6 +8987,32 @@ bsitar <- function(x,
     for (i in 1:length(d_adjustednamelist)) {
       model_info[[d_adjustednamelist[[i]]]] <- d_adjustedvaluelist[[i]]
     }
+    
+    
+    for (i in 1:length(xfuntransformnamelist)) {
+      model_info[[xfuntransformnamelist[[i]]]] <- xfuntransformvaluelist[[i]]
+    }
+    for (i in 1:length(ixfuntransformnamelist)) {
+      model_info[[ixfuntransformnamelist[[i]]]] <- ixfuntransformvaluelist[[i]]
+    }
+    
+    for (i in 1:length(yfuntransformnamelist)) {
+      model_info[[yfuntransformnamelist[[i]]]] <- yfuntransformvaluelist[[i]]
+    }
+    for (i in 1:length(iyfuntransformnamelist)) {
+      model_info[[iyfuntransformnamelist[[i]]]] <- iyfuntransformvaluelist[[i]]
+    }
+    
+    
+    for (i in 1:length(sigmaxfuntransformnamelist)) {
+      model_info[[sigmaxfuntransformnamelist[[i]]]] <- 
+        sigmaxfuntransformvaluelist[[i]]
+    }
+    for (i in 1:length(isigmaxfuntransformnamelist)) {
+      model_info[[isigmaxfuntransformnamelist[[i]]]] <- 
+        isigmaxfuntransformvaluelist[[i]]
+    }
+    
     
     model_info[['StanFun_name']] <- SplineFun_name
     model_info[['multivariate']] <- multivariate$mvar
@@ -7436,12 +9033,44 @@ bsitar <- function(x,
     model_info[['decomp']] <- decomp
     model_info[['fun_scode']] <- fun_scode
     model_info[['envir']] <- enverr.
+    model_info[['include_fun_names']] <- include_fun_names
+    
+    if(setsigma_formula_manual) {
+      model_info[['sigmaStanFun_name']] <- sigmaSplineFun_name
+      model_info[['sigmaxs']] <- sigmaxs
+      model_info[['sigmaids']] <- sigmaids
+      model_info[['sigmadfs']] <- sigmadfs
+      model_info[['sigmaxfuns']] <- sigmaxfuns
+      model_info[['sigmaselect_model']] <- sigmaselect_model
+      model_info[['sigmadecomp']] <- sigmadecomp
+      
+      model_info[['sigmad_adjusted']] <- sigmad_adjusted
+      for (i in 1:length(sigmad_adjustednamelist)) {
+        model_info[[sigmad_adjustednamelist[[i]]]] <- 
+          sigmad_adjustedvaluelist[[i]]
+      }
+      for (i in 1:length(sigmafunlist_rnamelist)) {
+        model_info[[sigmafunlist_rnamelist[[i]]]] <- 
+          sigmafunlist_rvaluelist[[i]]
+      }
+      for (i in 1:length(sigmaxfunnamelist)) {
+        model_info[[sigmaxfunnamelist[[i]]]] <- sigmaxfunvaluelist[[i]]
+      }
+      for (i in 1:length(sigmaxxfunnamelist)) {
+        model_info[[sigmaxxfunnamelist[[i]]]] <- sigmaxxfunvaluelist[[i]]
+      }
+      for (i in 1:length(sigmacovnamelist)) {
+        model_info[[sigmacovnamelist[[i]]]] <- sigmacovvaluelist[[i]]
+      }
+    } # if(setsigma_formula_manual) {
+    
+
     brmsfit$model_info <- model_info
     
     environment(brmsfit$formula) <- enverr.
     
     # Now message moved to the expose_model_functions()
-    if (expose_function) {
+    if (expose_function & !brm_args$empty) {
       # if (verbose) {
       #   setmsgtxt <-
       #     paste0("\n Exposing Stan functions for post-processing\n")
@@ -7469,7 +9098,8 @@ bsitar <- function(x,
       brmsfit$model_info[['expose_method']] <- 'S'
     } 
     
-    if (!expose_function) {
+    # if (!expose_function) {
+    if (!expose_function & !brm_args$empty) {
       brmsfit <- expose_model_functions(model = brmsfit, 
                                       scode = fun_scode,
                                       expose = FALSE, 

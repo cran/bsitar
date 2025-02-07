@@ -3,22 +3,23 @@
 \docType{data}
 \name{berkeley_exfit}
 \alias{berkeley_exfit}
-\title{Model fit to the Berkeley Child Guidance Study Data for females}
+\title{Model Fit to the Berkeley Child Guidance Study Data for Females}
 \format{
-Model fit comprising summary of posterior draws.
+A model fit object containing a summary of the posterior draws.
 }
 \usage{
 berkeley_exfit
 }
 \value{
-An object of class \code{bgmfit} with posterior draws.
+An object of class \code{bgmfit} containing the posterior draws.
 }
 \description{
 Bayesian SITAR model fit to the \link{berkeley_exdata}
-data (70 females, 8 to 18 years of age).
+dataset (70 females, aged 8 to 18 years).
 }
 \details{
-Data details are provided in the \link{berkeley_exdata}
+Detailed information about the data can be found in the
+\link{berkeley_exdata} dataset.
 }
 \author{
 Satpal Sandhu  \email{satpal.sandhu@bristol.ac.uk}

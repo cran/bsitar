@@ -1,39 +1,40 @@
 
 
-#' Fitted (expected) values from the posterior draws
+
+#' @title Fitted (Expected) Values from the Posterior Draws
 #' 
-#' @description The \strong{fitted_draws()} is a wrapper around the
-#'   [brms::fitted.brmsfit()] function to obtain fitted values (and their
-#'   summary) from the posterior draws. See [brms::fitted.brmsfit()] for
-#'   details.
+#' @description The \strong{fitted_draws()} function is a wrapper around the
+#'   [brms::fitted.brmsfit()] function, which allows users to obtain fitted
+#'   values (and their summaries) from the posterior draws. For more details, 
+#'   refer to the documentation for [brms::fitted.brmsfit()].
 #'
-#' @details The \strong{fitted_draws()} computes the fitted values from the
-#'   posterior draws. The [brms::fitted.brmsfit()] function from the \pkg{brms}
-#'   package can used to get the fitted (distance) values when outcome (e.g.,
-#'   height) is untransformed. However, when the outcome is log or square root
-#'   transformed, the [brms::fitted.brmsfit()] function will return the fitted
-#'   curve on the log or square root scale whereas the \strong{fitted_draws()}
-#'   function returns the fitted values on the original scale. Furthermore, the
-#'   \strong{fitted_draws()} also compute the first derivative of (velocity)
-#'   that too on the original scale after making required back-transformation.
-#'   Except for these differences, both these functions (i.e.,
-#'   [brms::fitted.brmsfit()] and [fitted_draws()]) work in the same manner. In
-#'   other words, user can specify all the options available in the
+#' @details The \strong{fitted_draws()} function computes the fitted values 
+#'   from the posterior draws. While the [brms::fitted.brmsfit()] function 
+#'   from the \pkg{brms} package can be used to obtain fitted (distance) 
+#'   values when the outcome (e.g., height) is untransformed, it returns 
+#'   fitted values on the log or square root scale if the outcome is 
+#'   transformed. In contrast, \strong{fitted_draws()} returns fitted values 
+#'   on the original scale. Additionally, \strong{fitted_draws()} computes 
+#'   the first derivative (velocity) on the original scale, after applying 
+#'   the necessary back-transformation. Apart from these differences, both 
+#'   functions—[brms::fitted.brmsfit()] and [fitted_draws()]—operate in the 
+#'   same manner, allowing users to specify all options available in 
 #'   [brms::fitted.brmsfit()].
 #'   
-#' @param deriv An integer to indicate whether to estimate distance curve or its
-#'   derivative (i.e., velocity curve). The \code{deriv = 0} (default) is for
-#'   the distance curve whereas \code{deriv = 1} for the velocity curve. 
+#' @param deriv An integer indicating whether to estimate the distance curve 
+#'   or its derivative (velocity curve). The default \code{deriv = 0} is for 
+#'   the distance curve, while \code{deriv = 1} is for the velocity curve.
 #' 
 #' @inherit growthparameters.bgmfit params
 #' @inherit brms::fitted.brmsfit params
 #' 
 #' @param ... Additional arguments passed to the [brms::fitted.brmsfit()] 
-#' function. Please see \code{brms::fitted.brmsfit()} for details on 
-#' various options available.
+#'   function. For details on available options, please refer to 
+#'   \code{brms::fitted.brmsfit()}.
 #' 
-#' @return An array of predicted mean response values. See
-#'   [brms::fitted.brmsfit] for details.
+#' @return An array of predicted mean response values when \code{summarise =
+#'   FALSE}, or a \code{data.frame} when \code{summarise = TRUE}. For further
+#'   details, refer to [brms::fitted.brmsfit].
 #' 
 #' @export fitted_draws.bgmfit
 #' @export
@@ -44,21 +45,22 @@
 #'
 #' @examples
 #' 
+#' \donttest{
+#' 
 #' # Fit Bayesian SITAR model 
 #' 
-#' # To avoid mode estimation which takes time, the Bayesian SITAR model fit to 
+#' # To avoid time-consuming model estimation, the Bayesian SITAR model fit to 
 #' # the 'berkeley_exdata' has been saved as an example fit ('berkeley_exfit').
-#' # See 'bsitar' function for details on 'berkeley_exdata' and 'berkeley_exfit'.
+#' # See the 'bsitar' function for details on 'berkeley_exdata' and 'berkeley_exfit'.
 #' 
-#' # Check and confirm whether model fit object 'berkeley_exfit' exists
-#'  berkeley_exfit <- getNsObject(berkeley_exfit)
+#' # Check if the model fit object 'berkeley_exfit' exists
+#' berkeley_exfit <- getNsObject(berkeley_exfit)
 #' 
 #' model <- berkeley_exfit
 #' 
 #' # Population average distance curve
 #' fitted_draws(model, deriv = 0, re_formula = NA)
 #' 
-#' \donttest{
 #' # Individual-specific distance curves
 #' fitted_draws(model, deriv = 0, re_formula = NULL)
 #' 
@@ -73,6 +75,7 @@ fitted_draws.bgmfit <-
   function(model,
            newdata = NULL,
            resp = NULL,
+           dpar = NULL,
            ndraws = NULL,
            draw_ids = NULL,
            re_formula = NA,
@@ -88,6 +91,7 @@ fitted_draws.bgmfit <-
            deriv_model = TRUE,
            summary = TRUE,
            robust = FALSE,
+           transform = NULL,
            probs = c(0.025, 0.975),
            xrange = NULL,
            xrange_search = NULL,
@@ -100,6 +104,7 @@ fitted_draws.bgmfit <-
            expose_function = FALSE,
            usesavedfuns = NULL,
            clearenvfuns = NULL,
+           funlist = NULL,
            envir = NULL,
            ...) {
     
@@ -109,6 +114,10 @@ fitted_draws.bgmfit <-
     } else {
       envir <- parent.frame()
     }
+    
+    # Depending on dpar 'mu' or 'sigma', subset model_info
+    model <- getmodel_info(model = model, dpar = dpar)
+    
     
     if(is.null(usesavedfuns)) {
       if(!is.null(model$model_info$exefuns[[1]])) {
@@ -216,8 +225,16 @@ fitted_draws.bgmfit <-
                                 deriv = deriv, 
                                 all = TRUE,
                                 verbose = FALSE)
+
+    if(!is.null(funlist)) {
+      if(!is.list(funlist)) {
+        stop("funlist must be a list")
+      } else {
+        o <- funlist
+      }
+    }
     
-    
+
     test <- setupfuns(model = model, resp = resp,
                       o = o, oall = oall, 
                       usesavedfuns = usesavedfuns, 
@@ -263,6 +280,24 @@ fitted_draws.bgmfit <-
       if(!is.null(newdata)) calling.args$newdata <- newdata
     }
 
+    
+
+    growthparameters_calling <- FALSE
+    syscalls1 <- sys.calls()[[1]]
+    syscallsall <- paste(deparse(syscalls1), collapse = "\n")
+    for (xc in 1:length(syscallsall)) {
+      if(any(grepl('growthparameters', syscallsall[[xc]]))) {
+        growthparameters_calling <- TRUE
+      }
+    }
+    if(growthparameters_calling) {
+      if(calling.args$re_formula_opt == "V") {
+        calling.args$re_formula <- NULL
+      } else if(calling.args$re_formula_opt == "v") {
+        calling.args$re_formula <- NA
+      }
+    }
+      
 
     . <- do.call(fitted, calling.args)
     

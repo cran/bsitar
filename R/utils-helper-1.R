@@ -63,6 +63,71 @@ gsub_space <- function(deparseobj) {
 }
 
 
+#' An internal function to get arguments from the global environments
+#'
+#' @param mcallarg A \code{mcall()} argument
+#' @param envir An environment for function evaluation.
+#' @param search_envir An environment to search for objects used as argument.
+#' @param ... Additional arguments
+#' @keywords internal
+#' @return A list comprised of function arguments.
+#' @keywords internal
+#' @noRd
+#'
+
+mcall_dictionary <- function(mcallarg, envir = NULL, xenvir = NULL, ...) {
+  mcallx <- mcallarg
+  if(is.null(envir)) {
+    enverr. <- environment()
+  } else {
+    enverr. <- envir
+  }
+  if(is.null(xenvir)) {
+    searchenvir. <- .GlobalEnv
+  } else {
+    searchenvir. <- xenvir
+  }
+  for(i in names(mcallx)) {
+    if(!is.null(mcallx[[i]])) {
+      gxz <- mcallx[[i]]
+      assign('err.', FALSE, envir = enverr.)
+      tryCatch(
+        expr = {
+          getgxz <- get(gxz, envir = searchenvir.)
+        },
+        error = function(e) {
+          assign('err.', TRUE, envir = enverr.)
+        }
+      )
+      err. <- get('err.', envir = enverr.)
+      if (err.) {
+        mcallx[[i]] <- gxz
+      } else {
+        validca <- getgxz
+        if(is.symbol(validca)) {
+          mcallx[[i]]  <- validca
+        } else if(is.character(validca)) {
+          mcallx[[i]] <-  validca
+        } else if(is.numeric(validca)) {
+          mcallx[[i]]  <- validca
+        } else if(is.data.frame(validca)) {
+          mcallx[[i]] <-  gxz # note gxz and not 
+        } else if(tibble::is_tibble(validca)) {
+          mcallx[[i]] <-  gxz # note gxz and not 
+        } else if(is.language(validca)) {
+          mcallx[[i]] <-  validca
+        } else if(is.list(validca)) {
+          mcallx[[i]] <-  validca 
+        } else if(is.vector(validca)) {
+          mcallx[[i]] <-  validca 
+        }
+      }
+    } # if(!is.null(mcallx[[i]])) {
+  } # for(i in names(mcallx)) {
+  return(mcallx)
+}
+
+
 
 #' An internal function to expose function after optimization
 #'
@@ -256,25 +321,93 @@ transform.sec.axis <- function(primary,
 
 get_gr_str_coef_id <- function(tsx,
                                data) {
+  
   tsx <- strsplit(tsx, "+(", fixed = T)[[1]]
+  tsxi <- tsx
+  tsxi_c <- c()
+  for (i in 1:length(tsxi)) {
+    strpartstrx <- tsxi[i]
+    strpartstrx <- strsplit(strpartstrx, "|", fixed = T)[[1]]
+    strpartstrx_form <- strpartstrx[1]
+    # strpartstrx_form2 <- strsplit(strpartstrx_form, "(", fixed = T)[[1]] [1]
+    # strpartstrx_form <- paste0(, collapse = "")
+    strpartstrx_form <-  gsub("~(", "~",  strpartstrx_form, fixed = T)
+    if(length(strpartstrx) > 1 ) {
+      strpartstrx_grpa <- strpartstrx[2:length(strpartstrx)]
+      strpartstrx_grpa <- gsub("[()]", "", strpartstrx_grpa)
+      strpartstrx_grpa2 <- paste0("", strpartstrx_grpa, collapse = "|")
+      tsx_t <- paste0(strpartstrx_form, "|", strpartstrx_grpa2)
+    } else {
+      tsx_t <- strpartstrx_form
+    }
+    tsx <- c(tsxi_c, tsx_t)
+  }
+
+  
   tsx_id_w_or_wo_gr <- c()
   for (tsx_id_w_or_wo_gri in 1:length(tsx)) {
     tsx_id_w_or_wo_gr_get <- get_x_random2_asitis(tsx[tsx_id_w_or_wo_gri])
     tsx_id_w_or_wo_gr <- c(tsx_id_w_or_wo_gr, tsx_id_w_or_wo_gr_get)
   }
-  tsx <- gsub("(", "", tsx, fixed = T)
-  tsx <- gsub(")", "", tsx, fixed = T)
+  
+  
+  # strpartstrx <- tsxz
+  # strpartstrx_form <-  strpartstrx # strsplit(strpartstrx, "|", fixed = T)[[1]]
+  # if(length(strpartstrx_form) > 1 ) {
+  #   strpartstrx_form_c <- c()
+  #   for (strpartstrx_form_i in 2:length(strpartstrx_form)) {
+  #     tsx_temp <- gsub("[()]", "", strpartstrx_form[strpartstrx_form_i])
+  #     strpartstrx_form_c <- c(strpartstrx_form_c, tsx_temp)
+  #   }
+  #   strpartstrx_form_c2 <- paste0("", strpartstrx_form_c, collapse = "|")
+  #   tsx <- paste0(strpartstrx_form[1], "|", strpartstrx_form_c2)
+  # } else {
+  #   tsx <- strpartstrx_form[1]
+  # }
+  
+
+  
+  # tsx <- gsub("(", "", tsx, fixed = T)
+  # tsx <- gsub(")", "", tsx, fixed = T)
+  
+  
+  # "~1+logagec|55|grid,by=classid" 
+  
   tsx_c_coef  <- tsx_c_id    <- set_form_gr_it      <- list()
   set_ncov_it <- set_corr_it <- set_corr_true_false <- list()
   for (i in 1:length(tsx)) {
     tsx_c <- strsplit(tsx[i], "|", fixed = T)[[1]]
     set_corr_it_get <- tsx_c[2]
+    # # 24.08.2024
+    # # added
+    # strpartstrx <- tsx_c
+    # strpartstrx_form <- strpartstrx[1]
+    # # strpartstrx_form2 <- strsplit(strpartstrx_form, "(", fixed = T)[[1]] [1]
+    # # strpartstrx_form <- paste0(, collapse = "")
+    # #strpartstrx_form <-  gsub("~(", "~",  strpartstrx_form, fixed = T)
+    # if(length(strpartstrx) > 1 ) {
+    #   strpartstrx_grpa <- strpartstrx[2:length(strpartstrx)]
+    #   strpartstrx_grpa <- gsub("[()]", "", strpartstrx_grpa)
+    #   strpartstrx_grpa2 <- paste0("", strpartstrx_grpa, collapse = "|")
+    #   tsx_c <- paste0(strpartstrx_form, "|", strpartstrx_grpa2)
+    # } else {
+    #   tsx_c <- strpartstrx_form
+    # }
+    ###
+   
     tsx_c1 <- tsx_c[1]
     tsx_c3 <- tsx_c[3]
+    
+    # 24.08.2024
+    if(grepl("^\\(", tsx_c1)) tsx_c1 <- gsub("^\\(", "", tsx_c1)
+    
+    # tsx_c1x <<- tsx_c1
+    
     if(!grepl("^~", tsx_c1)) tsx_c1 <- paste0("~", tsx_c1)
     if(grepl("^~0", tsx_c1)) set_form_0_gr <- TRUE
     if(grepl("^~1", tsx_c1)) set_form_0_gr <- FALSE
     set_form_gr <- tsx_c1
+    
     tsx_c1_mat <- eval(parse(text = paste0(
       "model.matrix(",
       tsx_c1, ",data = data)"
@@ -467,12 +600,48 @@ restore_paranthese_grgr_str_form <- function(strx) {
 get_x_random2 <- function(x) {
   x <- gsub("[[:space:]]", "", x)
   x <- strsplit(x, ")+" )[[1]]
+  
+  # 24.08.2024
+  # replace it 
+  # x <- strsplit(x, ")+" )[[1]]
+  # by
+  # if(any(grepl("__________", x, fixed = T))) {
+  #   x <- strsplit(x, "__________+" )[[1]]
+  # } else {
+  #   x <- strsplit(x, ")+" )[[1]]
+  # }
+  
+  
   x <- gsub("[[:space:]]", "", gsub("[()]", "", x))
-  if(any(grepl("^|gr", x))) {
+  
+  # 24.08.2024
+  # replace it
+  # x <- gsub("[[:space:]]", "", gsub("[()]", "", x))
+  # by
+  # strpartstrx <- strsplit(x, "|", fixed = T)[[1]][1]
+  # strpartstrx_form <- strpartstrx[1]
+  # if(length(strpartstrx) >1 ) {
+  #   strpartstrx_grpa <- strpartstrx[2:length(strpartstrx)]
+  #   strpartstrx_grpa <- gsub("[()]", "", strpartstrx_grpa)
+  #   xtemp <- paste(strpartstrx_form, strpartstrx_grpa, sep = "|")
+  # } else {
+  #   xtemp <- strpartstrx_form
+  # }
+  # x <- gsub("[[:space:]]", "", xtemp)
+  
+  # 24.08.2024
+  if(any(grepl("^|gr", x)) | !any(grepl("^|gr", x))  ) {
+  # if(any(grepl("^|gr", x))) {
     x <- sub(".*gr", "", x)
     x_c <- c()
     for (xi in 1:length(x)) {
-      gxi <- strsplit(x[xi], ",")[[1]][1]
+      # gxi <- strsplit(x[xi], ",")[[1]][1]
+      # 24.08.2024
+      if(!grepl("^\\+", x[xi])) {
+        gxi <- strsplit(x[xi], ",")[[1]][1]
+      } else {
+        gxi <- NULL
+      }
       x_c <- c(x_c, gxi)
     }
     x <- x_c
@@ -482,6 +651,43 @@ get_x_random2 <- function(x) {
   x <- unique(unlist(strsplit(x, ":")) )
   x
 }
+
+
+
+#' An internal function to get random effect formula arguments
+#'
+#' @param x A character string of random effect formula.
+#' @param gsubit A character string to indicate split location.
+#' @keywords internal
+#' @return A list comprised of character strings.
+#' @noRd
+#'
+
+get_x_random2_new <- function(x, gsubit = NULL) {
+  x <- gsub("[[:space:]]", "", x)
+  if(is.null(gsubit)) {
+    x <- strsplit(x, ")+" )[[1]]
+  } else {
+    x <- strsplit(x, gsubit, fixed = T )[[1]]
+  }
+  x_c <- c()
+  for (xi in x) {
+    if(grepl("|", xi, fixed = T)) {
+      zx <- strsplit(xi, "|", fixed = T)[[1]]
+      zx <- zx[length(zx)]
+      zx <- sub(".*gr", "", zx)
+      zx <- gsub("[()]", "", zx)
+      zx <- strsplit(zx, ",")[[1]][1]
+    } else {
+      zx <- NULL
+    }
+    x_c <- c(x_c, zx)
+  }
+  x_c <- sub(".*\\|", "", x_c)
+ # x_c <- unique(unlist(strsplit(x_c, ":")) )
+  x_c
+}
+
 
 
 #' An internal function to get random effect formula arguments with tilde sign
@@ -494,9 +700,38 @@ get_x_random2 <- function(x) {
 
 get_x_random2_asitis <- function(x) {
   x <- gsub("[[:space:]]", "", x)
-  x <- strsplit(x, ")+" )[[1]]
-  x <- gsub("[[:space:]]", "", gsub("[()]", "", x))
-  if(any(grepl("^|gr", x))) {
+ #  x <- strsplit(x, ")+" )[[1]]
+  
+  # 24.08.2024
+  # replace it 
+  # x <- strsplit(x, ")+" )[[1]]
+  # by
+  # if(any(grepl("__________", x, fixed = T))) {
+  #   x <- strsplit(x, "__________+" )[[1]]
+  # } else {
+  #   x <- strsplit(x, ")+" )[[1]]
+  # }
+  
+   x <- gsub("[[:space:]]", "", gsub("[()]", "", x))
+  
+  # 24.08.2024
+  # replace it
+  # x <- gsub("[[:space:]]", "", gsub("[()]", "", x))
+  # by
+  # strpartstrx <- strsplit(x, "|", fixed = T)[[1]][1]
+  # strpartstrx_form <- strpartstrx[1]
+  # if(length(strpartstrx) >1 ) {
+  #   strpartstrx_grpa <- strpartstrx[2:length(strpartstrx)]
+  #   strpartstrx_grpa <- gsub("[()]", "", strpartstrx_grpa)
+  #   xtemp <- paste(strpartstrx_form, strpartstrx_grpa, sep = "|")
+  # } else {
+  #   xtemp <- strpartstrx_form
+  # }
+  # x <- gsub("[[:space:]]", "", xtemp)
+  
+   # 24.08.2024
+   if(any(grepl("^|gr", x)) | !any(grepl("^|gr", x))  ) {
+  # if(any(grepl("^|gr", x))) {
     x <- sub(".*gr", "", x)
     x <- strsplit(x, ",")[[1]][1]
   }
@@ -1642,6 +1877,77 @@ is_emptyx <- function(x, first.only = TRUE, all.na.empty = TRUE) {
 
 
 
+
+#' Sanitize pathfinder arguments for fit via cmdstanr
+#'
+#' @param sdata A list of data objects
+#' @param pathfinder_args A list of argument allowed for pathfinder
+#' @param brm_args A list of argument passes to the [[brms::brm()]]
+#' @param ... Other arguments
+#' 
+#' @return A list
+#' @keywords internal
+#' @noRd
+#'
+
+
+
+sanitize_pathfinder_args <- function(sdata, pathfinder_args, brm_args, ...) { 
+  
+  pathfinder_args_all <- list(
+    data = NULL,
+    seed = NULL,
+    refresh = NULL,
+    init = NULL,
+    save_latent_dynamics = FALSE,
+    output_dir = getOption("cmdstanr_output_dir"),
+    output_basename = NULL,
+    sig_figs = NULL,
+    opencl_ids = NULL,
+    num_threads = NULL,
+    init_alpha = NULL,
+    tol_obj = NULL,
+    tol_rel_obj = NULL,
+    tol_grad = NULL,
+    tol_rel_grad = NULL,
+    tol_param = NULL,
+    history_size = NULL,
+    single_path_draws = NULL,
+    draws = NULL,
+    num_paths = 4,
+    max_lbfgs_iters = NULL,
+    num_elbo_draws = NULL,
+    save_single_paths = NULL,
+    psis_resample = NULL,
+    calculate_lp = NULL,
+    show_messages = TRUE,
+    show_exceptions = TRUE,
+    save_cmdstan_config = NULL
+  )
+  
+  
+  pathfinder_args_all_names <- names(pathfinder_args_all)
+  pathfinder_args_final <- c(pathfinder_args, brm_args)
+  pathfinder_args_final[['data']] <- NULL
+  pathfinder_args_final_names <- names(pathfinder_args_final)
+  
+  pathfinder_args_final_valid_names <-
+    setdiff(pathfinder_args_final_names, pathfinder_args_all_names) 
+  
+  for (i in pathfinder_args_final_valid_names) {
+    pathfinder_args_final[[i]] <- NULL
+  }
+  
+  if(!is.null(brm_args$threads$threads)) 
+    pathfinder_args_final[['num_threads']] <- brm_args$threads$threads
+  
+  pathfinder_args_final[['data']] <- sdata
+  
+  pathfinder_args_final
+}
+
+
+
 # Commenting out for CRAN initial release
 
 #' Fit model via cmdstanr
@@ -1649,93 +1955,208 @@ is_emptyx <- function(x, first.only = TRUE, all.na.empty = TRUE) {
 #' @param scode A character string of model code
 #' @param sdata A list of data objects
 #' @param brm_args A list of argument passes to the [[brms::brm()]]
+#' @param brms_arguments A list of argument passes to the [[brms::brm()]] especially
+#' when passing include_paths
+#' @param pathfinder_args A list of argument allowed for pathfinder
+#' @param pathfinder_init A logical to indicate whether to use pathfinder
+#'   initials.
 #'
 #' @return An object of class \code{bgmfit}
 #' @keywords internal
-#' #noRd
+#' @noRd
 #'
 
-# brms_via_cmdstanr <- function(scode, sdata, brm_args) {
-#   if(!is.null(brm_args$threads$threads)) {
-#     stan_threads <- TRUE
-#   } else {
-#     stan_threads <- FALSE
-#   }
-#
-#   if(!is.null(brm_args$opencl)) {
-#     stan_opencl <- TRUE
-#   } else {
-#     stan_opencl <- FALSE
-#   }
-#
-#   cpp_options <- list(stan_threads = stan_threads,
-#                       stan_opencl = stan_opencl)
-#
-#
-#   stanc_options <- brm_args$stan_model_args$stanc_options
-#
-#
-#   if(brm_args$silent == 0) {
-#     show_messages = TRUE
-#     show_exceptions = TRUE
-#   }
-#   if(brm_args$silent == 1) {
-#     show_messages = TRUE
-#     show_exceptions = FALSE
-#   }
-#   if(brm_args$silent == 2) {
-#     show_messages = FALSE
-#     show_exceptions = FALSE
-#   }
-#
-#
-#   c_scode <- cmdstanr::cmdstan_model(cmdstanr::write_stan_file(scode),
-#                                      quiet = TRUE,
-#                                      cpp_options = cpp_options,
-#                                      stanc_options = stanc_options,
-#                                      dir = NULL,
-#                                      pedantic = FALSE,
-#                                      include_paths = NULL,
-#                                      user_header = NULL,
-#                                      compile_model_methods = FALSE,
-#                                      compile_hessian_method = FALSE,
-#                                      compile_standalone = FALSE)
-#
-#
-#   iter_sampling <- brm_args$iter - brm_args$warmup
-#   iter_warmup   <- brm_args$warmup
-#
-#   cb_fit <- c_scode$sample(
-#     data = sdata,
-#     seed = brm_args$seed,
-#     init = brm_args$init,
-#     chains = brm_args$chains,
-#     parallel_chains = brm_args$cores,
-#     threads_per_chain = brm_args$threads$threads,
-#     opencl_ids = brm_args$opencl,
-#     iter_sampling = iter_sampling,
-#     iter_warmup = iter_warmup,
-#     thin = brm_args$thin,
-#     max_treedepth = brm_args$control$max_treedepth,
-#     adapt_delta = brm_args$control$adapt_delta,
-#     adapt_engaged = TRUE,
-#     fixed_param = FALSE,
-#     show_messages = show_messages,
-#     show_exceptions = show_exceptions
-#   )
-#
-#   cb_fit <- rstan::read_stan_csv(cb_fit$output_files())
-#   attributes(cb_fit)$CmdStanModel <- c_scode
-#
-#   brm_args_empty <- brm_args
-#   brm_args_empty$empty <- TRUE
-#
-#   # Create an empty brms object -> Set empty = TRUE
-#   bfit <- do.call(brms::brm, brm_args_empty)
-#   bfit$fit = cb_fit
-#   bfit <- brms::rename_pars(bfit)
-#   bfit
-# }
+brms_via_cmdstanr <- function(scode, sdata, brm_args, brms_arguments,
+                              pathfinder_args = NULL,
+                              pathfinder_init = FALSE) {
+  
+  try(zz <- insight::check_if_installed(c("cmdstanr"), 
+                                        minimum_version = 
+                                          get_package_minversion(
+                                            'cmdstanr'
+                                          ), 
+                                        prompt = FALSE,
+                                        stop = FALSE))
+  
+  
+  if(!isTRUE(zz)) {
+    message("Please install the latest version of the 'cmdstanr' 
+              package",
+            "\n ",
+            paste0("install.packages('cmdstanr', "   ,
+                   "repos = c('https://mc-stan.org/r-packages/', "   ,
+                   "getOption('repos')))")
+    )
+    return(invisible(NULL))
+  } 
+  
+  if(isTRUE(zz)) {
+    write_stan_file <- utils::getFromNamespace("write_stan_file", "cmdstanr")
+    cmdstan_model <- utils::getFromNamespace("cmdstan_model", "cmdstanr")
+  }
+  
+  
+  if(!is.null(brm_args$threads$threads)) {
+    stan_threads <- TRUE
+  } else {
+    stan_threads <- FALSE
+  }
+  
+  
+  
+  if(!is.null(brm_args$opencl)) {
+    stan_opencl <- TRUE
+  } else if(is.null(brm_args$opencl)) {
+    stan_opencl <- FALSE
+  }
+  
+  
+  if(!is.null(brms_arguments$stan_model_args$include_paths)) {
+    # set_allow_undefined <- TRUE
+    set_includes <- brms_arguments$stan_model_args$include_paths
+  } else {
+    # set_allow_undefined <- isTRUE(getOption("stanc.allow_undefined", FALSE))
+    set_includes <- NULL
+  }
+  
+  
+  # cpp_options <- list(stan_threads = stan_threads,
+  #                     stan_opencl = stan_opencl)
+  
+  cpp_options <- list(stan_threads = stan_threads)
+  
+  
+  stanc_options <- brm_args$stan_model_args$stanc_options
+  
+  
+  if(brm_args$silent == 0) {
+    show_messages = TRUE
+    show_exceptions = TRUE
+  }
+  if(brm_args$silent == 1) {
+    show_messages = TRUE
+    show_exceptions = FALSE
+  }
+  if(brm_args$silent == 2) {
+    show_messages = FALSE
+    show_exceptions = FALSE
+  }
+  
+  
+  c_scode <- cmdstan_model(write_stan_file(scode),
+                            quiet = TRUE,
+                            cpp_options = cpp_options,
+                            stanc_options = stanc_options,
+                            dir = NULL,
+                            pedantic = FALSE,
+                            include_paths = set_includes,
+                            user_header = NULL,
+                            compile_model_methods = FALSE,
+                            compile_hessian_method = FALSE,
+                            compile_standalone = FALSE)
+  
+  
+  iter_sampling <- brm_args$iter - brm_args$warmup
+  iter_warmup   <- brm_args$warmup
+  
+  ####################
+  call_pathfinder_ <- FALSE
+  if(pathfinder_init | !is.null(pathfinder_args)) {
+    call_pathfinder_ <- TRUE
+  }
+  
+  
+  if(call_pathfinder_) {
+    if(is.null(pathfinder_args)) {
+      pathfinder_args_final <- list()
+      pathfinder_args_final[['refresh']] <- 0
+      
+      pathfinder_args_final[['save_cmdstan_config']] <- TRUE
+      pathfinder_args_final[['show_messages']] <- FALSE
+      pathfinder_args_final[['show_exceptions']] <- FALSE
+      
+      if(!is.null(brm_args$threads$threads)) {
+        pathfinder_args_final[['num_threads']] <- brm_args$threads$threads
+      }
+      
+      pathfinder_args_final[['data']] <- sdata
+      pathfinder_args_final[['init']] <- brm_args$init
+      
+      pathfinder_args_final[['history_size']] <- 100
+      pathfinder_args_final[['num_paths']] <- brm_args$chains
+      
+    } else if(!is.null(pathfinder_args)) {
+      pathfinder_args_final <- sanitize_pathfinder_args(sdata, 
+                                                        pathfinder_args, 
+                                                        brm_args)
+      
+      pathfinder_args_final[['refresh']] <- 0
+      pathfinder_args_final[['save_cmdstan_config']] <- TRUE
+      pathfinder_args_final[['show_messages']] <- FALSE
+      pathfinder_args_final[['show_exceptions']] <- FALSE
+    }
+    
+    cb_pathfinder <- do.call(c_scode$pathfinder, pathfinder_args_final)
+    
+    if(pathfinder_init) {
+      brm_args$init <-  cb_pathfinder
+    } else if(!pathfinder_init) {
+      cb_pathfinder <- brms::read_csv_as_stanfit(cb_pathfinder$output_files(), 
+                                                 model = c_scode)
+      attributes(cb_pathfinder)$CmdStanModel <- c_scode
+      # Somehow this does not work with pathfinder
+      # brm_args_empty <- brm_args
+      # brm_args_empty$empty <- TRUE
+      # brm_args_empty$rename <- FALSE
+      # # Create an empty brms object -> Set empty = TRUE
+      # pathfinder_bfit <- do.call(brms::brm, brm_args_empty)
+      # pathfinder_bfit$fit = cb_pathfinder
+      # pathfinder_bfit <- brms::rename_pars(pathfinder_bfit)
+      # return(cb_pathfinder)
+    }
+  } # if(call_pathfinder_) 
+  
+  
+
+  ################################
+  
+  
+  
+  cb_fit <- c_scode$sample(
+    data = sdata,
+    seed = brm_args$seed,
+    init = brm_args$init,
+    chains = brm_args$chains,
+    parallel_chains = brm_args$cores,
+    threads_per_chain = brm_args$threads$threads,
+    opencl_ids = brm_args$opencl,
+    iter_sampling = iter_sampling,
+    iter_warmup = iter_warmup,
+    thin = brm_args$thin,
+    max_treedepth = brm_args$control$max_treedepth,
+    adapt_delta = brm_args$control$adapt_delta,
+    adapt_engaged = TRUE,
+    fixed_param = FALSE,
+    show_messages = show_messages,
+    show_exceptions = show_exceptions
+  )
+  
+  cb_fit <- brms::read_csv_as_stanfit(cb_fit$output_files(), model = c_scode)
+  attributes(cb_fit)$CmdStanModel <- c_scode
+  
+  brm_args_empty <- brm_args
+  brm_args_empty$empty <- TRUE
+  
+  # Create an empty brms object -> Set empty = TRUE
+  bfit <- do.call(brms::brm, brm_args_empty)
+  bfit$fit = cb_fit
+  bfit <- brms::rename_pars(bfit)
+  bfit
+}
+
+
+
+
 
 
 
@@ -1744,12 +2165,14 @@ is_emptyx <- function(x, first.only = TRUE, all.na.empty = TRUE) {
 #' @param scode A character string of model code
 #' @param sdata A list of data objects
 #' @param brm_args A list of argument passes to the brm
-#'
+#' @param brms_arguments A list of argument passes to the [[brms::brm()]]
+#'   especially when passing include_paths
+
 #' @return An object of class \code{bgmfit}
 #' @keywords internal
 #' @noRd
 #'
-brms_via_rstan <- function(scode, sdata, brm_args) {
+brms_via_rstan <- function(scode, sdata, brm_args, brms_arguments) {
   if(!is.null(brm_args$threads$threads)) {
     stan_threads <- TRUE
   } else {
@@ -1759,7 +2182,9 @@ brms_via_rstan <- function(scode, sdata, brm_args) {
   if(stan_threads) {
     rstan::rstan_options(threads_per_chain = brm_args$threads$threads)
   }
-
+  
+  # brms_argumentsx <<- brms_arguments
+  # scodex <<- scode
   # rstan::rstan_options(auto_write = TRUE)
 
   algorithm <- "NUTS" # c("NUTS", "HMC", "Fixed_param")
@@ -1780,28 +2205,60 @@ brms_via_rstan <- function(scode, sdata, brm_args) {
     show_exceptions = FALSE
   }
 
+  if(!is.null(brms_arguments$stan_model_args$include_paths)) {
+    set_allow_undefined <- TRUE
+    set_includes <- brms_arguments$stan_model_args$include_paths
+  } else {
+    set_allow_undefined <- isTRUE(getOption("stanc.allow_undefined", FALSE))
+    set_includes <- NULL
+  }
+  
+ 
+  
   message("Compiling Stan program...")
-  c_scode <- rstan::stan_model(
-    # file,
-    model_name = "anon_model",
-    model_code = scode,
-    stanc_ret = NULL,
-    boost_lib = NULL,
-    eigen_lib = NULL,
-    save_dso = TRUE,
-    verbose = FALSE,
-    auto_write = rstan::rstan_options("auto_write"),
-    obfuscate_model_name = TRUE,
-    allow_undefined = isTRUE(getOption("stanc.allow_undefined", FALSE)),
-    allow_optimizations = isTRUE(getOption("stanc.allow_optimizations", FALSE)),
-    standalone_functions=isTRUE(getOption("stanc.standalone_functions", FALSE)),
-    use_opencl = isTRUE(getOption("stanc.use_opencl", FALSE)),
-    warn_pedantic = isTRUE(getOption("stanc.warn_pedantic", FALSE)),
-    warn_uninitialized = isTRUE(getOption("stanc.warn_uninitialized", FALSE)),
-    includes = NULL,
-    isystem = c(if (!missing(file)) dirname(file), getwd())
-  )
-
+  
+  # c_scode_stanc_ret <- rstan::stanc(
+  #   # file, 
+  #   model_name = "anon_model",
+  #   model_code = scode, 
+  #  # obfuscate_model_name = TRUE,
+  #   allow_undefined = set_allow_undefined
+  #   #,
+  #   # allow_optimizations = isTRUE(getOption("stanc.allow_optimizations", FALSE)),
+  #   # standalone_functions=isTRUE(getOption("stanc.standalone_functions", FALSE)),
+  #   # use_opencl = isTRUE(getOption("stanc.use_opencl", FALSE)),
+  #   # warn_pedantic = isTRUE(getOption("stanc.warn_pedantic", FALSE)),
+  #   # warn_uninitialized = isTRUE(getOption("stanc.warn_uninitialized", FALSE)),
+  #   # isystem = c(if (!missing(file)) dirname(file), getwd())
+  #   )
+  
+  # when set_includes nor NULL, this below does not work
+  # Need to study why it happens 
+ if(is.null(set_includes)) {
+   c_scode <- rstan::stan_model(
+     # file, 
+     model_name = "anon_model",
+     model_code = scode, 
+     stanc_ret = NULL,
+     boost_lib = NULL,
+     eigen_lib = NULL,
+     # save_dso = TRUE,
+     verbose = FALSE,
+     auto_write = rstan::rstan_options("auto_write"),
+     obfuscate_model_name = TRUE,
+     allow_undefined = set_allow_undefined,
+     allow_optimizations = isTRUE(getOption("stanc.allow_optimizations", FALSE)),
+     standalone_functions=isTRUE(getOption("stanc.standalone_functions", FALSE)),
+     use_opencl = isTRUE(getOption("stanc.use_opencl", FALSE)),
+     warn_pedantic = isTRUE(getOption("stanc.warn_pedantic", FALSE)),
+     warn_uninitialized = isTRUE(getOption("stanc.warn_uninitialized", FALSE)),
+     includes = set_includes,
+     isystem = c(if (!missing(file)) dirname(file), getwd()))
+ } else {
+   c_scode <- rstan::stan_model(
+     model_code = scode)
+ }
+  
 
   message("Start sampling")
   cb_fit <- rstan::sampling(
@@ -1891,6 +2348,7 @@ check_and_install_if_not_installed <- function(pkgs,
     #                         repos = "http://cran.us.r-project.org")
   }
 }
+
 
 
 
@@ -2113,12 +2571,12 @@ sample_n_of_groups <- function(data, size, ...) {
 #'
 
 check_pkg_version_exists <- function(pkg, 
-                                     minversion = NULL, 
+                                     minimum_version = NULL, 
                                      verbose = FALSE,
                                      ...) {
   
   try(zz <- insight::check_if_installed(pkg, 
-                                        minimum_version = minversion,
+                                        minimum_version = minimum_version,
                                         ...))
  
   if(!isTRUE(zz)) {
@@ -2156,7 +2614,7 @@ check_if_functions_exists <- function(model,
   
   check_brms_v <- 
   check_pkg_version_exists('brms', 
-                           minversion = get_package_minversion('brms'), 
+                           minimum_version = get_package_minversion('brms'), 
                            prompt = FALSE,
                            stop = FALSE,
                            verbose = FALSE)
@@ -2830,6 +3288,8 @@ check_brms_args <- function(call, arg, prefix = NULL) {
     if(!is.null((newcall[[argi]]))) {
       argin <- newcall[[argi]]
       argin <- deparse(substitute(argin))
+      argin <- gsub_space(argin)
+      argin <- paste(argin, collapse=",")
       if(!grepl(prefix, argin)) {
         newargin <- paste0(argi, " = ", prefix, argin)
         newcall[[argi]] <- NULL
@@ -3231,20 +3691,95 @@ get_package_minversion <- function(pkg, version = NULL, verbose = FALSE) {
   if(!is.character(pkg)) stop('pkg must be a character')
   if(pkg == 'brms') {
     if(is.null(version)) {
-      out <- '2.20.17' 
+      out <- '2.21.0' 
     } else {
       if(!is.character(version)) stop('version must be a character')
       out <- version
     }
   }
+  
   if(pkg == 'marginaleffects') {
     if(is.null(version)) {
-      out <- '0.18.0.9003'
+      out <- '0.19.0'
     } else {
       if(!is.character(version)) stop('version must be a character')
       out <- version
     }
   }
+  
+  if(pkg == 'data.table') {
+    if(is.null(version)) {
+      out <- '1.15.4'
+    } else {
+      if(!is.character(version)) stop('version must be a character')
+      out <- version
+    }
+  }
+  
+  if(pkg == 'dtplyr') {
+    if(is.null(version)) {
+      out <- '1.3.1'
+    } else {
+      if(!is.character(version)) stop('version must be a character')
+      out <- version
+    }
+  }
+  
+  if(pkg == 'checkmate') {
+    if(is.null(version)) {
+      out <- '2.3.1'
+    } else {
+      if(!is.character(version)) stop('version must be a character')
+      out <- version
+    }
+  }
+  
+  if(pkg == 'collapse') {
+    if(is.null(version)) {
+      out <- '2.0.13'
+    } else {
+      if(!is.character(version)) stop('version must be a character')
+      out <- version
+    }
+  }
+  
+  if(pkg == 'doParallel') {
+    if(is.null(version)) {
+      out <- '1.0.17'
+    } else {
+      if(!is.character(version)) stop('version must be a character')
+      out <- version
+    }
+  }
+  
+  if(pkg == 'foreach') {
+    if(is.null(version)) {
+      out <- '1.5.2'
+    } else {
+      if(!is.character(version)) stop('version must be a character')
+      out <- version
+    }
+  }
+  # parallel is base, so all fine
+  if(pkg == 'parallel') {
+    if(is.null(version)) {
+      out <- '0.0.1' # '4.3.1'
+    } else {
+      if(!is.character(version)) stop('version must be a character')
+      out <- version
+    }
+  }
+  
+  
+  if(pkg == 'cmdstanr') {
+    if(is.null(version)) {
+      out <- '0.7.1'
+    } else {
+      if(!is.character(version)) stop('version must be a character')
+      out <- version
+    }
+  }
+  
   
   return(out)
 }
@@ -3302,5 +3837,955 @@ sanitize_algorithm_args <- function(args, algorithm, verbose = FALSE) {
   return(args)
 }
 
+
+#' An internal function to convert velocity parameter from exp to unit/time and vice versa
+#'
+#' @param x A numeric value or a vector.
+#' @param to A character string to indicate direction of conversion.
+#' @keywords internal
+#' @return A list comprised of character strings.
+#' @noRd
+#'
+
+vel_exp_unit_convert <- function(x, to = 'unit') {
+  if(to == 'unit') {
+    message("converted from exp(x) to unit/time")
+    out <-  1 - exp(x)^2
+    # out <- abs(out)
+  }
+  if(to == 'exp') {
+    message("converted from unit/time to exp(x)")
+    out <-  log(sqrt(1-x))
+  }
+  out
+}
+
+
+
+
+
+#' Title
+#' 
+#' @details A customized version of 'plot.see_equivalence_test' that allows
+#'   plotting equivalence_test without model. In other words, it works for
+#'   numeric test also.
+#' 
+#' @param x A 'equivalence_test' object
+#' 
+#' @param parms_data A data frame
+#' 
+#' @param rope_color see bayestestR
+#' 
+#' @param rope_alpha see bayestestR
+#' 
+#' @param rope.line.alpha see bayestestR
+#' 
+#' @param n_columns see bayestestR
+#' 
+#' @param fill.color see bayestestR
+#' 
+#' @param legend.title see bayestestR
+#'
+#' @return A plot object if (\code{return_plot = TRUE}).
+#' 
+#' @keywords internal
+#' @noRd
+#'
+plot_equivalence_test <-  function(x,
+                                   parms_data,
+                                   rope_color = "#0171D3",
+                                   rope_alpha = 0.5,
+                                   rope.line.alpha = NULL,
+                                   n_columns = 1,
+                                   fill.color = c("#CD423F", 
+                                                  "#018F77", 
+                                                  "#FCDA3B"),
+                                   legend.title = "Decision on H0") {
+  
+  predictor <- NULL;
+  estimate <- NULL;
+  grp <- NULL;
+  
+  insight::check_if_installed("ggridges")
+  
+  #########################################################
+  
+  .has_multiple_panels <- function (x) {
+    (!"Effects" %in% names(x) || insight::n_unique(x$Effects) <=
+       1L) &&
+      (!"Component" %in% names(x) || insight::n_unique(x$Component) <=
+         1L)
+  }
+  
+  .clean_parameter_names <- function (params, grid = FALSE)
+  {
+    params <- unique(params)
+    parameter_labels <- params
+    params <- gsub("(b_|bs_|bsp_|bcs_)(.*)", "\\2", params, perl = TRUE)
+    params <- gsub("^zi_(.*)", "\\1 (Zero-Inflated)", params, perl = TRUE)
+    params <- gsub("(.*)_zi$", "\\1 (Zero-Inflated)", params, perl = TRUE)
+    params <- gsub("(.*)_disp$", "\\1 (Dispersion)", params, perl = TRUE)
+    params <- gsub("r_(.*)\\.(.*)\\.", "(re) \\1", params)
+    params <- gsub("b\\[\\(Intercept\\) (.*)\\]", "(re) \\1", params)
+    params <- gsub("b\\[(.*) (.*)\\]", "(re) \\2", params)
+    params <- gsub("^smooth_sd\\[(.*)\\]", "\\1 (smooth)", params)
+    params <- gsub("^sds_", "\\1 (Smooth)", params)
+    params <- gsub("(.*)(\\.)(\\d)$", "\\1 \\3", params)
+    params <- gsub("(.*)__zi\\s(.*)", "\\1 \\2 (Zero-Inflated)", params, perl = TRUE)
+    params <- gsub("\\(re\\)\\s(.*)", "\\1 (Random)", params, perl = TRUE)
+    cor_sd <- grepl("(sd_|cor_)(.*)", params)
+    if (any(cor_sd)) {
+      params[cor_sd] <- paste("SD/Cor: ",
+                              gsub("^(sd_|cor_)(.*?)__(.*)", "\\3", params[cor_sd], perl = TRUE))
+      cor_only <- !is.na(params[cor_sd]) &
+        startsWith(params[cor_sd], "cor_")
+      if (any(cor_only)) {
+        params[cor_sd][which(cor_sd)[cor_only]] <- sub("__", " ~ ", params[cor_sd][which(cor_sd)[cor_only]], fixed = TRUE)
+      }
+    }
+    cor_sd <- grepl("^Sigma\\[(.*)", params)
+    if (any(cor_sd)) {
+      parm1 <- gsub("^Sigma\\[(.*):(.*),(.*)\\]", "\\2", params[cor_sd], perl = TRUE)
+      parm2 <- gsub("^Sigma\\[(.*):(.*),(.*)\\]", "\\3", params[cor_sd], perl = TRUE)
+      params[which(cor_sd)] <- parm1
+      rand_cor <- parm1 != parm2
+      if (any(rand_cor)) {
+        params[which(cor_sd)[rand_cor]] <- paste0(parm1[rand_cor], " ~ ", parm2[rand_cor])
+      }
+      params[cor_sd] <- paste("SD: ", params[cor_sd])
+    }
+    if (grid) {
+      params <- trimws(gsub("(Zero-Inflated)", "", params, fixed = TRUE))
+      params <- trimws(gsub("(Random)", "", params, fixed = TRUE))
+      params <- trimws(gsub("(Dispersion)", "", params, fixed = TRUE))
+    }
+    else {
+      params <- gsub("(Zero-Inflated) (Random)",
+                     "(Random, Zero-Inflated)",
+                     params,
+                     fixed = TRUE)
+    }
+    stats::setNames(params, parameter_labels)
+  }
+  
+  .fix_facet_names <- function (x)
+  {
+    if ("Component" %in% names(x)) {
+      x$Component <- as.character(x$Component)
+      if ("Effects" %in% names(x)) {
+        x$Component[x$Component == "conditional"] <- "(Conditional)"
+        x$Component[x$Component == "zero_inflated"] <- "(Zero-Inflated)"
+        x$Component[x$Component == "dispersion"] <- "(Dispersion)"
+        x$Component[x$Component == "simplex"] <- "(Monotonic Effects)"
+      }
+      else {
+        x$Component[x$Component == "conditional"] <- "Conditional"
+        x$Component[x$Component == "zero_inflated"] <- "Zero-Inflated"
+        x$Component[x$Component == "dispersion"] <- "Dispersion"
+        x$Component[x$Component == "simplex"] <- "Monotonic Effects"
+      }
+    }
+    if ("Effects" %in% names(x)) {
+      x$Effects <- as.character(x$Effects)
+      x$Effects[x$Effects == "fixed"] <- "Fixed Effects"
+      x$Effects[x$Effects == "random"] <- "Random Effects"
+    }
+    x
+  }
+  
+  .reshape_to_long <- function(x,
+                               names_to = "group",
+                               values_to = "values",
+                               columns = colnames(x),
+                               id = "id") {
+    if (is.numeric(columns))
+      columns <- colnames(x)[columns]
+    dat <- stats::reshape(
+      as.data.frame(x),
+      idvar = id,
+      ids = row.names(x),
+      times = columns,
+      timevar = names_to,
+      v.names = values_to,
+      varying = list(columns),
+      direction = "long"
+    )
+    
+    if (is.factor(dat[[values_to]])) {
+      dat[[values_to]] <- as.character(dat[[values_to]])
+    }
+    
+    dat[, 1:(ncol(dat) - 1), drop = FALSE]
+  }
+  
+  #########################################################
+  
+  
+  x$Effects <- "fixed"
+  x$Component <- "conditional"
+  attr(x, "Cleaned_Parameter") <- x$Parameter
+  attr(x, "object_name") <- "model"
+  
+  .rope <- c(x$ROPE_low[1], x$ROPE_high[1])
+  
+  # split for multiple CIs
+  tests <- split(x, x$CI)
+  
+  
+  
+  result <- lapply(tests, function(i) {
+    tmp <- parms_data[, i$Parameter, drop = FALSE]
+    
+    tmp2 <- lapply(seq_len(nrow(i)), function(j) {
+      p <- i$Parameter[j]
+      tmp[[p]][tmp[[p]] < i$HDI_low[j]] <- NA
+      tmp[[p]][tmp[[p]] > i$HDI_high[j]] <- NA
+      tmp[[p]]
+    })
+    
+    cnames <- colnames(tmp)
+    tmp <- as.data.frame(tmp2)
+    colnames(tmp) <- cnames
+    
+    tmp <- .reshape_to_long(tmp, names_to = "predictor", values_to = "estimate")
+    
+    tmp$grp <- NA
+    for (j in seq_len(nrow(i))) {
+      tmp$grp[tmp$predictor == i$Parameter[j]] <- i$ROPE_Equivalence[j]
+    }
+    
+    tmp$predictor <- factor(tmp$predictor)
+    tmp$predictor <- factor(tmp$predictor, levels = rev(levels(tmp$predictor)))
+    
+    tmp$HDI <- sprintf("%g%% HDI", 100 * i$CI[1])
+    
+    tmp
+  })
+  
+  tmp <- do.call(rbind, result)
+  
+  
+  if (.has_multiple_panels(tmp)) {
+    n_columns <- NULL
+  }
+  
+  
+  
+  # get labels
+  labels <- .clean_parameter_names(tmp$predictor, grid = !is.null(n_columns))
+  
+  tmp <- .fix_facet_names(tmp)
+  
+  
+  if (length(unique(tmp$HDI)) > 1L) {
+    x.title <- "Highest Density Region of Posterior Samples"
+  } else {
+    x.title <- sprintf("%g%% Highest Density Region of Posterior Samples", 100 * x$CI[1])
+  }
+  # legend.title <- "Decision on H0"
+  
+  fill.color <- fill.color[sort(unique(match(
+    x$ROPE_Equivalence, c("Accepted", "Rejected", "Undecided")
+  )))]
+  
+  add.args <- lapply(match.call(expand.dots = FALSE)$`...`, function(x)
+    x)
+  if ("colors" %in% names(add.args))
+    fill.color <- eval(add.args[["colors"]])
+  if ("x.title" %in% names(add.args))
+    x.title <- eval(add.args[["x.title"]])
+  if ("legend.title" %in% names(add.args))
+    legend.title <- eval(add.args[["legend.title"]])
+  if ("labels" %in% names(add.args))
+    labels <- eval(add.args[["labels"]])
+  
+  
+  if (is.null(rope.line.alpha)) {
+    rope.line.alpha <- 1.25 * rope_alpha
+  }
+  
+  if (rope.line.alpha > 1)
+    rope.line.alpha <- 1
+  
+  p <- ggplot2::ggplot(tmp, ggplot2::aes(x = estimate, y = predictor, fill = grp)) +
+    ggplot2::annotate(
+      "rect",
+      xmin = .rope[1],
+      xmax = .rope[2],
+      ymin = 0,
+      ymax = Inf,
+      fill = rope_color,
+      alpha = (rope_alpha / 3),
+      na.rm = TRUE
+    ) +
+    ggplot2::geom_vline(
+      xintercept = .rope,
+      linetype = "dashed",
+      colour = rope_color,
+      alpha = rope.line.alpha,
+      na.rm = TRUE
+    ) +
+    ggplot2::geom_vline(
+      xintercept = 0,
+      colour = rope_color,
+      linewidth = 0.8,
+      alpha = rope.line.alpha,
+      na.rm = TRUE
+    ) +
+    ggridges::geom_density_ridges2(
+      rel_min_height = 0.01,
+      scale = 2,
+      alpha = 0.5,
+      na.rm = TRUE
+    ) +
+    ggplot2::scale_fill_manual(values = fill.color) +
+    ggplot2::labs(x = x.title, y = NULL, fill = legend.title) +
+    ggplot2::scale_y_discrete(labels = labels) +
+    ggplot2::theme(legend.position = "bottom")
+  
+  
+  if (!is.null(n_columns)) {
+    if ("Component" %in% names(x) && "Effects" %in% names(x)) {
+      if (length(unique(tmp$HDI)) > 1L) {
+        p <- p + ggplot2::facet_wrap( ~ Effects + Component + HDI,
+                                      scales = "free",
+                                      ncol = n_columns)
+      } else {
+        p <- p + ggplot2::facet_wrap( ~ Effects + Component,
+                                      scales = "free",
+                                      ncol = n_columns)
+      }
+    } else if ("Effects" %in% names(x)) {
+      if (length(unique(tmp$HDI)) > 1L) {
+        p <- p + ggplot2::facet_wrap( ~ Effects + HDI, scales = "free", ncol = n_columns)
+      } else {
+        p <- p + ggplot2::facet_wrap( ~ Effects, scales = "free", ncol = n_columns)
+      }
+    } else if ("Component" %in% names(x)) {
+      if (length(unique(tmp$HDI)) > 1L) {
+        p <- p + ggplot2::facet_wrap( ~ Component + HDI, scales = "free", ncol = n_columns)
+      } else {
+        p <- p + ggplot2::facet_wrap( ~ Component, scales = "free", ncol = n_columns)
+      }
+    }
+  } else {
+    if (length(unique(tmp$HDI)) > 1L) {
+      p <- p + ggplot2::facet_wrap( ~ HDI, scales = "free", ncol = n_columns)
+    }
+  }
+  
+  p
+}
+
+
+
+#' Save list of ggplot2 objects to single pdf
+#'
+#' @param model An object of class \code{bgmfit} 
+#' @param dpar A logical or a character string \code{'mu'} or \code{'sigma'}
+#'
+#' @return An object of class \code{bgmfit} 
+#' @keywords internal
+#' @noRd
+#'
+getmodel_info <- function(model, dpar) {
+  oxx <- model$model_info[['namesexefuns']]
+  if(is.null(dpar)) {
+    oxx <- oxx[!grepl("sigma", oxx)]
+  } else if(!is.null(dpar)) {
+    if(dpar == "mu") oxx <- oxx[!grepl("sigma", oxx)]
+    if(dpar == "sigma") oxx <- oxx[grepl("sigma", oxx)]
+  }
+  model$model_info[['namesexefuns']] <- oxx
+  model
+}
+
+
+
+
+
+#' Create rcs spline design matrix
+#'
+#' @param x A numeric vector representing a predictor variable (e.g., age)
+#' @param df An integer. It is defined as \code{nk - 1}
+#' @param deriv An integer
+#' @param add_intercept A logical (default \code{FALSE}) to indicate whether to
+#'   add intercept column to the design matrix. This is useful when using
+#'   \code{rcs_matrix} for creating design matrix for derivatives such as
+#'   \code{deriv = 1} and \code{deriv = 2} where first (\code{deriv = 1}) or,
+#'   the first and second (\code{deriv = 2}) columns are automatically set as
+#'   \code{'0'}.
+#' @param verbose A logical (default \code{FALSE}) to indicate if infornation
+#'   need to be displayed.
+#'
+#' @inherit Hmisc::rcspline.eval params
+#' 
+#' @return An object of class \code{bgmfit} 
+#' @keywords internal
+#' @noRd
+#'
+rcs_matrix <- function(x, 
+                       df, 
+                       knots = NULL, 
+                       deriv = 0,
+                       add_intercept = FALSE,
+                       inclx = TRUE, 
+                       knots.only = FALSE,
+                       type = "ordinary", 
+                       norm = 2, 
+                       rpm = NULL, 
+                       pc = FALSE,
+                       fractied = 0.05,
+                       verbose = FALSE,
+                       ...) {
+  
+  nk <- df + 1
+  ##
+  # borrow from Hmisc::rcspline.eval
+  
+  if (!length(knots)) {
+    xx <- x[!is.na(x)]
+    n <- length(xx)
+    if (n < 6) 
+      stop("knots not specified, and < 6 non-missing observations")
+    if (nk < 3) 
+      stop("nk must be >= 3")
+    xu <- sort(unique(xx))
+    nxu <- length(xu)
+    if ((nxu - 2) <= nk) {
+      warning(sprintf("%s knots requested with %s unique values of x.  knots set to %s interior values.", 
+                      nk, nxu, nxu - 2))
+      knots <- xu[-c(1, length(xu))]
+    }
+    else {
+      outer <- if (nk > 3) 
+        0.05
+      else 0.1
+      if (nk > 6) 
+        outer <- 0.025
+      knots <- numeric(nk)
+      overrideFirst <- overrideLast <- FALSE
+      nke <- nk
+      firstknot <- lastknot <- numeric(0)
+      if (fractied > 0 && fractied < 1) {
+        f <- table(xx)/n
+        if (max(f[-c(1, length(f))]) < fractied) {
+          if (f[1] >= fractied) {
+            firstknot <- min(xx[xx > min(xx)])
+            xx <- xx[xx > firstknot]
+            nke <- nke - 1
+            overrideFirst <- TRUE
+          }
+          if (f[length(f)] >= fractied) {
+            lastknot <- max(xx[xx < max(xx)])
+            xx <- xx[xx < lastknot]
+            nke <- nke - 1
+            overrideLast <- TRUE
+          }
+        }
+      }
+      if (nke == 1) 
+        knots <- median(xx)
+      else {
+        if (nxu <= nke) 
+          knots <- xu
+        else {
+          p <- if (nke == 2) 
+            seq(0.5, 1 - outer, length = nke)
+          else seq(outer, 1 - outer, length = nke)
+          knots <- quantile(xx, p)
+          if (length(unique(knots)) < min(nke, 3)) {
+            knots <- quantile(xx, seq(outer, 1 - outer, 
+                                      length = 2 * nke))
+            if (length(firstknot) && length(unique(knots)) < 
+                3) {
+              midval <- if (length(firstknot) && length(lastknot)) 
+                (firstknot + lastknot)/2
+              else median(xx)
+              knots <- sort(c(firstknot, 
+                              midval, if (length(lastknot)) lastknot else quantile(xx, 
+                                                                                   1 - outer)))
+            }
+            if ((nu <- length(unique(knots))) < 3) {
+              cat("Fewer than 3 unique knots.  Frequency table of variable:\n")
+              print(table(x))
+              stop()
+            }
+            warning(paste("could not obtain", nke, "interior knots with default algorithm.\n", 
+                          "Used alternate algorithm to obtain", nu, 
+                          "knots"))
+          }
+        }
+        if (length(xx) < 100) {
+          xx <- sort(xx)
+          if (!overrideFirst) 
+            knots[1] <- xx[5]
+          if (!overrideLast) 
+            knots[nke] <- xx[length(xx) - 4]
+        }
+      }
+      knots <- c(firstknot, knots, lastknot)
+    }
+  }
+  knots <- sort(unique(knots))
+  nk <- length(knots)
+  if (nk < 3) {
+    cat("fewer than 3 unique knots.  Frequency table of variable:\n")
+    print(table(x))
+    stop()
+  }
+  if (knots.only) 
+    return(knots)
+  if (length(rpm)) 
+    x[is.na(x)] <- rpm
+  # end of borrow from Hmisc::rcspline.eval
+  ##
+  
+  X <- x
+  N <- length(X)
+  nk <- length(knots)
+  
+  basis_evals <- matrix(0, N, nk-1)
+  
+  if(inclx) basis_evals[,1] = X
+  
+  if(deriv == 0) basis_evals[,1] = X;
+  if(deriv == 1) basis_evals[,1] = 1;
+  if(deriv == 2) basis_evals[,1] = 0;
+  
+  Xx <- matrix(0, N, nk)
+  km1 = nk - 1;
+  j = 1;
+  knot1   <- knots[1     ]
+  knotnk  <- knots[nk    ]
+  knotnk1 <- knots[nk - 1]
+  kd <-     (knotnk - knot1) ^ (2)
+  
+  for(ia in 1:N) {
+    for(ja in 1:nk) {
+      Xx[ia,ja] = ifelse(X[ia] - knots[ja] > 0, X[ia] - knots[ja], 0)
+    }
+  }
+  
+  if(deriv == 0) {
+    while (j <= nk - 2) {
+      jp1 = j + 1;
+      basis_evals[,jp1] = 
+        (Xx[,j]^3-(Xx[,km1]^3)*(knots[nk]-knots[j])/
+           (knots[nk]-knots[km1]) + (Xx[,nk]^3)*(knots[km1]-knots[j])/
+           (knots[nk]-knots[km1])) / (knots[nk]-knots[1])^2;
+      j = j + 1;
+    }
+  }
+  
+  if(deriv == 1) {
+    while (j <= nk - 2) {
+      jp1 = j + 1;
+      basis_evals[,jp1] =
+        (3*Xx[,j]^2) * (1/((knots[nk]-knots[1])^2))  - 
+        (3*Xx[,km1]^2)*(knots[nk]-knots[j]) /
+        ((knots[nk]-knots[km1]) * (knots[nk]-knots[1])^2) + 
+        (3*Xx[,nk]^2)*(knots[km1]-knots[j])/
+        ((knots[nk]-knots[km1]) * (knots[nk]-knots[1])^2) ;
+      j = j + 1;
+    }
+  }
+  
+  if(deriv == 2) {
+    while (j <= nk - 2) {
+      jp1 = j + 1;
+      basis_evals[,jp1] =
+        (6*Xx[,j]^1) * (1/((knots[nk]-knots[1])^2))  - 
+        (6*Xx[,km1]^1)*(knots[nk]-knots[j]) /
+        ((knots[nk]-knots[km1]) * (knots[nk]-knots[1])^2) + 
+        (6*Xx[,nk]^1)*(knots[km1]-knots[j])/
+        ((knots[nk]-knots[km1]) * (knots[nk]-knots[1])^2) ;
+      j = j + 1;
+    }
+  }
+  
+  if(!inclx) basis_evals <- basis_evals[,-1,drop=FALSE]
+  
+  
+  if(add_intercept) {
+    if(deriv == 0) {
+      mat_intercept <- matrix(1, nrow(basis_evals), 1)
+      basis_evals <- cbind(mat_intercept, basis_evals)
+      if(verbose) message("Intercept column added. Please use ~0 + formula")
+    }
+    if(deriv == 1) {
+      mat_intercept <- matrix(0, nrow(basis_evals), 1)
+      basis_evals <- cbind(mat_intercept, basis_evals)
+      if(verbose) message("Intercept set to '0' for deriv = 1")
+    }
+    if(deriv == 2) {
+      mat_intercept <- matrix(0, nrow(basis_evals), 2)
+      basis_evals   <- basis_evals[, -1, drop = FALSE]
+      basis_evals   <- cbind(mat_intercept, basis_evals)
+      if(verbose) message("Intercept and first term (x) set to '0' for deriv = 2")
+    }
+  } # if(add_intercept) {
+  
+  
+  return(basis_evals)
+} # end rcs_matrix
+
+
+
+
+
+
+
+
+
+
+#' Plot method for (conditional) equivalence testing
+#'
+#' The `plot()` method for the `bayestestR::equivalence_test()` function.
+#'
+#' @param x description
+#' @param rope_color description
+#' @param rope_alpha description
+#' @param show_intercept description
+#' @param n_columns description
+#' @param estimate this is the added parameter
+#' @param ... description
+#' 
+#' @return A ggplot2-object.
+#'
+#' @keywords internal
+#' #noRd
+#' 
+# plot.see_equivalence_test_x <- function(x,
+#                                         rope_color = "#0171D3",
+#                                         rope_alpha = 0.2,
+#                                         show_intercept = FALSE,
+#                                         n_columns = 1,
+#                                         estimate = NULL,
+#                                         ...) {
+#   
+#   
+#   ################
+#   
+#   
+#   # .intercept_names <- see:::.intercept_names
+#   
+#   .intercept_names <- c(
+#     "(intercept)_zi", "intercept (zero-inflated)", "intercept",  
+#     "zi_intercept", "(intercept)", "b_intercept",
+#     "b_zi_intercept"
+#   )
+#   
+#   # These two function are from 'see' package
+#   .is_intercept <- function(x) {
+#     x <- tolower(x)
+#     x %in% .intercept_names | grepl("(?i)intercept[^a-zA-Z]", x)
+#   }
+#   
+#   .has_multiple_panels <- function (x) {
+#     (!"Effects" %in% names(x) || insight::n_unique(x$Effects) <= 
+#        1L) && (!"Component" %in% names(x) || insight::n_unique(x$Component) <= 
+#                  1L)
+#   }
+#   
+#   .clean_parameter_names <- function (params, grid = FALSE) 
+#   {
+#     params <- unique(params)
+#     parameter_labels <- params
+#     params <- gsub("(b_|bs_|bsp_|bcs_)(.*)", "\\2", params, perl = TRUE)
+#     params <- gsub("^zi_(.*)", "\\1 (Zero-Inflated)", params, 
+#                    perl = TRUE)
+#     params <- gsub("(.*)_zi$", "\\1 (Zero-Inflated)", params, 
+#                    perl = TRUE)
+#     params <- gsub("(.*)_disp$", "\\1 (Dispersion)", params, 
+#                    perl = TRUE)
+#     params <- gsub("r_(.*)\\.(.*)\\.", "(re) \\1", params)
+#     params <- gsub("b\\[\\(Intercept\\) (.*)\\]", "(re) \\1", 
+#                    params)
+#     params <- gsub("b\\[(.*) (.*)\\]", "(re) \\2", params)
+#     params <- gsub("^smooth_sd\\[(.*)\\]", "\\1 (smooth)", params)
+#     params <- gsub("^sds_", "\\1 (Smooth)", params)
+#     params <- gsub("(.*)(\\.)(\\d)$", "\\1 \\3", params)
+#     params <- gsub("(.*)__zi\\s(.*)", "\\1 \\2 (Zero-Inflated)", 
+#                    params, perl = TRUE)
+#     params <- gsub("\\(re\\)\\s(.*)", "\\1 (Random)", params, 
+#                    perl = TRUE)
+#     cor_sd <- grepl("(sd_|cor_)(.*)", params)
+#     if (any(cor_sd)) {
+#       params[cor_sd] <- paste("SD/Cor: ", gsub("^(sd_|cor_)(.*?)__(.*)", 
+#                                                "\\3", params[cor_sd], perl = TRUE))
+#       cor_only <- !is.na(params[cor_sd]) & startsWith(params[cor_sd], 
+#                                                       "cor_")
+#       if (any(cor_only)) {
+#         params[cor_sd][which(cor_sd)[cor_only]] <- sub("__", 
+#                                                        " ~ ", params[cor_sd][which(cor_sd)[cor_only]], 
+#                                                        fixed = TRUE)
+#       }
+#     }
+#     cor_sd <- grepl("^Sigma\\[(.*)", params)
+#     if (any(cor_sd)) {
+#       parm1 <- gsub("^Sigma\\[(.*):(.*),(.*)\\]", "\\2", params[cor_sd], 
+#                     perl = TRUE)
+#       parm2 <- gsub("^Sigma\\[(.*):(.*),(.*)\\]", "\\3", params[cor_sd], 
+#                     perl = TRUE)
+#       params[which(cor_sd)] <- parm1
+#       rand_cor <- parm1 != parm2
+#       if (any(rand_cor)) {
+#         params[which(cor_sd)[rand_cor]] <- paste0(parm1[rand_cor], 
+#                                                   " ~ ", parm2[rand_cor])
+#       }
+#       params[cor_sd] <- paste("SD: ", params[cor_sd])
+#     }
+#     if (grid) {
+#       params <- trimws(gsub("(Zero-Inflated)", "", params, 
+#                             fixed = TRUE))
+#       params <- trimws(gsub("(Random)", "", params, fixed = TRUE))
+#       params <- trimws(gsub("(Dispersion)", "", params, fixed = TRUE))
+#     }
+#     else {
+#       params <- gsub("(Zero-Inflated) (Random)", "(Random, Zero-Inflated)", 
+#                      params, fixed = TRUE)
+#     }
+#     stats::setNames(params, parameter_labels)
+#   }
+#   
+#   .fix_facet_names <- function (x) 
+#   {
+#     if ("Component" %in% names(x)) {
+#       x$Component <- as.character(x$Component)
+#       if ("Effects" %in% names(x)) {
+#         x$Component[x$Component == "conditional"] <- "(Conditional)"
+#         x$Component[x$Component == "zero_inflated"] <- "(Zero-Inflated)"
+#         x$Component[x$Component == "dispersion"] <- "(Dispersion)"
+#         x$Component[x$Component == "simplex"] <- "(Monotonic Effects)"
+#       }
+#       else {
+#         x$Component[x$Component == "conditional"] <- "Conditional"
+#         x$Component[x$Component == "zero_inflated"] <- "Zero-Inflated"
+#         x$Component[x$Component == "dispersion"] <- "Dispersion"
+#         x$Component[x$Component == "simplex"] <- "Monotonic Effects"
+#       }
+#     }
+#     if ("Effects" %in% names(x)) {
+#       x$Effects <- as.character(x$Effects)
+#       x$Effects[x$Effects == "fixed"] <- "Fixed Effects"
+#       x$Effects[x$Effects == "random"] <- "Random Effects"
+#     }
+#     x
+#   }
+#   
+#   .reshape_to_long <- function(x,
+#                                names_to = "group",
+#                                values_to = "values",
+#                                columns = colnames(x),
+#                                id = "id") {
+#     if (is.numeric(columns)) columns <- colnames(x)[columns]
+#     dat <- stats::reshape(
+#       as.data.frame(x),
+#       idvar = id,
+#       ids = row.names(x),
+#       times = columns,
+#       timevar = names_to,
+#       v.names = values_to,
+#       varying = list(columns),
+#       direction = "long"
+#     )
+#     
+#     if (is.factor(dat[[values_to]])) {
+#       dat[[values_to]] <- as.character(dat[[values_to]])
+#     }
+#     
+#     dat[, 1:(ncol(dat) - 1), drop = FALSE]
+#   }
+#   
+#   
+#   ##############
+#   
+#   model_name <- attr(x, "object_name", exact = TRUE)
+#   
+#   if (is.null(model_name)) {
+#     insight::format_alert("`plot()` only works for `equivalence_test()` with model-objects.")
+#     return(x)
+#   }
+#   
+#   
+#   # retrieve model
+#   model <- tryCatch(
+#     {
+#       get(model_name, envir = parent.frame())
+#     },
+#     error = function(e) {
+#       NULL
+#     }
+#   )
+#   
+#   if (is.null(model)) {
+#     insight::format_alert(sprintf("Can't find object '%s'.", model_name))
+#     return(x)
+#   }
+#   
+#   if (inherits(model, "emmGrid")) {
+#     insight::check_if_installed("emmeans")
+#   }
+#   
+#   # if we have intercept-only models, keep at least the intercept
+#   intercepts <- which(.is_intercept(x$Parameter))
+#   if (length(intercepts) && nrow(x) > length(intercepts) && !show_intercept) {
+#     x <- x[-intercepts, ]
+#   }
+#   
+#   cp <- insight::clean_parameters(model)
+#   intercepts <- which(.is_intercept(cp$Parameter))
+#   if (length(intercepts) && nrow(x) > length(intercepts) && !show_intercept) {
+#     cp <- cp[-intercepts, ]
+#   }
+#   
+#   .rope <- c(x$ROPE_low[1], x$ROPE_high[1])
+#   
+#   # split for multiple CIs
+#   tests <- split(x, x$CI)
+#   
+#   result <- lapply(tests, function(i) {
+#     if (inherits(model, "emmGrid")) {
+#       tmp <- as.data.frame(as.matrix(emmeans::as.mcmc.emmGrid(model, names = FALSE)))[, i$Parameter, drop = FALSE]
+#     } else if (inherits(x, "equivalence_test_simulate_model")) {
+#       tmp <- as.data.frame(attr(x, "data"), stringsAsFactors = FALSE, optional = FALSE)[, i$Parameter, drop = FALSE]
+#     } else {
+#       tmp <- as.data.frame(model, stringsAsFactors = FALSE, optional = FALSE)[, i$Parameter, drop = FALSE]
+#     }
+#     
+#     tmp2 <- lapply(seq_len(nrow(i)), function(j) {
+#       p <- i$Parameter[j]
+#       tmp[[p]][tmp[[p]] < i$HDI_low[j]] <- NA
+#       tmp[[p]][tmp[[p]] > i$HDI_high[j]] <- NA
+#       tmp[[p]]
+#     })
+#     
+#     cnames <- colnames(tmp)
+#     tmp <- as.data.frame(tmp2)
+#     colnames(tmp) <- cnames
+#     
+#     tmp <- .reshape_to_long(tmp, names_to = "predictor", values_to = "estimate")
+#     # tmp$predictor <- as.factor(tmp$predictor)
+#     
+#     
+#     # tmp <- get('cc')
+#     
+# 
+#     
+#     tmp$grp <- NA
+#     for (j in seq_len(nrow(i))) {
+#       tmp$grp[tmp$predictor == i$Parameter[j]] <- i$ROPE_Equivalence[j]
+#     }
+#     
+#     tmp$predictor <- factor(tmp$predictor)
+#     tmp$predictor <- factor(tmp$predictor, levels = rev(levels(tmp$predictor)))
+#     
+#     tmp$HDI <- sprintf("%g%% HDI", 100 * i$CI[1])
+#     
+#     tmp
+#   })
+#   
+#   tmp <- do.call(rbind, result)
+#   colnames(cp)[1] <- "predictor"
+#   tmp <- merge(tmp, cp, by = "predictor")
+#   tmp$predictor <- factor(tmp$predictor, levels = rev(unique(tmp$predictor)))
+#   
+#   if (.has_multiple_panels(tmp)) {
+#     n_columns <- NULL
+#   }
+#   
+#   # get labels
+#   labels <- .clean_parameter_names(tmp$predictor, grid = !is.null(n_columns))
+#   
+#   tmp <- .fix_facet_names(tmp)
+#   
+#   # check for user defined arguments
+#   
+#   fill.color <- c("#CD423F", "#018F77", "#FCDA3B")
+#   if (length(unique(tmp$HDI)) > 1L) {
+#     x.title <- "Highest Density Region of Posterior Samples"
+#   } else {
+#     x.title <- sprintf("%g%% Highest Density Region of Posterior Samples", 100 * x$CI[1])
+#   }
+#   legend.title <- "Decision on H0"
+#   
+#   fill.color <- fill.color[sort(unique(match(x$ROPE_Equivalence, c("Accepted", "Rejected", "Undecided"))))]
+#   
+#   add.args <- lapply(match.call(expand.dots = FALSE)$`...`, function(x) x)
+#   if ("colors" %in% names(add.args)) fill.color <- eval(add.args[["colors"]])
+#   if ("x.title" %in% names(add.args)) x.title <- eval(add.args[["x.title"]])
+#   if ("legend.title" %in% names(add.args)) legend.title <- eval(add.args[["legend.title"]])
+#   if ("labels" %in% names(add.args)) labels <- eval(add.args[["labels"]])
+#   
+#   rope.line.alpha <- 1.25 * rope_alpha
+#   if (rope.line.alpha > 1) rope.line.alpha <- 1
+#   
+#   insight::check_if_installed("ggridges")
+#   
+#   p <- ggplot(tmp, aes(x = estimate, y = predictor, fill = grp)) +
+#     annotate(
+#       "rect",
+#       xmin = .rope[1],
+#       xmax = .rope[2],
+#       ymin = 0,
+#       ymax = Inf,
+#       fill = rope_color,
+#       alpha = (rope_alpha / 3),
+#       na.rm = TRUE
+#     ) +
+#     geom_vline(
+#       xintercept = .rope,
+#       linetype = "dashed",
+#       colour = rope_color,
+#       alpha = rope.line.alpha,
+#       na.rm = TRUE
+#     ) +
+#     geom_vline(
+#       xintercept = 0,
+#       colour = rope_color,
+#       linewidth = 0.8,
+#       alpha = rope.line.alpha,
+#       na.rm = TRUE
+#     ) +
+#     ggridges::geom_density_ridges2(
+#       rel_min_height = 0.01,
+#       scale = 2,
+#       alpha = 0.5,
+#       na.rm = TRUE
+#     ) +
+#     scale_fill_manual(values = fill.color) +
+#     labs(x = x.title, y = NULL, fill = legend.title) +
+#     scale_y_discrete(labels = labels) +
+#     theme(legend.position = "bottom")
+#   
+#   if (!is.null(n_columns)) {
+#     if ("Component" %in% names(x) && "Effects" %in% names(x)) {
+#       if (length(unique(tmp$HDI)) > 1L) {
+#         p <- p + facet_wrap(~ Effects + Component + HDI, scales = "free", ncol = n_columns)
+#       } else {
+#         p <- p + facet_wrap(~ Effects + Component, scales = "free", ncol = n_columns)
+#       }
+#     } else if ("Effects" %in% names(x)) {
+#       if (length(unique(tmp$HDI)) > 1L) {
+#         p <- p + facet_wrap(~ Effects + HDI, scales = "free", ncol = n_columns)
+#       } else {
+#         p <- p + facet_wrap(~Effects, scales = "free", ncol = n_columns)
+#       }
+#     } else if ("Component" %in% names(x)) {
+#       if (length(unique(tmp$HDI)) > 1L) {
+#         p <- p + facet_wrap(~ Component + HDI, scales = "free", ncol = n_columns)
+#       } else {
+#         p <- p + facet_wrap(~Component, scales = "free", ncol = n_columns)
+#       }
+#     }
+#   } else {
+#     if (length(unique(tmp$HDI)) > 1L) {
+#       p <- p + facet_wrap(~HDI, scales = "free", ncol = n_columns)
+#     }
+#   }
+#   
+#   p
+# }
 
 

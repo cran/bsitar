@@ -3,12 +3,13 @@
 \name{loo_validation.bgmfit}
 \alias{loo_validation.bgmfit}
 \alias{loo_validation}
-\title{Perform leave-one-out (loo) cross-validation}
+\title{Perform leave-one-out (LOO) cross-validation}
 \usage{
 \method{loo_validation}{bgmfit}(
   model,
   compare = TRUE,
   resp = NULL,
+  dpar = NULL,
   pointwise = FALSE,
   moment_match = FALSE,
   reloo = FALSE,
@@ -35,11 +36,14 @@ loo_validation(model, ...)
 \arguments{
 \item{model}{An object of class \code{bgmfit}.}
 
-\item{compare}{A flag indicating if the information criteria of the models
-should be compared to each other via \code{\link[loo:loo_compare]{loo::loo_compare()}}.}
+\item{compare}{A logical flag indicating if the information criteria of the
+models should be compared using \code{\link[loo:loo_compare]{loo::loo_compare()}}.}
 
 \item{resp}{Optional names of response variables. If specified, predictions
 are performed only for the specified response variables.}
+
+\item{dpar}{Optional name of a predicted distributional parameter.
+If specified, expected predictions of this parameters are returned.}
 
 \item{pointwise}{A flag indicating whether to compute the full
 log-likelihood matrix at once or separately for each observation.
@@ -47,18 +51,19 @@ The latter approach is usually considerably slower but
 requires much less working memory. Accordingly, if one runs
 into memory issues, \code{pointwise = TRUE} is the way to go.}
 
-\item{moment_match}{A logical argument to indicate whether
-\code{\link[loo:loo_moment_match]{loo::loo_moment_match()}} should be applied on problematic observations.
+\item{moment_match}{A logical flag to indicate whether
+\code{\link[loo:loo_moment_match]{loo::loo_moment_match()}} should be applied to problematic observations.
 Defaults to \code{FALSE}. For most models, moment matching will only work
-if you have set \code{save_pars = save_pars(all = TRUE)} when fitting the
-model with \code{\link[brms:brm]{brms::brm()}}. See \code{\link[brms:loo_moment_match.brmsfit]{brms::loo_moment_match()}} for more details.}
+if \code{save_pars = save_pars(all = TRUE)} was set when fitting the model
+with \code{\link[brms:brm]{brms::brm()}}. See \code{\link[brms:loo_moment_match.brmsfit]{brms::loo_moment_match()}} for more details.}
 
-\item{reloo}{A logical argument to indicate whether \code{\link[brms:reloo.brmsfit]{brms::reloo()}} should be
-applied on problematic observations. Defaults to \code{FALSE}.}
+\item{reloo}{A logical flag indicating whether \code{\link[brms:reloo.brmsfit]{brms::reloo()}} should be
+applied to problematic observations. Defaults to \code{FALSE}.}
 
-\item{k_threshold}{The threshold at which pareto \eqn{k}
-estimates are treated as problematic. Defaults to \code{0.7}.
-Only used if argument \code{reloo} is \code{TRUE}.
+\item{k_threshold}{The Pareto \eqn{k} threshold for which observations
+\code{\link[brms]{loo_moment_match}} or \code{\link[brms]{reloo}} is applied if
+argument \code{moment_match} or \code{reloo} is \code{TRUE}.
+Defaults to \code{0.7}.
 See \code{\link[loo:pareto-k-diagnostic]{pareto_k_ids}} for more details.}
 
 \item{save_psis}{Should the \code{"psis"} object created internally be saved
@@ -75,106 +80,95 @@ derived from deparsing the call. Otherwise will use the passed
 values as model names.}
 
 \item{ndraws}{A positive integer indicating the number of posterior draws to
-be used in estimation. If \code{NULL} (default), all draws are used.}
+use in estimation. If \code{NULL} (default), all draws are used.}
 
-\item{draw_ids}{An integer indicating the specific posterior draw(s)
-to be used in estimation (default \code{NULL}).}
+\item{draw_ids}{An integer specifying the specific posterior draw(s) to use
+in estimation (default \code{NULL}).}
 
-\item{cores}{Number of cores to be used when running the parallel
-computations (if \code{future = TRUE}). On non-Windows systems this
-argument can be set globally via the mc.cores option. For the default
-\code{NULL} option, the number of cores are set automatically by calling
-the \code{\link[future:re-exports]{future::availableCores()}}. The number of cores used are the maximum
-number of cores avaialble minus one, i.e., \code{future::availableCores() -
-  1}.}
+\item{cores}{The number of cores to be used for parallel computations if
+\code{future = TRUE}. On non-Windows systems, this argument can be set
+globally via the \code{mc.cores} option. By default, \code{NULL}, the
+number of cores is automatically determined using
+\code{\link[future:re-exports]{future::availableCores()}}, and it will use the maximum number of cores
+available minus one (i.e., \code{future::availableCores() - 1}).}
 
-\item{deriv_model}{A logical to specify whether to estimate velocity curve
-from the derivative function, or the differentiation of the distance curve.
-The argument \code{deriv_model} is set to \code{TRUE} for those functions
-which need velocity curve such as \code{growthparameters()} and
-\code{plot_curves()}, and \code{NULL} for functions which explicitly use
-the distance curve (i.e., fitted values) such as \code{loo_validation()}
-and \code{plot_ppc()}.}
+\item{deriv_model}{A logical value specifying whether to estimate the
+velocity curve from the derivative function or by differentiating the
+distance curve. Set \code{deriv_model = TRUE} for functions that require
+the velocity curve, such as \code{growthparameters()} and
+\code{plot_curves()}. Set it to \code{NULL} for functions that use the
+distance curve (i.e., fitted values), such as \code{loo_validation()} and
+\code{plot_ppc()}.}
 
-\item{verbose}{An optional argument (logical, default \code{FALSE}) to
-indicate whether to print information collected during setting up the
-object(s).}
+\item{verbose}{A logical argument (default \code{FALSE}) to specify whether
+to print information collected during the setup of the object(s).}
 
-\item{dummy_to_factor}{A named list (default \code{NULL}) that is used to
-convert dummy variables into a factor variable. The named elements are
-\code{factor.dummy}, \code{factor.name}, and \code{factor.level}. The
-\code{factor.dummy} is a vector of character strings that need to be
-converted to a factor variable whereas the \code{factor.name} is a single
-character string that is used to name the newly created factor variable.
-The \code{factor.level} is used to name the levels of newly created factor.
-When \code{factor.name} is \code{NULL}, then the factor name is internally
-set as \code{'factor.var'}. If \code{factor.level} is \code{NULL}, then
-names of factor levels are take from the \code{factor.dummy} i.e., the
-factor levels are assigned same name as \code{factor.dummy}. Note that when
-\code{factor.level} is not \code{NULL}, its length must be same as the
-length of the \code{factor.dummy}.}
+\item{dummy_to_factor}{A named list (default \code{NULL}) to convert dummy
+variables into a factor variable. The list must include the following
+elements:
+\itemize{
+\item \code{factor.dummy}: A character vector of dummy variables to be
+converted to factors.
+\item \code{factor.name}: The name for the newly created factor variable
+(default is \code{'factor.var'} if \code{NULL}).
+\item \code{factor.level}: A vector specifying the factor levels.
+If \code{NULL}, levels are taken from \code{factor.dummy}.
+If \code{factor.level} is provided, its length must match
+\code{factor.dummy}.
+}}
 
-\item{expose_function}{An optional logical argument to indicate whether to
-expose Stan functions (default \code{FALSE}). Note that if user has already
-exposed Stan functions during model fit by setting \code{expose_function =
-  TRUE} in the \code{\link[=bsitar]{bsitar()}}, then those exposed functions are saved and can be
-used during post processing of the posterior draws and therefore
-\code{expose_function} is by default set as \code{FALSE} in all post
-processing functions except \code{\link[=optimize_model]{optimize_model()}}. For \code{\link[=optimize_model]{optimize_model()}}, the
-default setting is \code{expose_function = NULL}. The reason is that each
-optimized model has different Stan function and therefore it need to be re
-exposed and saved. The \code{expose_function = NULL} implies that the
-setting for \code{expose_function} is taken from the original \code{model}
-fit. Note that \code{expose_function} must be set to \code{TRUE} when
-adding \code{fit criteria} and/or \code{bayes_R2} during model
-optimization.}
+\item{expose_function}{A logical argument (default \code{FALSE}) to indicate
+whether Stan functions should be exposed. If \code{TRUE}, any Stan
+functions exposed during the model fit using \code{expose_function = TRUE}
+in the \code{\link[=bsitar]{bsitar()}} function are saved and can be used in post-processing. By
+default, \code{expose_function = FALSE} in post-processing functions,
+except in \code{\link[=optimize_model]{optimize_model()}} where it is set to \code{NULL}. If
+\code{NULL}, the setting is inherited from the original model fit. It must
+be set to \code{TRUE} when adding \code{fit criteria} or \code{bayes_R2}
+during model optimization.}
 
-\item{usesavedfuns}{A logical (default \code{NULL}) to indicate whether to
-use the already exposed and saved \code{Stan} functions. Depending on
-whether the user have exposed Stan functions within the \code{\link[=bsitar]{bsitar()}} call via
-\code{expose_functions} argument in the \code{\link[=bsitar]{bsitar()}}, the \code{usesavedfuns}
-is automatically set to \code{TRUE} (if \code{expose_functions = TRUE}) or
-\code{FALSE} (if \code{expose_functions = FALSE}). Therefore, manual
-setting of \code{usesavedfuns} as \code{TRUE}/\code{FALSE} is rarely
-needed. This is for internal purposes only and mainly used during the
-testing of the functions and therefore should not be used by users as it
-might lead to unreliable estimates.}
+\item{usesavedfuns}{A logical value (default \code{NULL}) indicating whether
+to use already exposed and saved Stan functions. This is typically set
+automatically based on the \code{expose_functions} argument from the
+\code{\link[=bsitar]{bsitar()}} call. Manual specification of \code{usesavedfuns} is rarely
+needed and is intended for internal testing, as improper use can lead to
+unreliable estimates.}
 
-\item{clearenvfuns}{A logical to indicate whether to clear the exposed
-function from the environment (\code{TRUE}) or not (\code{FALSE}). If
-\code{NULL} (default), then \code{clearenvfuns} is set as \code{TRUE} when
-\code{usesavedfuns} is \code{TRUE}, and \code{FALSE} if \code{usesavedfuns}
-is \code{FALSE}.}
+\item{clearenvfuns}{A logical value indicating whether to clear the exposed
+Stan functions from the environment (\code{TRUE}) or not (\code{FALSE}). If
+\code{NULL}, \code{clearenvfuns} is set based on the value of
+\code{usesavedfuns}: \code{TRUE} if \code{usesavedfuns = TRUE}, or
+\code{FALSE} if \code{usesavedfuns = FALSE}.}
 
-\item{envir}{Environment used for function evaluation. The default is
-\code{NULL} which will set \code{parent.frame()} as default environment.
-Note that since most of post processing functions are based on \pkg{brms},
-the functions needed for evaluation should be in the \code{.GlobalEnv}.
-Therefore, it is strongly recommended to set \code{ envir = globalenv()}
-(or \code{envir = .GlobalEnv}). This is particularly true for the
-derivatives such as velocity curve.}
+\item{envir}{The environment used for function evaluation. The default is
+\code{NULL}, which sets the environment to \code{parent.frame()}. Since
+most post-processing functions rely on \pkg{brms}, it is recommended to set
+\code{envir = globalenv()} or \code{envir = .GlobalEnv}, especially for
+derivatives like velocity curves.}
 
 \item{...}{Additional arguments passed to the \code{\link[brms:loo.brmsfit]{brms::loo()}} function.
 Please see \code{brms::loo} for details on various options available.}
 }
 \value{
-If only one model object is provided, then an object of class
-\code{loo} is returned. If multiple objects are provided, an object of
-class \code{loolist}.
+If only one model object is provided, an object of class \code{loo}
+is returned. If multiple objects are provided, an object of class
+\code{loolist} is returned.
 }
 \description{
-The \strong{loo_validation()} is a wrapper around the
-\code{\link[brms:loo.brmsfit]{brms::loo()}} function to perform approximate leave-one-out
-cross-validation based on the posterior likelihood. See \code{\link[brms:loo.brmsfit]{brms::loo()}} for
-more details.
+The \strong{loo_validation()} function is a wrapper around the
+\code{\link[brms:loo.brmsfit]{brms::loo()}} function to perform approximate leave-one-out cross-validation
+based on the posterior likelihood. See \code{\link[brms:loo.brmsfit]{brms::loo()}} for more details.
 }
 \details{
-See \code{\link[loo:loo_compare]{loo::loo_compare()}} for details on model comparisons. For
-\code{bgmfit} objects, \code{LOO} is an alias of \code{loo}. Use method
-\code{\link[brms:add_criterion]{brms::add_criterion()}}  to store information criteria in the fitted model
-object for later usage.
+The function supports model comparisons using \code{\link[loo:loo_compare]{loo::loo_compare()}}
+for comparing information criteria across models. For \code{bgmfit}
+objects, \code{LOO} is simply an alias for \code{loo}. Additionally, you
+can use \code{\link[brms:add_criterion]{brms::add_criterion()}} to store information criteria in the fitted
+model object for later use.
 }
 \examples{
+
+\donttest{
 
 # Fit Bayesian SITAR model 
 
@@ -183,14 +177,13 @@ object for later usage.
 # See 'bsitar' function for details on 'berkeley_exdata' and 'berkeley_exfit'.
 
 # Check and confirm whether model fit object 'berkeley_exfit' exists
- berkeley_exfit <- getNsObject(berkeley_exfit)
+berkeley_exfit <- getNsObject(berkeley_exfit)
 
 model <- berkeley_exfit
 
-\donttest{
+# Perform leave-one-out cross-validation
 loo_validation(model, cores = 1)
 }
-
 
 }
 \seealso{
