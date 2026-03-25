@@ -2,7 +2,7 @@
 % Please edit documentation in R/check_and_get_object.R
 \name{getNsObject}
 \alias{getNsObject}
-\title{Check and Get Namespace Object If Exists}
+\title{Retrieve Bayesian SITAR model object if it exists}
 \usage{
 getNsObject(object, namespace = NULL, envir = NULL)
 }

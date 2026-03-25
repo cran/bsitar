@@ -1,3 +1,61 @@
+# bsitar 0.3.3
+
+### Breaking changes
+
+The functions ``marginal_draws()``, ``marginal_comparison()``, and ``growthparameters_comparison()`` have been renamed to ``get_predictions()``, ``get_comparisons()``, and ``get_growthparameters()``, respectively, to better reflect their roles and to harmonise the naming scheme across the package. In particular, the earlier names with the ``marginal_`` prefix suggested that these functions are used only for marginal inference, whereas they in fact support both marginal and conditional inferences. The functions with the ``marginal_*`` prefix  are now soft-deprecated and will be removed in the next release. Therefore, it is recommended that users update their code to use the corresponding``get_*`` prefix  functions instead.
+
+## Major changes
+
+- Changed the default behavior of random initial values so that Stan’s randomly generated initial values are now controlled by init_r. When init_r = NULL, Stan draws initial values uniformly from −2,2 on the unconstrained scale. When init_r is specified (for example, init_r = 0.5, the default for init = "random"), initial values are drawn uniformly from −0.5,0.5 on the unconstrained scale. Users should note that this change in initialization may affect convergence, model fit, and posterior estimates, especially in sensitive or weakly identified models, or when adaptation is difficult, when using init = "random". To recover the previous random-initialization behavior, set init_r = NULL. The default setting remains init = NULL, as before. In this case, user specified initial values are assigned to the fixed-effect parameters (a, b, and c, as well as the spline coefficients), while random initial values are assigned to the variance-covariance parameters, drawn uniformly from −2,2 on the unconstrained scale.
+
+- Changed default priors. All model parameters — including population-average effects, standard deviations of individual-level random effects, and residual standard deviation — are now assigned ``normal()``-based priors. The vignette ``Bayesian_SITAR_model_An_Introduction`` has been updated to reflect the default priors for each parameter. Users should be aware that this change may affect convergence, model fit, and posterior estimates, particularly in sensitive or weakly identified models. It is strongly recommended that users carefully review and set priors appropriately for their specific model.
+
+- A major refactoring of the internal code to streamline the integration of modelling the distributional parameter sigma, aligning it more closely with the location parameter mu. This update marks the first step in a series of improvements aimed at enabling robust modelling of location-scale models. Additionally, the core functions are significantly rewritten to enhance the speed and efficiency of model fitting. Note: This release should be considered experimental. Future versions may introduce further significant changes. Additionally, documentation has not yet been fully updated to reflect these modifications. Due to the above changes, previously saved model objects will need to be refitted for post-processing to work correctly.
+No other changes are required from the user’s perspective—only that the model should be re-run.
+
+- Support for explicit modelling of scale parameter, ``sigma`` (distributional model)
+
+Like location parameter ``mu``, the scale parameter ``sigma``, which models the residual variance structure, can be estimated as a function of covariates to accommodate heteroskedasticity. This flexibility allows researchers to specify complex variance relationships that better reflect the underlying data-generating process. The updates include support for prior specifications setting custom initial values. Note that the post-processing support remains limited and experimental The documentation provides comprehensive details on modeling the distributional parameter ``sigma``. Briefly, the available modeling options are:
+
+Constant Variance: By default, ``sigma`` is treated as a constant parameter across all observations, assuming homoskedastic residuals.
+
+Covariate-Dependent Variance: The distributional parameter can be modeled as a function of predictors using the formula syntax sigma ~ covariates. This approach enables heteroskedastic modeling where residual variance changes systematically with covariates. 
+
+Variance Function Specifications: Common variance structures include exponential relationships (sigma ~ exp(age)), power functions (sigma ~ pow(abs(fitted_values), power)), and linear combinations of multiple predictors. The ``bsitar`` package provide six different types of variance function that are adapted from the ``nlme`` package.
+
+Random Effects Integration
+At higher hierarchical levels, ``sigma`` can incorporate random effects to model between-group variance heterogeneity. This is particularly valuable in multilevel growth models where different clusters exhibit varying degrees of residual scatter.
+
+Prior Specification
+The ``bsitar`` allows full control on specifying appropriate prior distributions for ``sigma`` parameters typically include half-normal, half-Cauchy, or exponential priors for group level standard deviation parameters that respect the positive constraint while providing regularization for model stability.
+
+
+## New features/Additions
+
+- Added support for estimating model-based individual growth parameters, such as age at peak growth velocity (APGV), peak growth velocity (PGV) and size at peak growth velocity (SPGV). For details, refer to the function ``modelbased_growthparameters()``. Note multivariate models are not supported yet.
+
+- Support has been added to allow the use of external functions, such as ``splines::ns()``, for modeling the distributional parameter ``sigma``. Users can now specify functions for both the fixed ``sigma_formula`` and random ``sigma_formula_gr`` effects. Further, different functions can be used in the fixed and random effects formulas. For example. For example. ``sigma_formula = ~ 1 + splines::ns(age, df = 3)``, and ``sigma_formula_gr = ~ 1 + stats::poly(age, degree = 2)``
+
+- Added support for ``tag`` feature implementing parameter specific prior sensitivity analysis in ``priorsense`` package via ``brms``.
+
+- An new feature that allows for optimizing the number and /or the placements of knots via the argument``knots_selection`` argument. This feature explores an extended candidate set (usually ``df + 4``) to select an optimal subset of knots minimizing a specified information criterion such as ``AIC``, ``BIC`` or the ``residual error`` from Cross-validation procedure. It supports flexible strategies via select (knots, degrees of freedom, or both), with options for returning and plotting all scores during ``df`` selection. Diagnostic outputs and plotting types can be selected, with options to return or print these results. This feature enhances model flexibility and diagnostic capability for improved spline regression performance.
+
+- Added ``hypothesis_test()`` that provides comprehensive hypothesis testing framework for the Bayesian SITAR models. The ``hypothesis_test()`` not only estimates the contrasts but also support testing for the ROPE (Region of Practical Equivalence) and pd (probability of direction) results in a unified interface.
+
+
+### Minor changes/Enhancements
+
+The efficiency of the post-processing function has been improved (average improvement in speed ~ 2x).
+
+The default ``stype`` is ``rcs``
+
+
+### Bugfixes
+
+The function block for the multivariate model did not render properly.
+
+The random initial values for the residual correlation parameter of the multivariate model resulted in an empty list warning.
+
 
 # bsitar 0.3.2
 

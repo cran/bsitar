@@ -1,6 +1,6 @@
 
 
-#' @title Optimize SITAR Model
+#' @title Optimize Bayesian SITAR Model
 #' 
 #' @description The optimization process for selecting the best-fitting SITAR
 #'   model involves choosing the optimal degrees of freedom (\code{df}) for the
@@ -39,14 +39,15 @@
 #'   \code{optimize_y} are the same as described above for \code{optimize_x}.
 #'   
 #' @param transform_prior_class A character vector (default \code{NULL})
-#'   specifying the parameter classes for which transformations of
-#'   user-specified priors should be performed. The prior classes that can be
-#'   transformed are \code{'beta'}, \code{'sd'}, \code{'rsd'}, \code{'sigma'},
-#'   and \code{'dpar'}, and they can be specified as: \cr
+#'   specifying the parameter class for which transformations of user-specified
+#'   priors should be performed. These options are \code{'beta'}, \code{'sd'},
+#'   \code{'rsd'}, \code{'sigma'}, and \code{'dpar'}, and they can be specified
+#'   as follows: \cr
 #'   \code{transform_prior_class = c('beta', 'sd', 'rsd', 'sigma', 'dpar')}.
 #'   Note that transformations can only be applied to location-scale based
-#'   priors (such as \code{normal()}). For example, the \code{'log'}
-#'   transformation of a prior is performed as follows: \cr
+#'   priors such as \code{normal()}. Currently, transformation are supported 
+#'   only for the \code{'log'} transformed \code{'x'} variable. The \code{'log'} 
+#'   transformation of prior is performed as follows: \cr
 #'   \code{log_location = log(location / sqrt(scale^2 / location^2 + 1))}, \cr
 #'   \code{log_scale = sqrt(log(scale^2 / location^2 + 1))}, \cr where
 #'   \code{location} and \code{scale} are the original parameters supplied by
@@ -79,7 +80,7 @@
 #'   automatically. Note that \code{transform_sd_coef} is ignored when
 #'   \code{transform_prior_class = NULL}.
 #'  
-#' @param exclude_default_funs A logical indicating whether transformations for
+#' @param exclude_default A logical indicating whether transformations for
 #'   (\code{x} and \code{y}) variables used in the original model fit should be
 #'   excluded. If \code{TRUE} (default), the transformations specified for the
 #'   \code{x} and \code{y} variables in the original model fit are excluded from
@@ -88,10 +89,7 @@
 #'   \code{optimize_x} is translated into \code{optimize_x = list(NULL, sqrt)},
 #'   and \code{optimize_y} is reset as \code{optimize_y = list(log, sqrt)}.
 #'
-#' @param add_fit_criteria An optional argument (default \code{NULL}) to
-#'   indicate whether to add fit criteria to the returned model fit. Available
-#'   options are \code{'loo'}, \code{'waic'}, and \code{'bayes_R2'}. Please see
-#'   \code{[brms::add_criterion()]} for details.
+#' @param add_fit_criteria a
 #'
 #' @param byresp A logical (default \code{FALSE}) indicating whether
 #'   response-wise fit criteria should be calculated. This argument is evaluated
@@ -127,7 +125,7 @@
 #' @return A list containing the optimized models of class \code{bgmfit}, and
 #'   the the summary statistics if \code{add_fit_criteria} are specified.
 #'  
-#' @export optimize_model.bgmfit
+#' @rdname optimize_model
 #' @export
 #' 
 #' @importFrom loo pareto_k_table
@@ -137,9 +135,7 @@
 #' @inherit berkeley author
 #'
 #' @examples
-#' 
 #' \donttest{
-#' 
 #' # Fit Bayesian SITAR model 
 #' 
 #' # To avoid model estimation, which takes time, the Bayesian SITAR model fit  
@@ -176,8 +172,8 @@ optimize_model.bgmfit <- function(model,
                                   transform_prior_class = NULL,
                                   transform_beta_coef = NULL,
                                   transform_sd_coef = NULL,
-                                  exclude_default_funs = TRUE,
-                                  add_fit_criteria = NULL,
+                                  exclude_default = TRUE,
+                                  add_fit_criteria = c('loo'),
                                   byresp = FALSE,
                                   model_name = NULL,
                                   overwrite = FALSE,
@@ -187,7 +183,7 @@ optimize_model.bgmfit <- function(model,
                                   digits = 2,
                                   cores = 1,
                                   verbose = FALSE,
-                                  expose_function = NULL,
+                                  expose_function = FALSE,
                                   usesavedfuns = FALSE,
                                   clearenvfuns = NULL,
                                   envir = NULL,
@@ -196,7 +192,7 @@ optimize_model.bgmfit <- function(model,
   if(is.null(envir)) {
     envir <- model$model_info$envir
   } else {
-    envir <- parent.frame()
+    envir <- envir
   }
   
 
@@ -214,26 +210,62 @@ optimize_model.bgmfit <- function(model,
   
   if (is.null(newdata)) {
     newdata <- model$model_info$bgmfit.data
-    if(verbose) message("data used in the original model fit set as 'newdata'")
+    # if(verbose) message("data used in the original model fit set as 'newdata'")
   } else {
     newdata <- newdata
   }
   
+  
   if(!is.null(optimize_x)) {
-    if(!is.list(optimize_x)) stop("argument 'optimize_x' must be a list")
+    if(is.list(optimize_x)) {
+      optimize_x <- optimize_x
+    } else if(is.vector(optimize_x)) {
+      optimize_x <- as.list(optimize_x)
+      if(verbose) message2c("Argument 'optimize_x' converted to list ",
+                            optimize_x)
+    } else {
+      stop("Argument 'optimize_x' must be a list")
+    }
   }
   
   if(!is.null(optimize_y)) {
-    if(!is.list(optimize_y)) stop("argument 'optimize_y' must be a list")
+    if(is.list(optimize_y)) {
+      optimize_y <- optimize_y
+    } else if(is.vector(optimize_y)) {
+      optimize_y <- as.list(optimize_y)
+      if(verbose) message2c("Argument 'optimize_y' converted to list ",
+                            optimize_y)
+    } else {
+      stop("Argument 'optimize_x' must be a list")
+    }
   }
   
-  o <-
-    post_processing_checks(model = model,
-                           xcall = match.call(),
-                           resp = NULL,
-                           envir = envir,
-                           deriv = 0,
-                           all = FALSE)
+  
+  
+  if(!all(sapply(optimize_x, typeof) == "character")) {
+    stop("All elements of argument 'optimize_x' must be character")
+  }
+  
+  if(!all(sapply(optimize_y, typeof) == "character")) {
+    stop("All elements of argument 'optimize_y' must be character")
+  }
+  
+  
+  
+  setxcall_   <- match.call()
+  post_processing_checks_args <- list()
+  post_processing_checks_args[['model']]    <- model
+  post_processing_checks_args[['xcall']]    <- setxcall_
+  post_processing_checks_args[['resp']]     <- NULL
+  post_processing_checks_args[['envir']]    <- envir
+  post_processing_checks_args[['deriv']]    <- 0
+  post_processing_checks_args[['all']]      <- FALSE
+  post_processing_checks_args[['verbose']]  <- verbose
+  post_processing_checks_args[['check_d0']] <- FALSE
+  post_processing_checks_args[['check_d1']] <- TRUE
+  post_processing_checks_args[['check_d2']] <- FALSE
+  
+  o    <- CustomDoCall(post_processing_checks, post_processing_checks_args)
   
   call_o <- match.call()
   call_o_args <- as.list(call_o)[-1]
@@ -300,30 +332,13 @@ optimize_model.bgmfit <- function(model,
   }
   
   
-  # for (bayes_Ri in add_bayes_R) {
-  #   if (!bayes_Ri %in% c("bayes_R2")) {
-  #     stop("only bayes_R2 as R square measure is supported")
-  #   }
-  # }
-  
-  
-  
   need_exposed_function <- FALSE
   if(!is.null(add_fit_criteria)) {
     need_exposed_function <- TRUE
   } else if(is.list(add_fit_criteria)) {
     if(!any(is.null(add_fit_criteria[[1]]))) need_exposed_function <- TRUE
   } 
-  
-  # else if(!is.null(add_bayes_R)) {
-  #   need_exposed_function <- TRUE
-  # } else if(is.list(add_bayes_R)) {
-  #   if(!any(is.null(add_bayes_R[[1]]))) need_exposed_function <- TRUE
-  # }
-
-  
-  
-  # The 'expose_function' must be TRUE when adding fit criteria or bayes R2
+ 
   if (need_exposed_function) {
     if(is.null(expose_function)) {
       args_o$expose_function <- expose_function <- TRUE
@@ -412,31 +427,107 @@ optimize_model.bgmfit <- function(model,
   optimize_x  <- get_args_opt(deparse(substitute(optimize_x)))
   optimize_y  <- get_args_opt(deparse(substitute(optimize_y)))
   
-  if (exclude_default_funs) {
-    optimize_x <- optimize_x[!optimize_x %in% model$model_info$xfuns]
-    optimize_y <-
-      optimize_y[!optimize_y %in% model$model_info$xfuns]
-    if (identical(optimize_x, character(0)))
-      optimize_x <- "NULL"
-    if (identical(optimize_y, character(0)))
-      optimize_y <- "NULL"
+  
+  # Need to adjust 'exclude_default' for multivariate ?
+  temp_f_m_df <- model$model_info$dfs
+  temp_f_m_df <- ept(temp_f_m_df) %>% as.factor()
+  optimize_df_<- optimize_df
+  if (exclude_default) {
+    # Need for temp_f_m.. because model$model_info$xfuns 'NULL' is 'x'
+    optimize_df <- setdiff(optimize_df, temp_f_m_df) %>% droplevels()
+    temp_f_m_x  <- model$model_info$xfuns
+    temp_f_m_x  <- gsub("x", "NULL", temp_f_m_x)
+    optimize_x  <- optimize_x[!optimize_x %in% temp_f_m_x]
+    temp_f_m_y  <- model$model_info$yfuns
+    temp_f_m_y  <- gsub("x", "NULL", temp_f_m_y)
+    optimize_y  <- optimize_y[!optimize_y %in% temp_f_m_y]
+    # optimize_x <- optimize_x[!optimize_x %in% model$model_info$xfuns]
+    # optimize_y <- optimize_y[!optimize_y %in% model$model_info$yfuns]
+    if (identical(optimize_x, character(0))) optimize_x <- "NULL"
+    if (identical(optimize_y, character(0))) optimize_y <- "NULL"
+  } else if (!exclude_default) {
+    optimize_df_ <- c(temp_f_m_df, optimize_df)
   }
   
+ 
   
   
-  
-  if(grepl("function(", optimize_x, fixed = T)) {
-    optimize_x <- remove_between_first_last_parnth(optimize_x, splitat = ",")
+  optimize_df_TF <- optimize_x_TF  <- optimize_x_TF  <- TRUE
+  if(is.factor(optimize_df)) {
+    if(nlevels(optimize_df) == 0) {
+      optimize_df <- "NULL"
+      optimize_df_TF <- FALSE
+    }
+  } else if(is_emptyx(optimize_df)) {
+    optimize_df_TF <- FALSE
+  } else if(optimize_df == "NULL") {
+    optimize_df_TF <- FALSE
   }
-  if(grepl("function(", optimize_y, fixed = T)) {
-    optimize_y <- remove_between_first_last_parnth(optimize_y, splitat = ",")
+  
+  if(is.factor(optimize_x)) {
+    if(nlevels(optimize_x) == 0) optimize_x <- "NULL"
+    optimize_x_TF <- FALSE
+  } else if(is_emptyx(optimize_x)) {
+    optimize_x_TF <- FALSE
+  } else { # if(optimize_x == "NULL") {
+    optimize_x_TF <- FALSE
   }
   
-  # expand.grid(optimize_dfx, optimize_x2, optimize_yx) %>% print()
-  # stop()
+  if(is.factor(optimize_y)) {
+    if(nlevels(optimize_y) == 0) optimize_y <- "NULL"
+    optimize_y_TF <- FALSE
+  } else if(is_emptyx(optimize_y)) {
+    optimize_y_TF <- FALSE
+  } else { # if(optimize_y == "NULL") {
+    optimize_y_TF <- FALSE
+  }
+
+  
+  if(!optimize_df_TF & !optimize_x_TF & !optimize_y_TF) {
+    noting_to_opt_msg <- "Nothing to optimize. All three conditions i.e.,
+    optimize_df, optimize_x, and optimize_y 
+    are identical to the base model"
+    message2c(noting_to_opt_msg)
+    return(invisible(NULL))
+  } else {
+    optimize_df <- optimize_df_
+  }
+  
+ 
+  
+  optimize_x_temp_c <- c()
+  for (i in optimize_x) {
+    if(grepl("function(", i, fixed = T)) {
+      optimize_x_temp <- remove_between_first_last_parnth(i, splitat = ",")
+    } else {
+      optimize_x_temp <- i
+    }
+    optimize_x_temp_c <- c(optimize_x_temp_c, optimize_x_temp)
+  }
+  optimize_x <- optimize_x_temp_c
+ 
   
   
+  optimize_y_temp_c <- c()
+  for (i in optimize_y) {
+    if(grepl("function(", i, fixed = T)) {
+      optimize_y_temp <- remove_between_first_last_parnth(i, splitat = ",")
+    } else {
+      optimize_y_temp <- i
+    }
+    optimize_y_temp_c <- c(optimize_y_temp_c, optimize_y_temp)
+  }
+  optimize_y <- optimize_y_temp_c
   
+  
+  # if(grepl("function(", optimize_x, fixed = T)) {
+  #   optimize_x <- remove_between_first_last_parnth(optimize_x, splitat = ",")
+  # }
+  # if(grepl("function(", optimize_y, fixed = T)) {
+  #   optimize_y <- remove_between_first_last_parnth(optimize_y, splitat = ",")
+  # }
+  
+ 
   optimize_df_x_y <-
     expand.grid(optimize_df, optimize_x, optimize_y)
   
@@ -455,16 +546,12 @@ optimize_model.bgmfit <- function(model,
         list_c[[ic]] <- model_list[[model_listi]][[summary_obj]]
       }
       summary_of_obj <-
-        list_c %>% do.call(rbind, .) %>% data.frame()
+        list_c %>% CustomDoCall(rbind, .) %>% data.frame()
     }
     if (nrow(summary_of_obj) < 1)
       summary_of_obj <- NULL
     summary_of_obj
   }
-  
-  # resp = NULL is only used as a placeholder that too only for multivariate
-  # If NULL, then combined log likelihood used for multivariate model
-  # otherwise separate log likelihood  for each response
 
   add_citeria_fun <- function(fit,
                               add_fit_criteria = NULL,
@@ -489,9 +576,9 @@ optimize_model.bgmfit <- function(model,
       what_ <- paste(add_fit_criteria, collapse = ", ")
       if(verbose) message(" Adding", " ", what_, " ", "...")
       if(verbose) cat("\n")
-      if (is.na(fit$model_info$univariate_by) |
-          !fit$model_info$multivariate) {
-        if (!fit$model_info$multivariate) {
+      if (is.na(fit$model_info$univariate_by$by) |
+          !fit$model_info$multivariate$mvar) {
+        if (!fit$model_info$multivariate$mvar) {
           suppressWarnings(fit <- brms::add_criterion(
             x = fit,
             criterion = add_fit_criteria,
@@ -501,7 +588,7 @@ optimize_model.bgmfit <- function(model,
             force_save = force_save,
             cores = cores))
         }
-        if (fit$model_info$multivariate) {
+        if (fit$model_info$multivariate$mvar) {
           if (is.null(resp)) {
             suppressWarnings(fit <- brms::add_criterion(
               x = fit,
@@ -513,7 +600,7 @@ optimize_model.bgmfit <- function(model,
               cores = cores))
           }
           if (!is.null(resp)) {
-            for (aci in fit$model_info$ys) {
+            for (aci in fit$model_info$yvars) {
               suppressWarnings(fit <- brms::add_criterion(
                 x = fit,
                 criterion = add_fit_criteria,
@@ -528,7 +615,7 @@ optimize_model.bgmfit <- function(model,
               names(fit$criteria) <- aci_names
             }
             aci_names <- c()
-            for (aci in fit$model_info$ys) {
+            for (aci in fit$model_info$yvars) {
               aci_names <- c(aci_names, paste0(add_fit_criteria, aci))
             }
             names(fit$criteria) <- aci_names
@@ -537,8 +624,8 @@ optimize_model.bgmfit <- function(model,
       }
       
       
-      if (!is.na(fit$model_info$univariate_by)) {
-        for (aci in fit$model_info$ys) {
+      if (!is.na(fit$model_info$univariate_by$by)) {
+        for (aci in fit$model_info$yvars) {
           suppressWarnings(fit <- brms::add_criterion(
             x = fit,
             criterion = add_fit_criteria,
@@ -553,7 +640,7 @@ optimize_model.bgmfit <- function(model,
           names(fit$criteria) <- aci_names
         }
         aci_names <- c()
-        for (aci in fit$model_info$ys) {
+        for (aci in fit$model_info$yvars) {
           aci_names <- c(aci_names, paste0(add_fit_criteria, aci))
         }
         names(fit$criteria) <- aci_names
@@ -565,8 +652,8 @@ optimize_model.bgmfit <- function(model,
       what_ <- paste(add_bayes_R, collapse = ", ")
     #  if(verbose) message(" Adding", " ", what_, " ", "...")
       if(verbose) cat("\n")
-      if (is.na(fit$model_info$univariate_by)) {
-        if (!fit$model_info$multivariate) {
+      if (is.na(fit$model_info$univariate_by$by)) {
+        if (!fit$model_info$multivariate$mvar) {
           aci_names <- paste0(add_bayes_R, '')
           suppressWarnings(fit$criteria[[aci_names]] <-
                              brms::bayes_R2(fit, cores = cores))
@@ -576,7 +663,7 @@ optimize_model.bgmfit <- function(model,
             dplyr::relocate(dplyr::all_of('Parameter'))
           rownames(fit$criteria[[aci_names]]) <- NULL
         }
-        if (fit$model_info$multivariate) {
+        if (fit$model_info$multivariate$mvar) {
           if (is.null(resp)) {
             aci_names <- paste0(add_bayes_R, '')
             suppressWarnings(fit$criteria[[aci_names]] <-
@@ -589,7 +676,7 @@ optimize_model.bgmfit <- function(model,
             rownames(fit$criteria[[aci_names]]) <- NULL
           }
           if (!is.null(resp)) {
-            for (aci in fit$model_info$ys) {
+            for (aci in fit$model_info$yvars) {
               aci_names <- paste0(add_bayes_R, aci)
               suppressWarnings(fit$criteria[[aci_names]] <-
                                  brms::bayes_R2(fit,
@@ -608,8 +695,8 @@ optimize_model.bgmfit <- function(model,
       
       
       
-      if (!is.na(fit$model_info$univariate_by)) {
-        for (aci in fit$model_info$ys) {
+      if (!is.na(fit$model_info$univariate_by$by)) {
+        for (aci in fit$model_info$yvars) {
           aci_names <- paste0(add_bayes_R, aci)
           suppressWarnings(fit$criteria[[aci_names]] <-
                              brms::bayes_R2(fit,
@@ -701,9 +788,9 @@ optimize_model.bgmfit <- function(model,
       assign('err.', FALSE, envir = enverr.)
       tryCatch(
         expr = {
-          if (!is.na(fit$model_info$univariate_by)) {
+          if (!is.na(fit$model_info$univariate_by$by)) {
             list_c_ <- list()
-            for (aci in fit$model_info$ys) {
+            for (aci in fit$model_info$yvars) {
               getit_ <- paste0('waic', aci)
               list_c_[[aci]] <-
                 add_summary_waic(fit$criteria[[getit_]], 
@@ -711,10 +798,10 @@ optimize_model.bgmfit <- function(model,
                 dplyr::mutate(outcome = aci) %>% dplyr::relocate(outcome)
             }
             summary_waic <-
-              list_c_ %>%  do.call(rbind, .) %>% data.frame()
-          } else if (fit$model_info$multivariate & !is.null(resp)) {
+              list_c_ %>%  CustomDoCall(rbind, .) %>% data.frame()
+          } else if (fit$model_info$multivariate$mvar & !is.null(resp)) {
             list_c_ <- list()
-            for (aci in fit$model_info$ys) {
+            for (aci in fit$model_info$yvars) {
               getit_ <- paste0('waic', aci)
               list_c_[[aci]] <-
                 add_summary_waic(fit$criteria[[getit_]], 
@@ -722,13 +809,13 @@ optimize_model.bgmfit <- function(model,
                 dplyr::mutate(outcome = aci) %>% dplyr::relocate(outcome)
             }
             summary_waic <-
-              list_c_ %>%  do.call(rbind, .) %>% data.frame()
-          } else if (fit$model_info$multivariate & is.null(resp)) {
+              list_c_ %>%  CustomDoCall(rbind, .) %>% data.frame()
+          } else if (fit$model_info$multivariate$mvar & is.null(resp)) {
             getit_ <- paste0('waic', '')
             summary_waic <-
               add_summary_waic(fit$criteria[[getit_]], digits = digits)
-          } else if (is.na(fit$model_info$univariate_by) &
-                     !fit$model_info$multivariate) {
+          } else if (is.na(fit$model_info$univariate_by$by) &
+                     !fit$model_info$multivariate$mvar) {
             getit_ <- paste0('waic', '')
             summary_waic <-
               add_summary_waic(fit$criteria[[getit_]], digits = digits)
@@ -742,9 +829,6 @@ optimize_model.bgmfit <- function(model,
         },
         error = function(e) {
           assign('err.', TRUE, envir = enverr.)
-          # message(paste("Computation of criterias failed:", add_fit_criteria))
-          # message("Below is the returned original error message:")
-          # message(conditionMessage(e))
         }
       )
       err. <- get('err.', envir = enverr.)
@@ -765,9 +849,9 @@ optimize_model.bgmfit <- function(model,
       assign('err.', FALSE, envir = enverr.)
       tryCatch(
         expr = {
-          if (!is.na(fit$model_info$univariate_by)) {
+          if (!is.na(fit$model_info$univariate_by$by)) {
             list_c_ <- list()
-            for (aci in fit$model_info$ys) {
+            for (aci in fit$model_info$yvars) {
               getit_ <- paste0(add_bayes_R, aci)
               list_c_[[aci]] <-
                 add_summary_bayes_R2(fit$criteria[[getit_]], 
@@ -775,10 +859,10 @@ optimize_model.bgmfit <- function(model,
                 dplyr::mutate(outcome = aci) %>% dplyr::relocate(outcome)
             }
             summary_bayes_R2 <-
-              list_c_ %>%  do.call(rbind, .) %>% data.frame()
-          } else if (fit$model_info$multivariate & !is.null(resp)) {
+              list_c_ %>%  CustomDoCall(rbind, .) %>% data.frame()
+          } else if (fit$model_info$multivariate$mvar & !is.null(resp)) {
             list_c_ <- list()
-            for (aci in fit$model_info$ys) {
+            for (aci in fit$model_info$yvars) {
               getit_ <- paste0(add_bayes_R, aci)
               list_c_[[aci]] <-
                 add_summary_bayes_R2(fit$criteria[[getit_]], 
@@ -786,14 +870,14 @@ optimize_model.bgmfit <- function(model,
                 dplyr::mutate(outcome = aci) %>% dplyr::relocate(outcome)
             }
             summary_bayes_R2 <-
-              list_c_ %>%  do.call(rbind, .) %>% data.frame()
-          } else if (fit$model_info$multivariate & is.null(resp)) {
+              list_c_ %>%  CustomDoCall(rbind, .) %>% data.frame()
+          } else if (fit$model_info$multivariate$mvar & is.null(resp)) {
             getit_ <- paste0('bayes_R2', '')
             summary_bayes_R2 <-
               add_summary_bayes_R2(fit$criteria[[getit_]], 
                                    digits = digits)
-          } else if (is.na(fit$model_info$univariate_by) &
-                     !fit$model_info$multivariate) {
+          } else if (is.na(fit$model_info$univariate_by$by) &
+                     !fit$model_info$multivariate$mvar) {
             getit_ <- paste0('bayes_R2', '')
             summary_bayes_R2 <-
               add_summary_bayes_R2(fit$criteria[[getit_]], 
@@ -808,9 +892,6 @@ optimize_model.bgmfit <- function(model,
         },
         error = function(e) {
           assign('err.', TRUE, envir = enverr.)
-          # message(paste("Computation of criterias failed:", add_fit_criteria))
-          # message("Below is the returned original error message:")
-          # message(conditionMessage(e))
         }
       )
       err. <- get('err.', envir = enverr.)
@@ -831,9 +912,9 @@ optimize_model.bgmfit <- function(model,
         assign('err.', FALSE, envir = enverr.)
         tryCatch(
           expr = {
-            if (!is.na(fit$model_info$univariate_by)) {
+            if (!is.na(fit$model_info$univariate_by$by)) {
               list_c_ <- list()
-              for (aci in fit$model_info$ys) {
+              for (aci in fit$model_info$yvars) {
                 getit_ <- paste0('loo', aci)
                 list_c_[[aci]] <-
                   add_summary_loo(fit$criteria[[getit_]], 
@@ -841,11 +922,11 @@ optimize_model.bgmfit <- function(model,
                   dplyr::mutate(outcome = aci) %>% dplyr::relocate(outcome)
               }
               summary_loo <-
-                list_c_ %>%  do.call(rbind, .) %>% data.frame()
-            } else if (fit$model_info$multivariate &
+                list_c_ %>%  CustomDoCall(rbind, .) %>% data.frame()
+            } else if (fit$model_info$multivariate$mvar &
                        !is.null(resp)) {
               list_c_ <- list()
-              for (aci in fit$model_info$ys) {
+              for (aci in fit$model_info$yvars) {
                 getit_ <- paste0('loo', aci)
                 list_c_[[aci]] <-
                   add_summary_loo(fit$criteria[[getit_]], 
@@ -853,15 +934,15 @@ optimize_model.bgmfit <- function(model,
                   dplyr::mutate(outcome = aci) %>% dplyr::relocate(outcome)
               }
               summary_loo <-
-                list_c_ %>%  do.call(rbind, .) %>% data.frame()
-            } else if (fit$model_info$multivariate &
+                list_c_ %>%  CustomDoCall(rbind, .) %>% data.frame()
+            } else if (fit$model_info$multivariate$mvar &
                        is.null(resp)) {
               getit_ <- paste0('loo', '')
               
               summary_loo <-
                 add_summary_loo(fit$criteria[[getit_]], digits = digits)
-            } else if (is.na(fit$model_info$univariate_by) &
-                       !fit$model_info$multivariate) {
+            } else if (is.na(fit$model_info$univariate_by$by) &
+                       !fit$model_info$multivariate$mvar) {
               getit_ <- paste0('loo', '')
               summary_loo <-
                 add_summary_loo(fit$criteria[[getit_]], digits = digits)
@@ -875,9 +956,6 @@ optimize_model.bgmfit <- function(model,
           },
           error = function(e) {
             assign('err.', TRUE, envir = enverr.)
-            # message(paste("Computation of criterias failed:", add_fit_criteria))
-            # message("Below is the returned original error message:")
-            # message(conditionMessage(e))
           }
         )
         err. <- get('err.', envir = enverr.)
@@ -894,9 +972,9 @@ optimize_model.bgmfit <- function(model,
         assign('err.', FALSE, envir = enverr.)
         tryCatch(
           expr = {
-            if (!is.na(fit$model_info$univariate_by)) {
+            if (!is.na(fit$model_info$univariate_by$by)) {
               list_c_ <- list()
-              for (aci in fit$model_info$ys) {
+              for (aci in fit$model_info$yvars) {
                 getit_ <- paste0('loo', aci)
                 list_c_[[aci]] <-
                   add_diagnostic_loo(fit$criteria[[getit_]], 
@@ -904,11 +982,11 @@ optimize_model.bgmfit <- function(model,
                   dplyr::mutate(outcome = aci) %>% dplyr::relocate(outcome)
               }
               diagnostic_loo <-
-                list_c_ %>%  do.call(rbind, .) %>% data.frame()
-            } else if (fit$model_info$multivariate &
+                list_c_ %>%  CustomDoCall(rbind, .) %>% data.frame()
+            } else if (fit$model_info$multivariate$mvar &
                        !is.null(resp)) {
               list_c_ <- list()
-              for (aci in fit$model_info$ys) {
+              for (aci in fit$model_info$yvars) {
                 getit_ <- paste0('loo', aci)
                 list_c_[[aci]] <-
                   add_diagnostic_loo(fit$criteria[[getit_]], 
@@ -916,15 +994,15 @@ optimize_model.bgmfit <- function(model,
                   dplyr::mutate(outcome = aci) %>% dplyr::relocate(outcome)
               }
               diagnostic_loo <-
-                list_c_ %>%  do.call(rbind, .) %>% data.frame()
-            } else if (fit$model_info$multivariate &
+                list_c_ %>%  CustomDoCall(rbind, .) %>% data.frame()
+            } else if (fit$model_info$multivariate$mvar &
                        is.null(resp)) {
               getit_ <- paste0('loo', '')
               diagnostic_loo <-
                 add_diagnostic_loo(fit$criteria[[getit_]], 
                                    digits = digits)
-            } else if (is.na(fit$model_info$univariate_by) &
-                       !fit$model_info$multivariate) {
+            } else if (is.na(fit$model_info$univariate_by$by) &
+                       !fit$model_info$multivariate$mvar) {
               diagnostic_loo <-
                 add_diagnostic_loo(fit$criteria[[getit_]], 
                                    digits = digits)
@@ -938,10 +1016,6 @@ optimize_model.bgmfit <- function(model,
           },
           error = function(e) {
             assign('err.', TRUE, envir = enverr.)
-            # message(paste("Computation of criterias failed:",
-            # add_fit_criteria))
-            # message("Below is the returned original error message:")
-            # message(conditionMessage(e))
           }
         )
         err. <- get('err.', envir = enverr.)
@@ -960,7 +1034,7 @@ optimize_model.bgmfit <- function(model,
   
   
   optimize_fun <- function(.x, model, exe_model_fit) {
-    message("\nOptimizing model no. ",
+    message("\nOptimizing model: ",
             .x,
             " (total ",
             nrow(optimize_df_x_y),
@@ -1013,14 +1087,39 @@ optimize_model.bgmfit <- function(model,
              xfun_print, "; yfun = ", yfun_print)
     
     
+    # args_o$model <- model
+    # args_o$df    <- eval(parse(text = df))
+    # args_o$xfun  <- xfun
+    # args_o$yfun  <- yfun
+    # args_o$data  <- newdata %>% data.frame()
+    
+    
+    
+    
+    
+    if(!is.null(df)) {
+      args_o$df    <- eval(parse(text = df))
+    } else {
+      args_o$df <- 'NULL'
+    }
+    
+    if(!is.null(xfun)) {
+      args_o$xfun  <- xfun 
+    } else {
+      args_o$xfun <- 'NULL'
+    }
+    
+    if(!is.null(yfun)) {
+      args_o$yfun  <- yfun 
+    } else {
+      args_o$yfun <- 'NULL'
+    }
+    
+    
+    
     args_o$model <- model
-    args_o$df    <- eval(parse(text = df))
-    args_o$xfun  <- xfun
-    args_o$yfun  <- yfun
     args_o$data  <- newdata %>% data.frame()
-    
-    
-    
+    # why args_o$model here?
     args_o$model  <- NULL
     
     args_o_new <- args_o
@@ -1032,8 +1131,8 @@ optimize_model.bgmfit <- function(model,
     args_o_new$data <- NULL
     args_o_org$data <- NULL
     
-    if(is.na(model$model_info$univariate_by) &
-       !model$model_info$multivariate) {
+    if(is.na(model$model_info$univariate_by$by) &
+       !model$model_info$multivariate$mvar) {
       if(length(args_o_new$df) == 1)   args_o_new$df   <- args_o_new$df[[1]]
       if(length(args_o_new$xfun) == 1) args_o_new$xfun <- args_o_new$xfun[[1]]
       if(length(args_o_new$yfun) == 1) args_o_new$yfun <- args_o_new$yfun[[1]]
@@ -1080,19 +1179,12 @@ optimize_model.bgmfit <- function(model,
       
       
       
-      # changed -> 21.07.2024
-      
-      # user_call_data_name <- user_call$data
-      # assign(deparse(user_call_data_name), newdata)
-      
       newargs[['data']] <- base::str2lang("newdata")
       user_call <- rlang::call_modify(user_call, !!!newargs)
       
-      # Setting it to FALSE because we are exposing it anyways below
       user_call$expose_function <- FALSE
       
-      ####
-      # Modify priors for log transformed outcome y
+     
       transform_allowed_dist <- 
         c('normal', 'student_t', 'student_nu', 'cauchy', 'lognormal')
       
@@ -1488,33 +1580,11 @@ optimize_model.bgmfit <- function(model,
         }
       }
     
-     
-      ###
       fit <- eval(user_call)
   
       if(!exe_model_fit) {
         return(fit)
       }
-      
-      # if(!exe_model_fit) {
-      #   if(get_priors) {
-      #     return(do.call(brms::get_prior, brm_args))
-      #   } else if(get_standata) {
-      #     return(do.call(brms::make_standata, brm_args))
-      #   } else if(get_stancode) {
-      #     return(scode_final)
-      #   } else if(get_priors_eval) {
-      #     return(get_priors_eval_out)
-      #   } else if(validate_priors) {
-      #     return(do.call(brms::validate_prior, brm_args))
-      #   } else if(get_init_eval) {
-      #     return(brm_args$init)
-      #   } else if(get_formula) {
-      #     return(brm_args$formula)
-      #   } else if(get_stanvars) {
-      #     return(brm_args$stanvars)
-      #   }
-      # } 
       
       if("brmsfit" %in% class(fit) | "bgmfit" %in% class(fit)) {
         class_fit <- TRUE
@@ -1529,7 +1599,7 @@ optimize_model.bgmfit <- function(model,
           if(!is.null(fit$model_info$exefuns[[1]])) {
             envir <- environment(fit$model_info$exefuns[[1]])
           } else {
-            envir <- parent.frame()
+            envir <- envir # parent.frame()
           }
         }
         
@@ -1569,20 +1639,13 @@ optimize_model.bgmfit <- function(model,
       fit$model_info$optimize_x <- xfun_print
       fit$model_info$optimize_y <- yfun_print
       
-      # Add fit_criteria and bares_R to the fit
-      # Also, add summary data frames for criteria and R square
-      # 'setresp' to anything so that even multivariate will be response wise
-      # if desired, this behavior
-      # if(length(fit$model_info$ys) == 1) setresp <- NULL
-      # if(length(fit$model_info$ys) > 1) setresp <- 'TRUE'
-      
-      if (fit$model_info$multivariate) {
+      if (fit$model_info$multivariate$mvar) {
         if (byresp) {
           setresp <- 'TRUE'
         } else if (!byresp) {
           setresp <- NULL
         }
-      } else if (!fit$model_info$multivariate) {
+      } else if (!fit$model_info$multivariate$mvar) {
         setresp <- NULL
       }
       
@@ -1785,7 +1848,6 @@ optimize_model.bgmfit <- function(model,
     bayes_R2_fit        <-
       combine_summaries(optimize_list, 'summary_bayes_R2')
     
-    # Parameter column is not created earlier for the 'bayes_R2_fit'
     if(!is.null(bayes_R2_fit)) {
       bayes_R2_fit <- bayes_R2_fit %>% 
         dplyr::mutate(Parameter = 'bayes_R2') %>% 
@@ -1842,7 +1904,6 @@ optimize_model.bgmfit <- function(model,
     }
     
     if(exists('bayes_R2_fit')) {
-      # Somehow bayes_R2_fit throw error: mutate applied to 'NULL'
       if(!is.null(bayes_R2_fit)) {
       bayes_R2_fit <- bayes_R2_fit %>% 
         dplyr::mutate(Criterion = 'Bayes_R2') %>% 
@@ -1883,8 +1944,10 @@ optimize_model.bgmfit <- function(model,
 
 
 
-#' @rdname optimize_model.bgmfit
+#' @rdname optimize_model
 #' @export
 optimize_model <- function(model, ...) {
   UseMethod("optimize_model")
 }
+
+

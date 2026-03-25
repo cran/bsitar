@@ -1,6 +1,6 @@
 
 
-#' @title Check and Get Namespace Object If Exists
+#' @title Retrieve Bayesian SITAR model object if it exists
 #'
 #' @description
 #' This function checks if an object exists within a specified namespace and
@@ -42,7 +42,7 @@ getNsObject <- function(object,
     namespace <- "bsitar"
   }
   if (grepl("\"", deparse(substitute(object)), fixed = T)) {
-    stop("object must be a symbol and not a string")
+    stop("'object' must be a symbol, not a string")
   }
   object_str <- deparse(substitute(object))
   if (is.null(envir)) {

@@ -1,6 +1,6 @@
 
 
-#' @title Perform leave-one-out (LOO) cross-validation
+#' @title Leave-one-out (LOO) cross-validation for the Bayesian SITAR model
 #' 
 #' @description The \strong{loo_validation()} function is a wrapper around the
 #'   [brms::loo()] function to perform approximate leave-one-out cross-validation
@@ -41,7 +41,7 @@
 #'   is returned. If multiple objects are provided, an object of class
 #'   \code{loolist} is returned.
 #' 
-#' @export loo_validation.bgmfit
+#' @rdname loo_validation
 #' @export
 #' 
 #' @seealso [brms::loo()] 
@@ -49,9 +49,7 @@
 #' @inherit berkeley author
 #'
 #' @examples
-#' 
 #' \donttest{
-#' 
 #' # Fit Bayesian SITAR model 
 #' 
 #' # To avoid mode estimation which takes time, the Bayesian SITAR model fit to 
@@ -83,7 +81,7 @@ loo_validation.bgmfit <-
            ndraws = NULL,
            draw_ids = NULL,
            cores = 1,
-           deriv_model = NULL,
+           model_deriv = NULL,
            verbose = FALSE,
            dummy_to_factor = NULL, 
            expose_function = FALSE,
@@ -95,12 +93,14 @@ loo_validation.bgmfit <-
     if(is.null(envir)) {
       envir <- model$model_info$envir
     } else {
-      envir <- parent.frame()
+      envir <- envir
+    }
+
+    if(is.null(dpar)) {
+      dpar <- "mu"
     }
     
-    # Depending on dpar 'mu' or 'sigma', subset model_info
-    model <- getmodel_info(model = model, dpar = dpar)
-
+    model <- getmodel_info(model = model, dpar = dpar, resp = resp)
     
     if(is.null(usesavedfuns)) {
       if(!is.null(model$model_info$exefuns[[1]])) {
@@ -135,10 +135,9 @@ loo_validation.bgmfit <-
       ndraws <- brms::ndraws(model)
     }
    
-    if(is.null(deriv_model)) {
-      deriv_model <- TRUE
+    if(is.null(model_deriv)) {
+      model_deriv <- TRUE
     }
-    
     
     full.args <- evaluate_call_args(cargs = as.list(match.call())[-1], 
                                     fargs = formals(), 
@@ -149,44 +148,61 @@ loo_validation.bgmfit <-
     full.args$deriv <- deriv <- 0
     
     
+    full.args <- 
+      sanitize_CustomDoCall_args(what = "CustomDoCall", 
+                                 arguments = full.args, 
+                                 check_formalArgs = loo_validation.bgmfit,
+                                 check_formalArgs_exceptions = c('object'),
+                                 check_trace_back = NULL,
+                                 envir = parent.frame())
+    
+    
     if(!is.null(model$xcall)) {
       arguments <- get_args_(as.list(match.call())[-1], model$xcall)
       newdata <- newdata
     } else {
-      newdata <- do.call(get.newdata, full.args)
+      full.args$dpar    <- dpar
+      get.newdata_args <- list()
+      for (i in methods::formalArgs(get.newdata)) {
+        get.newdata_args[[i]] <- full.args[[i]]
+      }
+      newdata <- CustomDoCall(get.newdata, get.newdata_args)
     }
     
     
     if(!is.null(model$model_info$decomp)) {
-      if(model$model_info$decomp == "QR") deriv_model<- FALSE
+      if(model$model_info$decomp == "QR") model_deriv<- FALSE
     }
     
     expose_method_set <- model$model_info[['expose_method']]
     
     model$model_info[['expose_method']] <- 'NA' # Over ride method 'R'
     
-    o <- post_processing_checks(model = model,
-                                xcall = match.call(),
-                                resp = resp,
-                                envir = envir,
-                                deriv = deriv, 
-                                all = FALSE,
-                                verbose = verbose)
+    setxcall_   <- match.call()
+    post_processing_checks_args <- list()
+    post_processing_checks_args[['model']]    <- model
+    post_processing_checks_args[['xcall']]    <- setxcall_
+    post_processing_checks_args[['resp']]     <- resp
+    post_processing_checks_args[['envir']]    <- envir
+    post_processing_checks_args[['deriv']]    <- deriv
+    post_processing_checks_args[['all']]      <- FALSE
+    post_processing_checks_args[['verbose']]  <- verbose
+    post_processing_checks_args[['check_d0']] <- FALSE
+    post_processing_checks_args[['check_d1']] <- TRUE
+    post_processing_checks_args[['check_d2']] <- FALSE
     
-    oall <- post_processing_checks(model = model,
-                                   xcall = match.call(),
-                                   resp = resp,
-                                   envir = envir,
-                                   deriv = deriv, 
-                                   all = TRUE,
-                                   verbose = FALSE)
+    o    <- CustomDoCall(post_processing_checks, post_processing_checks_args)
     
-   
+    post_processing_checks_args[['all']]      <- TRUE
+    oall <- CustomDoCall(post_processing_checks, post_processing_checks_args)
+    post_processing_checks_args[['all']]      <- FALSE
+    
+  
     test <- setupfuns(model = model, resp = resp,
                       o = o, oall = oall,
                       usesavedfuns = usesavedfuns,
                       deriv = deriv, envir = envir,
-                      deriv_model = deriv_model,
+                      model_deriv = model_deriv,
                       ...)
     
     if(is.null(test)) return(invisible(NULL))
@@ -288,7 +304,7 @@ loo_validation.bgmfit <-
 
 
 
-#' @rdname loo_validation.bgmfit
+#' @rdname loo_validation
 #' @export
 loo_validation <- function(model, ...) {
   UseMethod("loo_validation")

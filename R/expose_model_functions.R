@@ -1,7 +1,6 @@
 
 
-
-#' @title Expose User-Defined Stan Functions for Post-Processing
+#' @title Expose user-defined Stan functions for the Bayesian SITAR model
 #'
 #' @description The \strong{expose_model_functions()} function is a wrapper
 #'   around [rstan::expose_stan_functions()] that exposes user-defined Stan
@@ -28,6 +27,20 @@
 #'   exposed functions should be vectorized using [base::Vectorize()]. Note that
 #'   currently, \code{vectorize} should be set to \code{FALSE}, as setting it to
 #'   \code{TRUE} may not work as expected.
+#'   
+#' @param sigmafun A logical (default \code{FALSE}) to indicate whether to return
+#'   the sigma functions. This parameter is for internal use only. Ignored
+#'   
+#' @param backend A character string (default \code{NULL}) to set up the
+#'   the \code{backend} method (\code{'rstan'} or \code{'cmdstanr'}) for
+#'   compiling and exposing \code{stan} functions. If \code{NULL}, then the
+#'   \code{backend} is same as the \code{backend} method used for model
+#'   fitting. Note that when \code{backend = FALSE}, then default
+#'   \code{backend}  will be set as \code{'rstan'}. This is particularly useful
+#'   because \code{backend = 'cmdstanr'} will fail on \code{WSL} system.
+#'   
+#' @param path A character string to set up the path of installed
+#'   \code{CmdStan}. If \code{NULL} (default)
 #'
 #' @inherit growthparameters.bgmfit params
 #'
@@ -44,7 +57,7 @@
 #' @return An object of class \code{bgmfit} if \code{returnobj = TRUE};
 #'   otherwise, it returns \code{NULL} invisibly.
 #'
-#' @export expose_model_functions.bgmfit
+#' @rdname expose_model_functions
 #' @export
 #'
 #' @seealso [rstan::expose_stan_functions()]
@@ -52,9 +65,7 @@
 #' @inherit berkeley author
 #'
 #' @examples
-#' 
 #' \donttest{
-#' 
 #' # Fit Bayesian SITAR model 
 #' 
 #' # To avoid mode estimation which takes time, the Bayesian SITAR model fit to 
@@ -79,38 +90,23 @@ expose_model_functions.bgmfit <- function(model,
                                  returnobj = TRUE,
                                  vectorize = FALSE,
                                  verbose = FALSE,
+                                 sigmafun = FALSE,
+                                 backend = NULL,
+                                 path = NULL,
                                  envir = NULL,
                                  ...) {
   
   if(is.null(envir)) {
     envir <- model$model_info$envir
   } else {
-    envir <- parent.frame()
-  }
-  
-  sigmanlflf <- FALSE
-  if(!is.null(model$model_info[['sigmaStanFun_name']])) {
-    sigmanlflf <- TRUE
+    envir <- envir
   }
   
   fun_env <- envir
   
-  if(is.null(select_model)) select_model <- model$model_info$select_model
-  
-  if(!expose) {
-    if (is.null(model$model_info$decomp))  expose_r_from_stan <- TRUE
-    if (!is.null(model$model_info$decomp)) expose_r_from_stan <- FALSE
-  } else {
-    expose_r_from_stan <- FALSE
+  if(is.null(select_model)) {
+    select_model <- model$model_info$select_model
   }
-  
-  
-  # mcall <- match.call()
-  # arguments <- as.list(mcall)[-1]
-  
-  #dots <- list(...)
-  #arguments <- c(arguments, dots)
-
   
   if(expose) {
     if (verbose) {
@@ -120,15 +116,140 @@ expose_model_functions.bgmfit <- function(model,
     }
   }
   
+  sigma_model_all_      <- paste0('sigmamodel_all', "")
+  sigma_model_all       <- model$model_info[[sigma_model_all_]]
+  
+  expose_sigma_ls_model_fun <- FALSE
+  expose_sigma_var_model_fun <- FALSE
+  expose_sigma_basic_model_fun <- FALSE
+  if(!is.null(sigma_model_all)) {
+    if(all(grepl("ls", sigma_model_all))) {
+      expose_sigma_ls_model_fun <- TRUE
+    } else if(all(grepl("basic", sigma_model_all))) {
+      expose_sigma_basic_model_fun <- TRUE
+    } else if(any(grepl("ls", sigma_model_all)) |
+              any(grepl("basic", sigma_model_all))) {
+      expose_sigma_ls_model_fun <- TRUE
+      expose_sigma_var_model_fun <- TRUE
+    } else {
+      expose_sigma_ls_model_fun <- FALSE
+      expose_sigma_var_model_fun <- FALSE
+    }
+  } else if(is.null(sigma_model_all)) {
+    expose_sigma_ls_model_fun <- FALSE
+    expose_sigma_var_model_fun <- FALSE
+    expose_sigma_basic_model_fun <- FALSE
+  }
+  
+  
+  if(!expose) {
+    if (is.null(model$model_info$decomp))  expose_r_from_stan <- TRUE
+    if (!is.null(model$model_info$decomp)) expose_r_from_stan <- TRUE # FALSE
+  } else {
+    expose_r_from_stan <- FALSE
+  }
+  
+
   if(expose) {
     if (is.null(scode)) {
-      exposecode <- brms::stancode(model)
+      if(model$model_info[['fit_edited_scode']]) {
+        if(!is.null(model$model_info$fun_scode)) {
+          exposecode <- model$model_info$fun_scode 
+        } else if(is.null(model$model_info$fun_scode)) {
+          exposecode <- model$model_info$emodel
+        }
+      } else {
+        if(!is.null(model$model_info$fun_scode)) {
+          exposecode <- model$model_info$fun_scode 
+        } else if(is.null(model$model_info$fun_scode)) {
+          exposecode <- brms::stancode(model)
+        }
+      }
     } else if (!is.null(scode)) {
       exposecode <- scode
     }
-    # rstan::expose_stan_functions(rstan::stanc(model_code = exposecode), 
-    #                              env = fun_env)
-    
+  }
+  
+
+  if(is.null(backend)) {
+    backend <- model$backend
+  } else if(!is.null(backend)) {
+    if(isFALSE(backend)) {
+      backend <- 'rstan'
+    } else {
+      backend <- backend
+    }
+  }
+  
+  
+  if(!expose) {
+    backend <- "rstan"
+  }
+  
+  
+  if(backend == "cmdstanr") {
+    if(isTRUE(check_if_cmdstanr_available())) {
+      write_stan_file <- 
+        utils::getFromNamespace("write_stan_file", "cmdstanr")
+      cmdstan_model   <- 
+        utils::getFromNamespace("cmdstan_model", "cmdstanr")
+      expose_model   <- 
+        utils::getFromNamespace("expose_functions", "cmdstanr")
+      get_path   <- 
+        utils::getFromNamespace("cmdstan_path", "cmdstanr")
+      get_cmdstan_default_path   <- 
+        utils::getFromNamespace("cmdstan_default_path", "cmdstanr")
+      get_cmdstan_default_install_path   <- 
+        utils::getFromNamespace("cmdstan_default_install_path", "cmdstanr")
+      set_path   <- 
+        utils::getFromNamespace("set_cmdstan_path", "cmdstanr")
+      
+      restore_path <- get_path()
+      if(is.null(path)) {
+        if(grepl("wsl", restore_path, fixed = TRUE)) {
+          if(!grepl("wsl", get_cmdstan_default_path(), fixed = TRUE)) {
+            path <- get_cmdstan_default_path()
+          } else {
+            stop("cmdstanr 'expose_functions' does not work for 'WSL'")
+          }
+        } else if(!grepl("wsl", restore_path, fixed = TRUE)) {
+          path <- restore_path
+        }
+      } else if(!is.null(path)) {
+        path <- path
+      }
+      suppressWarnings(suppressMessages({set_path(path)}))
+    } # if(isTRUE(check_if_cmdstanr_available())) {
+  } # if(backend == "cmdstanr") {
+  
+  
+  if(expose &  backend == "cmdstanr") {
+    if(is.null(model$functions$fun_names)) {
+      suppressWarnings(suppressMessages({
+        c_model <- cmdstan_model(write_stan_file(exposecode),
+                                 quiet = TRUE,
+                                 cpp_options = attr(model$fit, 'cpp_options'),
+                                 # stanc_options = attr(model$fit, 'stanc_options'),
+                                 dir = NULL,
+                                 pedantic = FALSE,
+                                 include_paths = attr(model$fit, 'include_paths'),
+                                 user_header = NULL,
+                                 compile_model_methods = FALSE,
+                                 compile_hessian_method = FALSE,
+                                 force_recompile = TRUE,
+                                 compile_standalone = TRUE)
+        # c_model <- attr(model$fit, 'CmdStanModel')
+        c_model$expose_model
+        set_path(restore_path)
+      }))
+    } # if(is.null(model$functions$fun_names)) {
+    if(!is.null(model$functions$fun_names)) {
+      c_model <- attr(model$fit, 'CmdStanModel')
+    }
+  } # if(expose &  backend == "cmdstanr") {
+  
+
+  if(expose & backend == "rstan") {
     stanc_arguments <- list()
     stanc_arguments[['model_code']] <- exposecode
     stan_model_arguments <- stanc_arguments
@@ -145,7 +266,7 @@ expose_model_functions.bgmfit <- function(model,
       } else if(dots_args[['setcompiler']] == 'stan_model') {
         compiled_code_via <- 'stan_model'
       } else {
-        stop(paste("The 'setcompiler' argument should be 'stanc' or 'stan_model'", 
+        stop(paste("'setcompiler' argument should be 'stanc' or 'stan_model'", 
              "or else NULL", collapse =","))
       }
     }
@@ -154,10 +275,12 @@ expose_model_functions.bgmfit <- function(model,
     stan_model_arguments[['setcompiler']] <- NULL
     
     if(compiled_code_via == 'stanc') {
-      compiled_code <- do.call(rstan::stanc, stanc_arguments)
+      # compiled_code <- do.call(rstan::stanc, stanc_arguments)
+      compiled_code <- CustomDoCall(rstan::stanc, stanc_arguments)
     }
     if(compiled_code_via == 'stan_model') {
-      compiled_code <- do.call(rstan::stan_model, stan_model_arguments)
+      # compiled_code <- do.call(rstan::stan_model, stan_model_arguments)
+      compiled_code <- CustomDoCall(rstan::stan_model, stan_model_arguments)
     }
     
     compiled_code_args <- list()
@@ -165,135 +288,61 @@ expose_model_functions.bgmfit <- function(model,
     compiled_code_args[['stanmodel']] <- compiled_code
     compiled_code_args[['includes']] <- NULL
     compiled_code_args[['show_compiler_warnings']] <- FALSE
-    
-    do.call(rstan::expose_stan_functions, compiled_code_args)
+    # do.call(rstan::expose_stan_functions, compiled_code_args)
+    CustomDoCall(rstan::expose_stan_functions, compiled_code_args)
   }
   
   
-  
-
   if(expose_r_from_stan) {
     for (funi in 1:length(model$model_info$funlist_r)) {
       assign(gsub("<-.*$", "", model$model_info$funlist_r[funi]),
              ept(model$model_info$funlist_r[funi]), envir = envir)
     }
     
-    if(sigmanlflf) {
+    if(expose_sigma_ls_model_fun) {
       for (funi in 1:length(model$model_info$sigmafunlist_r)) {
         assign(gsub("<-.*$", "", model$model_info$sigmafunlist_r[funi]),
                ept(model$model_info$sigmafunlist_r[funi]), envir = envir)
       }
-    }
+    } # expose_sigma_ls_model_fun
+    
+    if(expose_sigma_var_model_fun) {
+      for (funi in 1:length(model$model_info$sigmavarfunlist_r)) {
+        assign(gsub("<-.*$", "", model$model_info$sigmavarfunlist_r[funi]),
+               ept(model$model_info$sigmavarfunlist_r[funi]), envir = envir)
+      }
+    } # expose_sigma_var_model_fun
+    
+    if(expose_sigma_basic_model_fun) {
+      for (funi in 1:length(model$model_info$sigmabasicfunlist_r)) {
+        # no use of attaching explicit namespace -> not possible also
+        if(!grepl("::", model$model_info$sigmabasicfunlist_r[funi]) &
+           !grepl(":::", model$model_info$sigmabasicfunlist_r[funi])) {
+          assign(gsub("<-.*$", "", model$model_info$sigmabasicfunlist_r[funi]),
+                 ept(model$model_info$sigmabasicfunlist_r[funi]), envir = envir)
+        } # if(!grepl("::",
+      } # for (funi in 1:l
+    } # expose_sigma_basic_model_fun
+    
+    sigmavarSplineFun_name_val <- model$model_info[['sigmavarfunlist_r']]
+    if(!is_emptyx(sigmavarSplineFun_name_val)) {
+      model$model_info$funlist_r <- c( model$model_info$funlist_r,
+                                       sigmavarSplineFun_name_val)
+      
+      for (funi in 1:length(sigmavarSplineFun_name_val)) {
+        assign(gsub("<-.*$", "", sigmavarSplineFun_name_val[funi]),
+               ept(sigmavarSplineFun_name_val[funi]), envir = envir)
+      }
+    } # if(!is_emptyx(sigmavarSplineFun_name_val) &
   } # if(expose_r_from_stan) {
   
   
-  SplineFun_name <- model$model_info[['StanFun_name']]
-  # spfun_collect <- c(SplineFun_name,
-  #                    paste0(SplineFun_name, "_", 
-  #                           c("d0", 
-  #                             "d1",
-  #                             "d2")))
-  # print(spfun_collect)
-  # stop()
-  
-  spfun_collect <- model$model_info$include_fun_names
+  SplineFun_name      <- model$model_info[['StanFun_name']]
+  sigmaSplineFun_name <- model$model_info[['sigmaStanFun_name']]
+  spfun_collect       <- model$model_info$include_fun_names
 
   
-  if(sigmanlflf) {
-    sigmaSplineFun_name <- model$model_info[['sigmaStanFun_name']]
-    sigmaspfun_collect <- c(sigmaSplineFun_name,
-                       paste0(sigmaSplineFun_name, "_", 
-                              c("d0", 
-                                "d1",
-                                "d2")))
-    
-    spfun_collect <- c(spfun_collect, sigmaspfun_collect)
-  }
-  
-
-  if(expose) {
-    additionlsfuns <- c()
-    if(sigmanlflf) {
-      sigmaadditionlsfuns <- c('sigmagetX')
-      additionlsfuns <- c(additionlsfuns, sigmaadditionlsfuns)
-    }
-    if(model$model_info[['select_model']] == 'sitar' |
-       model$model_info[['select_model']] == 'rcs') {
-      if(sigmanlflf) {
-        sigmaadditionlsfuns <- c('sigmagetKnots')
-        additionlsfuns <- c(additionlsfuns, sigmaadditionlsfuns)
-      }
-    }
-    spfun_collect <- c(spfun_collect, additionlsfuns)
-  }
-
-
-  if(expose_r_from_stan) {
-    spfun_collect <- c(spfun_collect)
-    if(sigmanlflf) {
-      spfun_collect <- c(spfun_collect, 'sigmagetX')
-    }
-    if(select_model == 'sitar' | select_model == 'rcs') {
-      if(sigmanlflf) {
-        spfun_collect <- c(spfun_collect, 'sigmagetKnots')
-      }
-    }
-  }
-  
-  
-  
-  
-  # if(expose) {
-  #   additionlsfuns <- c('getX')
-  #   if(sigmanlflf) {
-  #     sigmaadditionlsfuns <- c('sigmagetX')
-  #     additionlsfuns <- c(additionlsfuns, sigmaadditionlsfuns)
-  #   }
-  #   if(model$model_info[['select_model']] == 'sitar' |
-  #      model$model_info[['select_model']] == 'rcs') {
-  #     additionlsfuns <- c(additionlsfuns, 'getKnots')
-  #     if(sigmanlflf) {
-  #       sigmaadditionlsfuns <- c('sigmagetKnots')
-  #       additionlsfuns <- c(additionlsfuns, sigmaadditionlsfuns)
-  #     }
-  #   }
-  #   spfun_collect <- c(spfun_collect, additionlsfuns)
-  # }
-  # 
-  # 
-  # if(expose_r_from_stan) {
-  #   spfun_collect <- c(spfun_collect, 'getX')
-  #   if(sigmanlflf) {
-  #     spfun_collect <- c(spfun_collect, 'sigmagetX')
-  #   }
-  #   if(select_model == 'sitar' | select_model == 'rcs') {
-  #     spfun_collect <- c(spfun_collect, 'getKnots')
-  #     if(sigmanlflf) {
-  #       spfun_collect <- c(spfun_collect, 'sigmagetKnots')
-  #     }
-  #   }
-  # }
-  
-  
-  
-  
-  
-  
-  
-  nys <- model$model_info$nys
-  ys <- model$model_info$ys
-  if(nys > 1) {
-    spfun_collect2 <- c()
-    for (ysii in ys) {
-      tempysi <- paste0(ysii, "_", spfun_collect)
-      spfun_collect2 <- c(spfun_collect2, tempysi)
-    }
-    spfun_collect <- spfun_collect2
-  }
-  
-  
-  
-  if(expose) {
+  if(expose & backend == "rstan") {
     Spl_funs <- list()
     spfun_collectic <- -1
     for (spfun_collecti in spfun_collect) {
@@ -317,6 +366,26 @@ expose_model_functions.bgmfit <- function(model,
   } 
   
   
+  if(expose & backend == "cmdstanr") {
+    spfun_collect      <- c_model$functions
+    Spl_funs <- list()
+    for (spfun_collecti in spfun_collect$fun_names) {
+      spfun_collecti_name <- spfun_collecti
+      spfun_collecti_name_org <- spfun_collecti_name
+      spfun_collecti_name <- gsub("_d0", "0", spfun_collecti_name)
+      spfun_collecti_name <- gsub("_d1", "1", spfun_collecti_name)
+      spfun_collecti_name <- gsub("_d2", "2", spfun_collecti_name)
+      getfun_ <- spfun_collect[[spfun_collecti]]
+      assign(spfun_collecti_name, getfun_, envir = envir)
+      Spl_funs[[paste0(spfun_collecti_name, "")]] <- getfun_
+      if(grepl("_d", spfun_collecti_name_org)) {
+        if(exists(spfun_collecti_name_org, envir = envir )) {
+          remove(list=spfun_collecti_name_org, envir = envir)
+        }
+      }
+    }
+  }
+  
   
   if(expose_r_from_stan) {
     Spl_funs <- list()
@@ -339,54 +408,53 @@ expose_model_functions.bgmfit <- function(model,
     }
   } 
   
-  
-  
-  if(!expose & !expose_r_from_stan) Spl_funs <- NULL
-  
-  allSplineFun_name <- SplineFun_name
-  if(sigmanlflf) {
-    allSplineFun_name <- c(allSplineFun_name, sigmaSplineFun_name)
+
+  if(!expose & !expose_r_from_stan) {
+    Spl_funs <- NULL
   }
   
-  model$model_info[['namesexefuns']] <- allSplineFun_name
-  # model$model_info[['namesexefuns']] <- SplineFun_name
-  model$model_info[['exefuns']]      <- Spl_funs
- 
   
-  scode_include <- brms::stancode(model)
-  model$bmodel <- scode_include
-  if (nys == 1 | nys > 1) {
-    for (nys__i in 1:nys) {
-      cont_ <- 0
-      for (cont_i in 0:2) {
-        cont_ <- cont_ + 1
-        if (nys == 1) {
-          gsubit <- paste0(
-            "vector",
-            " ",
-            paste0("", "", SplineFun_name),
-            "_",
-            "d",
-            cont_i,
-            paste0(".*end of spline function", "_", ys[nys__i],
-                   "d", cont_i, "")
-          )
-        } else if (nys > 1) {
-          gsubit <-
-            paste0(
-              "vector",
-              " ",
-              paste0(ys[nys__i], "_", SplineFun_name),
-              "_",
-              "d",
-              cont_i,
-              paste0(".*end of spline function", "_", ys[nys__i],
-                     "d", cont_i, "")
-            )
-        }
-        scode_include <-
-          gsub(gsubit, "", scode_include, fixed = F)
+  allSplineFun_name <- SplineFun_name
+  
+  if(expose_sigma_ls_model_fun) {
+    allSplineFun_name <- c(allSplineFun_name, sigmaSplineFun_name)
+  } else if(expose_sigma_var_model_fun) {
+    # allSplineFun_name <- c(allSplineFun_name, sigmavarSplineFun_name)
+  } else if(expose_sigma_basic_model_fun) {
+    sigmabasicSplineFun_name <- model$model_info[['sigmabasicSplineFun_name']]
+    allSplineFun_name <- c(allSplineFun_name, sigmabasicSplineFun_name)
+  } 
+  
+  
+  # The 'sigma_basic_model_fun' are not part of the stan code but only R
+  # Therefore, we need to attach them back to the exposed stan functions 
+  if(expose) {
+    if(expose_sigma_basic_model_fun) {
+      for (funi in 1:length(model$model_info$sigmabasicfunlist_r)) {
+        name_ix <- gsub("<-.*$", "", model$model_info$sigmabasicfunlist_r[funi])
+        assign(name_ix,
+               ept(model$model_info$sigmabasicfunlist_r[funi]), envir = envir)
+        Spl_funs[[name_ix]] <- ept(model$model_info$sigmabasicfunlist_r[funi])
+        environment(Spl_funs[[funi]]) <- envir
       }
+    } # expose_sigma_basic_model_fun
+  } # if(expose) {
+  
+  
+  model$model_info[['namesexefuns']] <- allSplineFun_name
+  model$model_info[['exefuns']]      <- Spl_funs
+  
+ 
+  scode_include <- brms::stancode(model)
+  model$bmodel  <- scode_include
+  
+  if(expose_r_from_stan) {
+    if(is.null(model$model_info[['expose_method']])) {
+      model$model_info[['expose_method']] <- 'R'
+    }
+  } else {
+    if(is.null(model$model_info[['expose_method']])) {
+      model$model_info[['expose_method']] <- 'S'
     }
   }
   
@@ -401,9 +469,12 @@ expose_model_functions.bgmfit <- function(model,
 
 
 
-#' @rdname expose_model_functions.bgmfit
+#' @rdname expose_model_functions
 #' @export
 expose_model_functions <- function(model, ...) {
   UseMethod("expose_model_functions")
 }
+
+
+
 

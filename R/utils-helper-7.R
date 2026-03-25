@@ -1,7919 +1,3868 @@
 
-#' An internal function to prepare priors
+
+
+#' An internal function to set up the Stan function 
+#' 
+#' @description
+#' Imp Note: now when d parameter is part of the fixed / random effects, then X
+#' or Xm, depending upon the d_adjusted, is inlcuded part of the Spl or Qc
+#' matrix as the last column, So the last column is used in d.* operation and
+#' and \code{nknots-1} columns \code{Qk[:, 1:cols(Qc)-1] Spl[:,1:cols(Spl)-1]}.
+#' 
+#' The \code{prepare_function}) constructs custom Stan function  which is passed
+#' on to the [bsitar::bsitar()] function. For univariate-by- subgroup model
+#' (\code{univariate_by}) and multivariate (\code{multivariate}) models (see
+#' [bsitar::bsitar()]), the \code{x}, \code{y}, \code{id}, \code{knots},
+#' \code{nknots}, are automatically matched with the sub-models.
 #'
-#' For \code{univariate_by} and \code{multivariate} models (see
-#' [bsitar::bsitar()]) each argument is automatically matched with the sub
-#' model.
+#' @param x Predictor variable in the data. See [bsitar::bsitar()] for details.
 #'
-#' @param prior_argument A list containing the prior arguments specified in the
-#'   [bsitar::bsitar()] function and then passed from the
-#'   [bsitar::set_priors_initials()] function to the \code{prepare_priors}.
+#' @param y Response variable in the data. See [bsitar::bsitar()] for details.
 #'
-#' @param prior_data An optional argument (a named list) specified in the
-#'   [bsitar::bsitar()] function and then passed from the
-#'   [bsitar::set_priors_initials()] function to the \code{prepare_priors}. The
-#'   \code{prior_data} used to pass value for priors. See [bsitar::bsitar()]
-#'   function, \code{prior_data} for details.
+#' @param id A vector specifying a unique group identifier for each individual.
+#'   See [bsitar::bsitar()] for details.
 #'
-#' @param prior_data_internal An internal argument (as named list) specified in
-#'   the [bsitar::bsitar()] function and then passed from the
-#'   [bsitar::set_priors_initials()] function to the \code{prepare_priors}.
+#' @param knots A vector of knots used for constructing the spline design
+#'   matrix. See [bsitar::bsitar()] for details.
 #'
-#' @param prior_internal_args An internal argument list that is passed from the
-#'   [bsitar::set_priors_initials()] function to the \code{set_priors_initials}
-#'   and is used in setting the priors.
+#' @param nknots An integer specifying the number of knots.
 #'
-#' @param init_arguments A list containing the initial arguments specified in
-#'   the [bsitar::bsitar()] function and then passed from the
-#'   [bsitar::set_priors_initials()] function to the \code{prepare_priors}.
+#' @param data Data frame containing variables \code{x}, \code{y} and \code{id}.
 #'
-#' @param init_data An optional argument (as named list) specified in the
-#'   [bsitar::bsitar()] function and then passed from the
-#'   [bsitar::set_priors_initials()] function to the \code{prepare_priors}. The
-#'   \code{init_data} is used for setting the initials.
+#' @param internal_function_args Internal arguments passed from the
+#'   [bsitar::bsitar()] to the \code{prepare_formula}).
 #'
-#' @param init_data_internal An internal argument (as named list) specified in
-#'   the [bsitar::bsitar()] function and then passed from the
-#'   [bsitar::set_priors_initials()] function to the \code{prepare_priors}.
-#'
-#' @param init_args_internal An internal argument list that is passed from the
-#'   [bsitar::set_priors_initials()] function to the \code{set_priors_initials}
-#'   and is used in setting the initials.
-#'
-#' @return An object of class \code{brmsprior}. See \code{brmsprior} function
-#'   for more details.
+#' @return An character string which later evaluated to a custom function and
+#'   inserted into the Stan's functions block.
 #'
 #' @author Satpal Sandhu  \email{satpal.sandhu@bristol.ac.uk}
-#' 
+#'
 #' @keywords internal
 #' @noRd
-#' 
-prepare_priors <- function(prior_argument,
-                           prior_data,
-                           prior_data_internal,
-                           prior_internal_args,
-                           init_arguments,
-                           init_data,
-                           init_data_internal,
-                           init_args_internal) {
-  
-  
+#'
+prepare_function_nsp_rcs <- function(x,
+                             y,
+                             id,
+                             knots,
+                             nknots,
+                             data,
+                             internal_function_args) {
+
   # Initiate non formalArgs()
-  nlpar <- NULL;
-  verbose <- NULL;
-  cov_nlpar <- NULL;
-  dpar <- NULL;
-  cov_dpar <- NULL;
+  brms_arguments <- NULL;
+  xfunsi <- NULL;
+  Var1 <- NULL;
+  Var2 <- NULL;
+  select_model <- NULL;
   fixedsi <- NULL;
-  a_form_0 <- NULL;
-  resp_ <- NULL;
-  nrep_of_parms <- NULL;
-  b_form_0 <- NULL;
-  c_form_0 <- NULL;
-  d_form_0 <- NULL;
-  e_form_0 <- NULL;
-  f_form_0 <- NULL;
-  g_form_0 <- NULL;
-  h_form_0 <- NULL;
-  i_form_0 <- NULL;
-  s_form_0 <- NULL;
-  s_form_0_gr <- NULL;
-  sncov <- NULL;
-  ancov <- NULL;
-  bncov <- NULL;
-  cncov <- NULL;
-  dncov <- NULL;
-  encov <- NULL;
-  fncov <- NULL;
-  gncov <- NULL;
-  hncov <- NULL;
-  incov <- NULL;
-  sncov <- NULL;
-  sigma_dpar <- NULL;
-  sigma_form_0 <- NULL;
-  cov_sigma_dpar <- NULL;
-  sigmancov <- NULL;
+  match_sitar_d_form <- NULL;
+  match_sitar_a_form <- NULL;
+  d_adjustedsi <- NULL;
   randomsi <- NULL;
-  ancov_gr <- NULL;
-  bncov_gr <- NULL;
-  cncov_gr <- NULL;
-  dncov_gr <- NULL;
-  encov_gr <- NULL;
-  fncov_gr <- NULL;
-  gncov_gr <- NULL;
-  hncov_gr <- NULL;
-  incov_gr <- NULL;
-  sncov_gr <- NULL;
-  sigmancov_gr <- NULL;
-  dparncov <- NULL;
-  setautocorr <- NULL;
-  group <- NULL;
-  normalize <- NULL;
-  initsi <- NULL;
+  getknotsname <- NULL;
+  spfncname <- NULL;
+  xoffset <- NULL;
+  yfunsi <- NULL;
+  all_raw_str <- NULL;
+  all_raw_str <- NULL;
+  decomp <- NULL;
+  nys <- NULL;
+  gsub_out_unscaled <- NULL;
+  checkscovsi <- NULL;
+  add_rcsfunmatqrinv_genquant <- NULL;
+  add_b_Qr_genquan_s_coef <- NULL;
+  smat <- NULL;
+  SplinefunxPre <- NULL;
+  Splinefunxsuf <- NULL;
+  smat_degree <- NULL;
+  smat_intercept <- NULL;
+  smat_centerval <- NULL;
+  smat_normalize <- NULL;
+  smat_preH <- NULL;
+  smat_sfirst <- NULL;
+  smat_sparse <- NULL;
+  smat_check_sparsity <- NULL;
+  SplinefunxR <- NULL;
+  SplinefunxStan <- NULL;
+  smat_include_stan <- NULL;
+  smat_include_path <- NULL;
+  ii <- NULL;
+  set_xfunsi <- NULL;
+  set_yfunsi <- NULL;
+  set_sigmaxfunsi <- NULL;
+  set_xfunxoffsetsi <- NULL;
+  set_sigmaxfunxoffsetsi <- NULL;
+  xfuntransformsi <- NULL;
+  yfuntransformsi <- NULL;
+  sigmaxfuntransformsi <- NULL;
+  xfunxoffsettransformsi <- NULL;
+  sigmaxfunxoffsettransformsi <- NULL;
+  sigmaxoffset <- NULL;
+  fast_nsk  <- NULL;
+  decomp <- NULL;
+  QR_Xmat <- NULL;
+  QR_center <- NULL;
+  QR_complete <- NULL;
+  QR_flip <- NULL;
+  QR_scale <- NULL;
+  SbasisN <- NULL;
+  sigmaxsi <- NULL;
+  smat_moi <- NULL;
+  familysi <- NULL;
+  dpar_function  <- NULL;
+  sigmaxfunsi <- NULL;
+  sigmayfunsi <- NULL;
+  sigmayfuntransformsi <- NULL;
+  family_link_sigma <- NULL;
   
-  eout <- list2env(prior_internal_args)
-  for (eoutii in names(eout)) {
-    assign(eoutii, eout[[eoutii]])
+  
+  parm_link_log <- NULL;
+  parm_link_log <- FALSE
+  
+  # add_sigma_by_ls, only include main function and _d0/_d1/_d2
+  if(deparse(substitute(x)) == "sigmaxsi") {
+    called_for_ls <- TRUE
+  } else {
+    called_for_ls <- FALSE
   }
-  
-  
-  eout <- list2env(init_arguments)
-  for (eoutii in names(eout)) {
-    assign(eoutii, eout[[eoutii]])
-  }
-  
-  
-  empty_sufx <- NULL
-  
-  # set to 'character(0)' to avoid overhead of reduce sum
-  # set to '' to mimic default behavious whihc adds pll_args for data block
-  # if change_default_data_pll_args <- FALSE, then nothing changed, i.e., 
-  # default brms behavious
-  
-  change_default_data_pll_args <- TRUE
-  set_data_pll_args <- 'character(0)'
-  
-  stanvars_data <- list()
-  
-  eout <- list2env(prior_data_internal)
-  for (eoutii in names(eout)) {
-    assign(eoutii, eout[[eoutii]])
-  }
-  
-  # evaluate user defined prior_data
-  if (!is.null(prior_data[[1]])) {
-    eout <- list2env(prior_data)
+ 
+  if (!is.null(internal_function_args)) {
+    eout <- list2env(internal_function_args)
     for (eoutii in names(eout)) {
       assign(eoutii, eout[[eoutii]])
     }
   }
   
-  
-  # get elements
-  get_within_fist_last_paranthesese <- function(x__) {
-    x__ <- sub('\\(', '[', x__)
-    x__ <- sub("\\)([^)]*)$", "]\\1", x__)
-    x__ <-
-      gsub("[\\[\\]]", "", regmatches(x__, gregexpr("\\[.*?\\]", x__))[[1]])
-    x__ <- gsub("\\[|\\]", "", x__)
-    x__
-  }
-  
-  gsub_comma_within_paranthesese <-
-    function(x__, replace_comma_by) {
-      tt <-
-        gsub("[\\(\\)]", "", regmatches(x__, gregexpr("\\(.*?\\)", x__))[[1]])
-      tt2 <- gsub(",", replace_comma_by, tt, fixed = T)
-      j <- 0
-      for (i in tt) {
-        j <- j + 1
-        x__ <- gsub(tt[j], tt2[j], x__, fixed = T)
-      }
-      x__
-    }
-  
-  sep_indicator <- "_"
-  p_str_in <- gsub("\\s", "", prior_str_arg)
-  splitmvar <- p_str_in
-  splitmvar <- gsub("\\s", "", splitmvar)
-  splitmvar <- paste(splitmvar, collapse = "")
-  splitmvar_w <- get_within_fist_last_paranthesese(splitmvar)
-  
-  # This for flat prior when no () i.e, flat instead of flat()
-  if (identical(splitmvar_w, character(0))) {
-    splitmvar_w <- ""
-  }
-  
-  
-  splitmvar_w <-
-    gsub_comma_within_paranthesese(splitmvar_w, "_comma_")
-  splitmvar_w2 <- strsplit(splitmvar_w, ",")[[1]]
-  splitmvar_w2 <- gsub("_comma_" , ",", splitmvar_w2)
-  splitmvar_w3 <- sub("=[^=]+$", "", splitmvar_w2)
-  
-  ept <- function(x)
-    eval(parse(text = x), envir = parent.frame())
-  
-  
-  ###########
-  get_loc_sca_funs <- function(fun_x, splitmvar_w2, 
-                               assertfun = TRUE, envir = NULL) {
-    # extract get_fun_x distribution
-    if(is.null(envir)) envir <- parent.frame()
-    get_ept <- function(x)
-      eval(parse(text = x), envir = envir)
-    get_get_fun_x_arg <- splitmvar_w2[grepl(paste0("^", fun_x, "="), splitmvar_w2)]
-    get_fun_x_tt <- sub('.*=', '', get_get_fun_x_arg)
-    get_fun_x_tt <- paste0("'", get_fun_x_tt, "'")
-    get_get_fun_x_arg <-
-      paste0(sub("=[^=]+$", "=", get_get_fun_x_arg),  get_fun_x_tt)
-    get_fun_x <- get_ept(get_get_fun_x_arg)
-    get_fun_x <- gsub("\"" , "", get_fun_x)
-    # if(get_fun_x == "TRUE" | get_fun_x == "T") get_fun_x <- TRUE 
-    # if(get_fun_x == "FALSE" | get_fun_x == "F") get_fun_x <- TRUE 
-    if(get_fun_x == "") {
-      get_fun_x <- NULL
-    } else if(get_fun_x == 'NULL') {
-      get_fun_x <- NULL
-    } else if(is.logical(get_fun_x)) {
-      # if(get_fun_x) get_fun_x <- TRUE 
-      # if(!get_fun_x) get_fun_x <- FALSE 
-    } else if(!exists(get_fun_x)) {
-      if(assertfun) 
-        stop("Object ", get_fun_x, " defined as a function does not exists")
-    } else if(exists(get_fun_x)) {
-      enverr. <- environment()
-      assign('err.', FALSE, envir = enverr.)
-      tryCatch(
-        expr = {
-          is.function(get_ept(get_fun_x))
-        },
-        error = function(e) {
-          assign('err.', TRUE, envir = enverr.)
-        }
-      )
-      err. <- get('err.', envir = enverr.)
-      if (err.) {
-        stop("Object ", get_fun_x, " defined as a function can not be evaluated")
-      } else {
-        if(assertfun) {
-          if(is.function(eval(get_fun_x))) 
-            get_fun_x <- get_ept(get_fun_x)
-          if(!is.function(get_ept(get_fun_x))) 
-            stop("Object ", get_fun_x, " is not a function")
-        } # if(assertfun) {
-      }
-    }
-    return(get_fun_x)
-  }
-  
-  fxl <- get_loc_sca_funs(fun_x = 'fxl', splitmvar_w2, 
-                              assertfun = TRUE,
-                              envir = environment())
-  
-  fxs <- get_loc_sca_funs(fun_x = 'fxs', splitmvar_w2,
-                              assertfun = TRUE,
-                              envir = environment())
-  
-  fxls <- get_loc_sca_funs(fun_x = 'fxls', splitmvar_w2,
-                                      assertfun = FALSE,
-                                      envir = environment())
-  
-
-  
-  ###########
-  
-  
-  # extract sethp distribution
-  get_sethp_arg <- splitmvar_w2[grepl("^sethp=", splitmvar_w2)]
-  sethp_tt <- sub('.*=', '', get_sethp_arg)
-  sethp_tt <- paste0("'", sethp_tt, "'")
-  get_sethp_arg <-
-    paste0(sub("=[^=]+$", "=", get_sethp_arg),  sethp_tt)
-  sethp_dist <- ept(get_sethp_arg)
-  sethp_dist <- gsub("\"" , "", sethp_dist)
-  
-  
-  if (!is.null(sethp_dist) &
-      (sethp_dist == "T" | sethp_dist == "TRUE")) {
-    sethp_dist <- "normal"
-    prior_str_arg <-
-      gsub(paste0("=", sethp_dist),
-           paste0("=", "TRUE"),
-           prior_str_arg)
-    splitmvar_w2 <- gsub(sethp_dist, "TRUE", splitmvar_w2)
-  }
-  
-  
-  if (!is.null(sethp_dist) &
-      (
-        sethp_dist != "''" &
-        sethp_dist != "NA" &
-        sethp_dist != "F" &
-        sethp_dist != "FALSE" &
-        sethp_dist != ""
-      )) {
-    if (sethp_dist == "normal" |
-        sethp_dist == "cauchy" |
-        sethp_dist == "student_t" |
-        sethp_dist == "student_nu" |
-        sethp_dist == "exponential") {
-      prior_str_arg <-
-        gsub(paste0("=", sethp_dist),
-             paste0("=", "TRUE"),
-             prior_str_arg)
-      splitmvar_w2 <-
-        gsub(sethp_dist, "TRUE", splitmvar_w2)
-    } else {
-      stop(
-        "Hierarchial distribution (i.e,, sethp = distribution) can only",
-        "\n",
-        " be normal, cauchy, student_nu, student_t, exponential",
-        "\n",
-        " if sethp = NA, then priors are set directly and not as hierarchial",
-        "\n",
-        " if sethp = TRUE, then priors are set as hierarchial",
-        "\n",
-        " with default normal distribution"
-      )
-    }
-  }
-  
-  
-  dist <- strsplit(gsub("\\s", "", prior_str_arg), "\\(")[[1]][1]
-  
-  if(dist != 'flat') {
-    
-    add_missing_mandate_names <- function(x, testi, testi2) {
-      j = 0
-      out_c <- c()
-      for (i in 1:length(x)) {
-        j <- j + 1
-        if (!x[j] %in% testi[j]) {
-          out <- paste0(x[j], "=", testi[j])
-        } else {
-          out <- testi2[j]
-        }
-        out_c <- c(out_c, out)
-      }
-      lengthii <- length(testi)
-      testi3 <- testi2[length(out_c) + 1:length(testi2)]
-      out_c <- c(out_c, testi3)
-      out_c <- head(out_c, lengthii)
-      out_c
-    }
-    
-    
-    error_handle1 <- function(i, dist, testi) {
-      if (!i %in% testi) {
-        stop(
-          "for ",
-          dist,
-          " distribution,",
-          " parameter '",
-          i,
-          "' is missing",
-          "\n  Please specify ",
-          dist,
-          " distribution as: ",
-          paste0(dist, "(", paste(set_str_names, collapse = ", "), ")")
-        )
-      }
-    }
-    
-    
-    if (dist == "normal" |
-        dist == "cauchy" |
-        dist == "lognormal") {
-      set_str_names <- c("location", "scale")
-      if (length(splitmvar_w2) < length(set_str_names))
-        stop(
-          "please sepecify minimum required ",
-          length(set_str_names),
-          " parameters, i.e., ",
-          paste(set_str_names, collapse = ", ")
-        )
-      splitmvar_w2 <-
-        add_missing_mandate_names(set_str_names, splitmvar_w3, splitmvar_w2)
-      splitmvar_w3 <- sub("=[^=]+$", "", splitmvar_w2)
-      for (i in set_str_names)
-        error_handle1(i, dist, splitmvar_w3)
-    }
-    
-    if (dist == "gamma") {
-      set_str_names <- c("shape", "scale")
-      if (length(splitmvar_w2) < length(set_str_names))
-        stop(
-          "please sepecify minimum required ",
-          length(set_str_names),
-          " parameters, i.e., ",
-          paste(set_str_names, collapse = ", ")
-        )
-      splitmvar_w2 <-
-        add_missing_mandate_names(set_str_names, splitmvar_w3, splitmvar_w2)
-      splitmvar_w3 <- sub("=[^=]+$", "", splitmvar_w2)
-      for (i in set_str_names)
-        error_handle1(i, dist, splitmvar_w3)
-    }
-    
-    
-    if (dist == "inv_gamma") {
-      set_str_names <- c("shape", "scale")
-      if (length(splitmvar_w2) < length(set_str_names))
-        stop(
-          "please sepecify minimum required ",
-          length(set_str_names),
-          " parameters, i.e., ",
-          paste(set_str_names, collapse = ", ")
-        )
-      splitmvar_w2 <-
-        add_missing_mandate_names(set_str_names, splitmvar_w3, splitmvar_w2)
-      splitmvar_w3 <- sub("=[^=]+$", "", splitmvar_w2)
-      for (i in set_str_names)
-        error_handle1(i, dist, splitmvar_w3)
-    }
-    
-    if (dist == "uniform") {
-      set_str_names <- c("lower", "upper")
-      if (length(splitmvar_w2) < length(set_str_names))
-        stop(
-          "please sepecify minimum required ",
-          length(set_str_names),
-          " parameters, i.e., ",
-          paste(set_str_names, collapse = ", ")
-        )
-      splitmvar_w2 <-
-        add_missing_mandate_names(set_str_names, splitmvar_w3, splitmvar_w2)
-      splitmvar_w3 <- sub("=[^=]+$", "", splitmvar_w2)
-      for (i in set_str_names)
-        error_handle1(i, dist, splitmvar_w3)
-    }
-    
-    if (dist == "exponential") {
-      set_str_names <- c("rate")
-      if (length(splitmvar_w2) < length(set_str_names))
-        stop(
-          "please sepecify minimum required ",
-          length(set_str_names),
-          " parameters, i.e., ",
-          paste(set_str_names, collapse = ", ")
-        )
-      splitmvar_w2 <-
-        add_missing_mandate_names(set_str_names, splitmvar_w3, splitmvar_w2)
-      splitmvar_w3 <- sub("=[^=]+$", "", splitmvar_w2)
-      for (i in set_str_names)
-        error_handle1(i, dist, splitmvar_w3)
-    }
-    
-    if (dist == "student_t") {
-      set_str_names <- c("df", "location", "scale")
-      if (length(splitmvar_w2) < length(set_str_names))
-        stop(
-          "please sepecify minimum required ",
-          length(set_str_names),
-          " parameters, i.e., ",
-          paste(set_str_names, collapse = ", ")
-        )
-      splitmvar_w2 <-
-        add_missing_mandate_names(set_str_names, splitmvar_w3, splitmvar_w2)
-      splitmvar_w3 <- sub("=[^=]+$", "", splitmvar_w2)
-      for (i in set_str_names)
-        error_handle1(i, dist, splitmvar_w3)
-    }
-    
-    if (dist == "student_nu") {
-      set_str_names <- c("nu_shape", "nu_scale", "location", "scale")
-      if (length(splitmvar_w2) < length(set_str_names))
-        stop(
-          "please sepecify minimum required ",
-          length(set_str_names),
-          " parameters, i.e., ",
-          paste(set_str_names, collapse = ", ")
-        )
-      splitmvar_w2 <-
-        add_missing_mandate_names(set_str_names, splitmvar_w3, splitmvar_w2)
-      splitmvar_w3 <- sub("=[^=]+$", "", splitmvar_w2)
-      for (i in set_str_names)
-        error_handle1(i, dist, splitmvar_w3)
-    }
-    if (dist == "lkj") {
-      set_str_names <- c("eta")
-      if (length(splitmvar_w2) < length(set_str_names))
-        stop(
-          "please sepecify minimum required ",
-          length(set_str_names),
-          " parameters, i.e., ",
-          paste(set_str_names, collapse = ", ")
-        )
-      splitmvar_w2 <-
-        add_missing_mandate_names(set_str_names, splitmvar_w3, splitmvar_w2)
-      splitmvar_w3 <- sub("=[^=]+$", "", splitmvar_w2)
-      for (i in set_str_names)
-        error_handle1(i, dist, splitmvar_w3)
-    }
-    
-    
-    vacoublary_prior_parnames <- c(
-      "location",
-      "scale",
-      "df",
-      "nu_shape",
-      "nu_scale",
-      "rate",
-      "shape",
-      "lower",
-      "upper",
-      "eta",
-      "lb",
-      "ub",
-      "autoscale",
-      "addrange",
-      "sethp",
-      "fxl",
-      "fxs",
-      "fxls"
-    )
-    
-    
-    optional_prior_names <-
-      c("lb", "ub", "autoscale", "addrange", "sethp", 
-        "fxl", "fxs", "fxls")
-    
-    # Add missing optional_prior_names
-    missing_optional_prior_names <-
-      optional_prior_names[!optional_prior_names %in% splitmvar_w3]
-    
-    if (!identical(missing_optional_prior_names, character(0))) {
-      splitmvar_w2 <-
-        c(splitmvar_w2,
-          paste0(missing_optional_prior_names, "=", "NA"))
-      splitmvar_w3 <-
-        c(splitmvar_w3,
-          paste0(missing_optional_prior_names, "", ""))
-    }
-    
-    
-    
-    min_par_names <-
-      names(Filter(function(check__)
-        check__ > 0, colSums(
-          sapply(splitmvar_w3, grepl, vacoublary_prior_parnames)
-        )))
-    
-    incorrect_names <- splitmvar_w3[!splitmvar_w3 %in% min_par_names]
-    
-
-    if (!identical(incorrect_names, character(0))) {
-      ttt_n1 <- paste(incorrect_names, collapse = ", ")
-      ttt_nn2 <- paste(vacoublary_prior_parnames, collapse = ", ")
-      stop(
-        "\nFollowing are incorrect/misspelled/not allowed options in prior:\n ",
-        ttt_n1,
-        "\n",
-        "Available prior parameter names are:\n",
-        ttt_nn2,
-        "\n",
-        "For ",
-        dist,
-        " prior distribution, the mandatory parameter are: ",
-        paste(set_str_names, collapse = ", "),
-        "\n",
-        paste0(dist, "(", paste(set_str_names, collapse = ", "), ")")
-      )
-    }
-    
-    
-    # Now make all enclosed in ''
-    tt <- sub('.*=', '', splitmvar_w2)
-    tt <- paste0("'", tt, "'")
-    
-    x <- parms_ <- paste0(splitmvar_w3, "=", tt)
-    
-    # Not needed, directly using name_parameter towards the end
-    collect_name_parameter <- c()
-    
-    strict_positive_dists  <- c("lognormal", "gamma", "inv_gamma", "exponential")
-    
-    for (i in 1:length(x)) {
-      pname_ <- substr(x[i], 1, regexpr("\\=", x[i]) - 1)
-      x_i <- gsub("\"" , "", x[i])
-      x_i <- eval(parse(text = x_i))
-      
-      sethp <-
-        isTRUE(ept(gsub("\"" , "", splitmvar_w2[grepl("sethp", splitmvar_w2)])))
-      
-      if (ept(sethp) & (dist != "normal" &
-                        dist != "cauchy" &
-                        dist != "student_nu" &
-                        dist != "student_t")) {
-        stop(
-          "Hierarchical priors are supported only for normal, cauchy, student_nu",
-          "\n",
-          " and student_t distributins.",
-          "\n",
-          " Please set sethp = NA or sethp = FALSE for the '",
-          dist,
-          "\n",
-          "'distributins specified for nlpar '",
-          nlpar,
-          "', class '",
-          class,
-          "'"
-        )
-      }
-      
-      
-      # Get scale_factor to multiply with scale parameters
-      # enverr. <- parent.frame()
-      enverr. <- environment()
-      assign('err.', FALSE, envir = enverr.)
-      tryCatch(
-        expr = {
-          check_for_autoscale <-
-            ept(gsub("\"" , "", splitmvar_w2[grepl("autoscale", splitmvar_w2)]))
-          ! is.na(check_for_autoscale)
-          ! is.logical(check_for_autoscale)
-          ! is.numeric(check_for_autoscale)
-        },
-        error = function(e) {
-          assign('err.', TRUE, envir = enverr.)
-        }
-      )
-      err. <- get('err.', envir = enverr.)
-      if (err.) {
-        stop("scale factor set by autoscale can only be",
-             "\n",
-             " NA / TRUE / FLASE or a numeric value")
-      } else {
-        check_for_autoscale <-
-          ept(gsub("\"" , "", splitmvar_w2[grepl("autoscale", splitmvar_w2)]))
-        if (!is.na(check_for_autoscale) &
-            !is.logical(check_for_autoscale) &
-            !is.numeric(check_for_autoscale)) {
-          stop("scale factor set by autoscale can only be",
-               "\n",
-               "NA / TRUE / FLASE or a numeric value")
-        }
-      }
-      
-      if (is.na(check_for_autoscale) | !(check_for_autoscale)) {
-        scale_factor <- 1
-      } else if (check_for_autoscale &
-                 !is.numeric(check_for_autoscale)) {
-        scale_factor <- 2.5
-        if (verbose) {
-          # if(i == 1) message("scale factor for autoscale option set to 2.5")
-        }
-      } else if (is.numeric(check_for_autoscale)) {
-        scale_factor <- check_for_autoscale
-      }
-      
-      
-      
-      # Get addrange to add to uniform prior range
-      
-      if (is.na(ept(gsub("\"" , "", 
-                         splitmvar_w2[grepl("addrange", splitmvar_w2)])))) {
-        addrange <- 0
-      } else {
-        addrange <-
-          ept(gsub("\"" , "", splitmvar_w2[grepl("addrange", splitmvar_w2)]))
-      }
-      
-      # assigning required parameters
-      
-      if (pname_ %in% set_str_names) {
-        check_evalation_of_numeric_pdata_obj <-
-          function(prior_argument,
-                   p_str_in,
-                   eit,
-                   x,
-                   pname_,
-                   dist,
-                   nlpar,
-                   class,
-                   allowed_parm_options,
-                   splitmvar_w2) {
-            whatin <-
-              sub("=[^=]+$", "", splitmvar_w2[grepl(eit, splitmvar_w2)])
-            const_msg <- 
-              paste0(" - a numeric value (e.g., 2) or a charater string such as",
-                     "\n",
-                     "xxx with xxx defined in the use-specified 'prior_data'",
-                     "\n",
-                     "argument e.g., prior_data = list(xxx = 2)"
-              )
-            
-            if (!is.null(allowed_parm_options)) {
-              allowed_parm_options <-
-                paste0(allowed_parm_options, collapse = ", ")
-              allowed_parm_options <-
-                paste0(" - ", allowed_parm_options)
-              const_msg <- paste0(allowed_parm_options, "\n", const_msg)
-            }
-            # enverr. <- parent.frame()
-            enverr. <- environment()
-            assign('err.', FALSE, envir = enverr.)
-            tryCatch(
-              expr = {
-                out <- ept(eit)
-              },
-              error = function(e) {
-                assign('err.', TRUE, envir = enverr.)
-              }
-            )
-            err. <- get('err.', envir = enverr.)
-            if (err.) {
-              if (class == 'b' | class == 'sd') {
-                stop(
-                  "\nFor nlpar ",
-                  nlpar,
-                  ", class ",
-                  class,
-                  ", you have specified '",
-                  eit,
-                  "' as ",
-                  pname_,
-                  " for the ",
-                  dist,
-                  " distribution",
-                  "\n" ,
-                  " But '",
-                  eit,
-                  "' is not found in the 'prior_data_internal'",
-                  "\n" ,
-                  " or use-specified 'prior_data' argument",
-                  "\n ",
-                  " [see specified prior argument: ",
-                  prior_argument,
-                  " = ",
-                  p_str_in,
-                  "]",
-                  "\n" ,
-                  "Avilable ",
-                  pname_,
-                  " parameter options are:" ,
-                  "\n" ,
-                  const_msg
-                )
-              } else if (class == 'sigma') {
-                stop(
-                  "\nFor residual standard deviation parameter i.e., ",
-                  "class ",
-                  class,
-                  ", you have specified '",
-                  eit,
-                  "' as ",
-                  pname_,
-                  " for the ",
-                  dist,
-                  " distribution",
-                  "\n" ,
-                  " But '",
-                  eit,
-                  "' is not found in the 'prior_data_internal'",
-                  "\n" ,
-                  " or use-specified 'prior_data' argument",
-                  "\n ",
-                  " [see specified prior argument: ",
-                  prior_argument,
-                  " = ",
-                  p_str_in,
-                  "]",
-                  "\n" ,
-                  "Avilable ",
-                  pname_,
-                  " parameter options are:" ,
-                  "\n" ,
-                  const_msg
-                )
-              } else if (class == '' &
-                         grepl("dpar_", prior_argument) &
-                         !grepl("dpar_cov", prior_argument)) {
-                stop(
-                  "\nFor for distributional Intercept parameter i.e., ",
-                  "Intercept_sigma ",
-                  ", you have specified '",
-                  eit,
-                  "' as ",
-                  pname_,
-                  " for the ",
-                  dist,
-                  " distribution",
-                  "\n" ,
-                  " But '",
-                  eit,
-                  "' is not found in the 'prior_data_internal'",
-                  "\n" ,
-                  " or use-specified 'prior_data' argument",
-                  "\n ",
-                  " [see specified prior argument: ",
-                  prior_argument,
-                  " = ",
-                  p_str_in,
-                  "]",
-                  "\n" ,
-                  "Avilable ",
-                  pname_,
-                  " parameter options are:" ,
-                  "\n" ,
-                  const_msg
-                )
-              }
-              
-            }
-          }
-        
-        
-        
-        
-        allowed_parm_options <- NULL
-        
-        if (grepl("^location$", pname_)) {
-          if (class == "b") {
-            if (nlpar == "a" & cov_nlpar == "") {
-              allowed_parm_options <- c("lm", "ymean", 
-                                        "ymedian", "ymax",
-                                        "ymeanxmax", "ymeanxmin")
-            } else if (nlpar == "b") {
-              allowed_parm_options <- c("lm", "ymaxs", "bstart")
-            } else if (nlpar == "c") {
-              allowed_parm_options <- c("lm", "cstart")
-            } else if (nlpar == "d") {
-              allowed_parm_options <- c("lm", "dstart", "ymeanxmid")
-            } else if (nlpar == "e") {
-              allowed_parm_options <- c("lm", "estart")
-            } else if (nlpar == "f") {
-              allowed_parm_options <- NULL
-            } else if (nlpar == "g") {
-              allowed_parm_options <- c("ymeanxmax", "ymeanxmidxmaxdiff")
-            } else if (nlpar == "h") {
-              allowed_parm_options <- NULL
-            } else if (nlpar == "i") {
-              allowed_parm_options <- c("lm", "estart", "bstart")
-            } else if (nlpar == "s") {
-              allowed_parm_options <- c("lm")
-            } else if (cov_nlpar != "") {
-              allowed_parm_options <- c("lm")
-            } else if (sigma_dpar == "sigma") {
-              allowed_parm_options <- NULL
-            } else {
-              allowed_parm_options <- NULL
-            }
-          }
-          
-          
-          if (class == "sd") {
-            allowed_parm_options <- NULL
-          }
-          if (class == "cor") {
-            allowed_parm_options <- NULL
-          }
-          if (class == "sigma") {
-            allowed_parm_options <- NULL
-          }
-          if (class == '' &
-              grepl("dpar_", prior_argument) &
-              !grepl("dpar_cov", prior_argument)) {
-            allowed_parm_options <- NULL
-          }
-          if (class == "") {
-            allowed_parm_options <- NULL
-          }
-          if (dpar != "") {
-            allowed_parm_options <- NULL
-          }
-          if (cov_dpar != "") {
-            allowed_parm_options <- NULL
-          }
-          
-          if (!is.null(allowed_parm_options)) {
-            allowed_init_options_beta <- allowed_parm_options
-          } else {
-            allowed_init_options_beta <- NULL
-          }
-        }
-        allowed_parm_options <- c("ysd", "ymad")
-        ##########
-        if (grepl("^scale$", pname_) &
-            dist != "gamma" & dist != "inv_gamma") {
-          if (class == "b" | class == "sd") {
-            if (nlpar == "a" & cov_nlpar == "") {
-              allowed_parm_options <- c("ysd", "ymad", "lme_sd_a",
-                                        "ysdxmax", "ysdxmin")
-            } else if (nlpar == "b") {
-              allowed_parm_options <- c("lm", "ymaxs", "bstart")
-            } else if (nlpar == "c") {
-              allowed_parm_options <- c("lm", "cstart")
-            } else if (nlpar == "d") {
-              allowed_parm_options <- c("ysd", "ymad", "ysdxmid")
-            } else if (nlpar == "e") {
-              allowed_parm_options <- c("lm", "estart")
-            } else if (nlpar == "f") {
-              allowed_parm_options <- NULL
-            } else if (nlpar == "g") {
-              allowed_parm_options <- c("ysdxmax", "ysdxmidxmaxdiff")
-            } else if (nlpar == "h") {
-              allowed_parm_options <- NULL
-            } else if (nlpar == "i") {
-              allowed_parm_options <- NULL
-            } else if (nlpar == "s") {
-              allowed_parm_options <- c("sdx")
-            } else if (cov_nlpar != "") {
-              allowed_parm_options <- c("lm")
-            } else if (sigma_dpar == "sigma") {
-              allowed_parm_options <- c("ysd", "ymad")
-            } else {
-              allowed_parm_options <- NULL
-            }
-          }
-          
-          
-          
-          
-          if (class == "cor") {
-            allowed_parm_options <- NULL
-          }
-          
-          if (class == "sigma") {
-            allowed_parm_options <- c("ysd", "ymad", "lme_rsd", "lm_rsd")
-          }
-          
-          if (class == "") {
-            allowed_parm_options <- NULL
-          }
-          
-          if (dpar != "") {
-            allowed_parm_options <- NULL
-          }
-          
-          if (cov_dpar != "") {
-            allowed_parm_options <- NULL
-          }
-          
-          if (class == '' &
-              grepl("dpar_", prior_argument) &
-              !grepl("dpar_cov", prior_argument)) {
-            allowed_parm_options <- c("ysd", "ymad", "lme_rsd", "lm_rsd")
-          }
-          
-          if (!is.null(allowed_parm_options)) {
-            allowed_init_options_sd <- allowed_parm_options
-          } else {
-            allowed_init_options_sd <- NULL
-          }
-        }
-        
-        
-        if (grepl("^scale$", pname_) &
-            dist == "gamma" | dist == "inv_gamma") {
-          allowed_parm_options <- NULL
-        }
-        
-        if (grepl("^shape$", pname_)) {
-          allowed_parm_options <- NULL
-        }
-        
-        if (grepl("^rate$", pname_)) {
-          if (class == "sigma") {
-            allowed_parm_options <-
-              c("ysd", "ymad", "lme_sd_a", "lme_rsd", "lm_rsd")
-          } else {
-            allowed_parm_options <- NULL
-          }
-          
-          if (!is.null(allowed_parm_options)) {
-            allowed_init_options_rate <- allowed_parm_options
-          } else {
-            allowed_init_options_rate <- NULL
-          }
-          
-        } # if (grepl("^rate$", pname_)) {
-        
-        
-        if (grepl("^shape$", pname_)) {
-          allowed_init_options_shape <- NULL # 22 4 2023
-          allowed_init_options_scale <- NULL # 22 4 2023
-        }
-        
-        if (grepl("^scale$", pname_)) {
-          allowed_init_options_shape <- NULL # 22 4 2023
-          allowed_init_options_scale <- NULL # 22 4 2023
-        }
-        
-        
-        if (grepl("^df$", pname_)) {
-          allowed_parm_options <- NULL
-        }
-        
-        if (grepl("^eta$", pname_)) {
-          allowed_parm_options <- NULL
-        }
-        
-        
-        if (!exists('allowed_init_options_beta'))
-          allowed_init_options_beta <- NULL
-        if (!exists('allowed_init_options_sd'))
-          allowed_init_options_sd <- NULL
-        if (!exists('allowed_init_options_rate'))
-          allowed_init_options_rate <- NULL
-        
-        if (!exists('allowed_init_options_shape'))
-          allowed_init_options_shape <- NULL
-        if (!exists('allowed_init_options_scale'))
-          allowed_init_options_scale <- NULL
-        
-        
-        # This method_location_scale was tried during fxls tranformation of 
-        # location and scale parameters. 
-        # The method_location_scale <- "original" sets the original behavior
-        # The method_location_scale <- "via_functions" sets the behavior
-        # where get_prior_location and get_prior_scale functions defined in
-        # the R files utils-helper-7_1 and utils-helper-7_2. 
-        # However, this did not work out, so re setting the  "original
-        # 
-        
-        method_location_scale <- "original" # "via_functions"
-        
-        # method_location_scale <- "via_functions" # "original"
-        
-        
-        
-        if(method_location_scale == "original" ) {
-        # set location parameter -> for normal, log normal, cauchy, studdent_t
-        
-        if (grepl("^location$", pname_)) {
-          # location nlpar a (class b)
-          if (nlpar == "a" & class == "b" & grepl("a", fixedsi)) {
-            if (x_i == paste0("lm", empty_sufx)) {
-              if (a_form_0) {
-                lm_gsubby <- paste0("lm", "_", nlpar, "_", "all", resp_)
-              } else {
-                lm_gsubby <- paste0("lm", "_", nlpar, "", "", resp_)
-              }
-              eit <-  gsub("lm", lm_gsubby, x_i)
-              evaluated_parameter <- ept(eit)
-            } else if (x_i == paste0("ymean", empty_sufx)) {
-              eit <-  gsub("ymean", paste0("ymean", resp_), x_i)
-              evaluated_parameter <- ept(eit)
-            } else if (x_i == paste0("ymax", empty_sufx)) {
-              eit <-  gsub("ymax", paste0("ymax", resp_), x_i)
-              evaluated_parameter <- ept(eit)
-            } else if (x_i == paste0("ymaxs", empty_sufx)) {
-              eit <-  gsub("ymaxs", paste0("ymaxs", resp_), x_i)
-              evaluated_parameter <- ept(eit)
-            } else if (x_i == paste0("ymedian", empty_sufx)) {
-              eit <-  gsub("ymedian", paste0("ymedian", resp_), x_i)
-              evaluated_parameter <- ept(eit) 
-            } else if (x_i == paste0("ymeanxmin", empty_sufx)) {
-              eit <-  gsub("ymeanxmin", paste0("ymeanxmin", resp_), x_i)
-              evaluated_parameter <- ept(eit) 
-            } else if (x_i == paste0("ymeanxmax", empty_sufx)) {
-              eit <-  gsub("ymeanxmax", paste0("ymeanxmax", resp_), x_i)
-              evaluated_parameter <- ept(eit)
-            } else {
-              check_evalation_of_numeric_pdata_obj(
-                prior_argument,
-                p_str_in,
-                x_i,
-                x,
-                pname_,
-                dist,
-                nlpar,
-                class,
-                allowed_parm_options,
-                splitmvar_w2
-              )
-              if (is.numeric(eval(parse(text = x_i))) |
-                  !is.null(eval(parse(text = x_i)))) {
-                eit <- x_i
-                evaluated_parameter <- ept(eit)
-              } else {
-                stop(
-                  "location parameter options for nlpar ",
-                  nlpar,
-                  ", class ",
-                  class,
-                  " are:\n lm, ymean, ymedian, ymax, ymeanxmin, ymeanxmax,
-                a numeric value (e.g., 2)",
-                  "\n",
-                  " or a charater such as zzz",
-                  "\n with zzz defined in the prior_data",
-                  "\n", 
-                  " e.g., prior_data = list(zzz = 2)"
-                )
-              }
-            }
-            if(!is.null(fxl)) {
-              evaluated_parameter <-
-              lapply(evaluated_parameter, FUN = fxl) %>% unlist()
-            }
-            if (length(evaluated_parameter) < nrep_of_parms)
-              evaluated_parameter <- rep(evaluated_parameter, nrep_of_parms)
-            if (length(evaluated_parameter) > nrep_of_parms)
-              stop("prior elements for nlpar ",
-                   nlpar, ", class ",  class,
-                   " are greater than the parameter dimensions")
-          }
-          
-          
-          # location nlpar b (class b)
-          if (nlpar == "b" & class == "b" & grepl("b", fixedsi)) {
-            if (x_i == paste0("lm", empty_sufx)) {
-              if (b_form_0) {
-                lm_gsubby <- paste0("lm", "_", nlpar, "_", "all", resp_)
-              } else {
-                lm_gsubby <- paste0("lm", "_", nlpar, "", "", resp_)
-              }
-              eit <-  gsub("lm", lm_gsubby, x_i)
-              evaluated_parameter <- ept(eit)
-              if (verbose)
-                message("location parameter specified as lm for nlpar",
-                        nlpar,
-                        " is set as 0")
-            } else if (x_i == paste0("ymax", empty_sufx)) {
-              eit <-  gsub("ymax", paste0("ymax", resp_), x_i)
-              evaluated_parameter <- ept(eit)
-            } else if (x_i == paste0("ymaxs", empty_sufx)) {
-              eit <-  gsub("ymaxs", paste0("ymaxs", resp_), x_i)
-              evaluated_parameter <- ept(eit)
-            } else if (x_i == paste0("ymean", empty_sufx)) {
-              stop("option ymean as location parameter not alloweed for nlpar ",
-                   nlpar)
-            } else if (x_i == paste0("ymedian", empty_sufx)) {
-              stop("option ymedian as location parameter not alloweed for nlpar ",
-                   nlpar)
-            } else {
-              check_evalation_of_numeric_pdata_obj(
-                prior_argument,
-                p_str_in,
-                x_i,
-                x,
-                pname_,
-                dist,
-                nlpar,
-                class,
-                allowed_parm_options,
-                splitmvar_w2
-              )
-              if (is.numeric(eval(parse(text = x_i))) |
-                  !is.null(eval(parse(text = x_i)))) {
-                eit <- x_i
-                evaluated_parameter <- ept(eit)
-              } else {
-                stop(
-                  "location parameter options for nlpar ",
-                  nlpar,
-                  ", class ",
-                  class,
-                  " are:\n lm, a numeric value (e.g., 2) or a charater like zzz",
-                  "\n with zzz defined in the",
-                  "prior_data e.g., prior_data = list(zzz = 2)"
-                )
-              }
-            }
-            if(!is.null(fxl)) {
-              evaluated_parameter <-
-                lapply(evaluated_parameter, FUN = fxl) %>% unlist()
-            }
-            if (length(evaluated_parameter) < nrep_of_parms)
-              evaluated_parameter <- rep(evaluated_parameter, nrep_of_parms)
-            if (length(evaluated_parameter) > nrep_of_parms)
-              stop("prior elements for nlpar ",
-                   nlpar, ", class ",  class,
-                   " are greater than the parameter dimensions")
-          }
-          
-          
-          # location nlpar c (class b)
-          if (nlpar == "c" & class == "b" & grepl("c", fixedsi)) {
-            if (x_i == paste0("lm", empty_sufx)) {
-              if (c_form_0) {
-                lm_gsubby <- paste0("lm", "_", nlpar, "_", "all", resp_)
-              } else {
-                lm_gsubby <- paste0("lm", "_", nlpar, "", "", resp_)
-              }
-              eit <-  gsub("lm", lm_gsubby, x_i)
-              evaluated_parameter <- ept(eit)
-              if (verbose)
-                message("location parameter specified as lm for nlpar",
-                        nlpar,
-                        " is set as 0")
-            } else if (x_i == paste0("ymean", empty_sufx)) {
-              stop("option ymean as location parameter not alloweed for nlpar ",
-                   nlpar)
-            } else if (x_i == paste0("ymedian", empty_sufx)) {
-              stop("option ymean as location parameter not alloweed for nlpar ",
-                   nlpar)
-            } else if (x_i == paste0("cstart", empty_sufx)) {
-              eit <-  gsub("cstart", paste0("cstart", resp_), x_i)
-              evaluated_parameter <- ept(eit)
-            } else {
-              check_evalation_of_numeric_pdata_obj(
-                prior_argument,
-                p_str_in,
-                x_i,
-                x,
-                pname_,
-                dist,
-                nlpar,
-                class,
-                allowed_parm_options,
-                splitmvar_w2
-              )
-              if (is.numeric(eval(parse(text = x_i))) |
-                  !is.null(eval(parse(text = x_i)))) {
-                eit <- x_i
-                evaluated_parameter <- ept(eit)
-              } else {
-                stop(
-                  "location parameter options for nlpar ",
-                  nlpar,
-                  ", class ",
-                  class,
-                  " are:\n lm, a numeric value (e.g., 2) or a charater like zzz",
-                  "\n with zzz defined in the prior_data",
-                  "e.g., prior_data = list(zzz = 2)"
-                )
-              }
-            }
-            if(!is.null(fxl)) {
-              evaluated_parameter <-
-                lapply(evaluated_parameter, FUN = fxl) %>% unlist()
-            }
-            if (length(evaluated_parameter) < nrep_of_parms)
-              evaluated_parameter <- rep(evaluated_parameter, nrep_of_parms)
-            if (length(evaluated_parameter) > nrep_of_parms)
-              stop("prior elements for nlpar ",
-                   nlpar, ", class ",  class,
-                   " are greater than the parameter dimensions")
-          }
-          
-          
-          # location nlpar d (class b)
-          if (nlpar == "d" & class == "b" & grepl("d", fixedsi)) {
-            if (x_i == paste0("lm", empty_sufx)) {
-              if (d_form_0) {
-                lm_gsubby <- paste0("lm", "_", nlpar, "_", "all", resp_)
-              } else {
-                lm_gsubby <- paste0("lm", "_", nlpar, "", "", resp_)
-              }
-              eit <-  gsub("lm", lm_gsubby, x_i)
-              evaluated_parameter <- ept(eit)
-              if (verbose)
-                message("location parameter specified as lm for nlpar",
-                        nlpar,
-                        " is set as 0")
-            } else if (x_i == paste0("ymeanxmid", empty_sufx)) {
-              eit <-  gsub("ymeanxmid", paste0("ymeanxmid", resp_), x_i)
-              evaluated_parameter <- ept(eit) 
-            } else if (x_i == paste0("ymeanxmid", empty_sufx)) {
-              eit <-  gsub("ymeanxmid", paste0("ymeanxmid", resp_), x_i)
-              evaluated_parameter <- ept(eit)
-            } else if (x_i == paste0("ymean", empty_sufx)) {
-              stop("option ymean as location parameter not alloweed for nlpar ",
-                   nlpar)
-            } else if (x_i == paste0("ymedian", empty_sufx)) {
-              stop("option ymean as location parameter not alloweed for nlpar ",
-                   nlpar)
-            } else if (x_i == paste0("dstart", empty_sufx)) {
-              eit <-  gsub("dstart", paste0("dstart", resp_), x_i)
-              evaluated_parameter <- ept(eit)
-            } else {
-              check_evalation_of_numeric_pdata_obj(
-                prior_argument,
-                p_str_in,
-                x_i,
-                x,
-                pname_,
-                dist,
-                nlpar,
-                class,
-                allowed_parm_options,
-                splitmvar_w2
-              )
-              if (is.numeric(eval(parse(text = x_i))) |
-                  !is.null(eval(parse(text = x_i)))) {
-                eit <- x_i
-                evaluated_parameter <- ept(eit)
-              } else {
-                stop(
-                  "location parameter options for nlpar ",
-                  nlpar,
-                  ", class ",
-                  class,
-                  " are:\n lm, a numeric value (e.g., 2) or a charater like zzz",
-                  "\n with zzz defined in the prior_data",
-                  "e.g., prior_data = list(zzz = 2)"
-                )
-              }
-            }
-            if(!is.null(fxl)) {
-              evaluated_parameter <-
-                lapply(evaluated_parameter, FUN = fxl) %>% unlist()
-            }
-            if (length(evaluated_parameter) < nrep_of_parms)
-              evaluated_parameter <- rep(evaluated_parameter, nrep_of_parms)
-            if (length(evaluated_parameter) > nrep_of_parms)
-              stop("prior elements for nlpar ",
-                   nlpar, ", class ",  class,
-                   " are greater than the parameter dimensions")
-          }
-          
-          
-          # location nlpar e (class b)
-          if (nlpar == "e" & class == "b" & grepl("e", fixedsi)) {
-            if (x_i == paste0("lm", empty_sufx)) {
-              if (e_form_0) {
-                lm_gsubby <- paste0("lm", "_", nlpar, "_", "all", resp_)
-              } else {
-                lm_gsubby <- paste0("lm", "_", nlpar, "", "", resp_)
-              }
-              eit <-  gsub("lm", lm_gsubby, x_i)
-              evaluated_parameter <- ept(eit)
-              if (verbose)
-                message("location parameter specified as lm for nlpar",
-                        nlpar,
-                        " is set as 0")
-            } else if (x_i == paste0("ymean", empty_sufx)) {
-              stop("option ymean as location parameter not alloweed for nlpar ",
-                   nlpar)
-            } else if (x_i == paste0("ymedian", empty_sufx)) {
-              stop("option ymean as location parameter not alloweed for nlpar ",
-                   nlpar) 
-            } else if (x_i == paste0("estart", empty_sufx)) {
-              eit <-  gsub("estart", paste0("estart", resp_), x_i)
-              evaluated_parameter <- ept(eit)
-            } else {
-              check_evalation_of_numeric_pdata_obj(
-                prior_argument,
-                p_str_in,
-                x_i,
-                x,
-                pname_,
-                dist,
-                nlpar,
-                class,
-                allowed_parm_options,
-                splitmvar_w2
-              )
-              if (is.numeric(eval(parse(text = x_i))) |
-                  !is.null(eval(parse(text = x_i)))) {
-                eit <- x_i
-                evaluated_parameter <- ept(eit)
-              } else {
-                stop(
-                  "location parameter options for nlpar ",
-                  nlpar,
-                  ", class ",
-                  class,
-                  " are:\n lm, a numeric value (e.g., 2) or a charater like zzz",
-                  "\n with zzz defined in the prior_data",
-                  "e.g., prior_data = list(zzz = 2)"
-                )
-              }
-            }
-            if(!is.null(fxl)) {
-              evaluated_parameter <-
-                lapply(evaluated_parameter, FUN = fxl) %>% unlist()
-            }
-            if (length(evaluated_parameter) < nrep_of_parms)
-              evaluated_parameter <- rep(evaluated_parameter, nrep_of_parms)
-            if (length(evaluated_parameter) > nrep_of_parms)
-              stop("prior elements for nlpar ",
-                   nlpar, ", class ",  class,
-                   " are greater than the parameter dimensions")
-          }
-          
-          
-          # location nlpar f (class b)
-          if (nlpar == "f" & class == "b" & grepl("f", fixedsi)) {
-            if (x_i == paste0("lm", empty_sufx)) {
-              if (f_form_0) {
-                lm_gsubby <- paste0("lm", "_", nlpar, "_", "all", resp_)
-              } else {
-                lm_gsubby <- paste0("lm", "_", nlpar, "", "", resp_)
-              }
-              eit <-  gsub("lm", lm_gsubby, x_i)
-              evaluated_parameter <- ept(eit)
-              if (verbose)
-                message("location parameter specified as lm for nlpar",
-                        nlpar,
-                        " is set as 0")
-            } else if (x_i == paste0("ymean", empty_sufx)) {
-              stop("option ymean as location parameter not alloweed for nlpar ",
-                   nlpar)
-            } else if (x_i == paste0("ymedian", empty_sufx)) {
-              stop("option ymean as location parameter not alloweed for nlpar ",
-                   nlpar) 
-            } else if (x_i == paste0("estart", empty_sufx)) {
-              eit <-  gsub("estart", paste0("estart", resp_), x_i)
-              evaluated_parameter <- ept(eit)
-            } else {
-              check_evalation_of_numeric_pdata_obj(
-                prior_argument,
-                p_str_in,
-                x_i,
-                x,
-                pname_,
-                dist,
-                nlpar,
-                class,
-                allowed_parm_options,
-                splitmvar_w2
-              )
-              if (is.numeric(eval(parse(text = x_i))) |
-                  !is.null(eval(parse(text = x_i)))) {
-                eit <- x_i
-                evaluated_parameter <- ept(eit)
-              } else {
-                stop(
-                  "location parameter options for nlpar ",
-                  nlpar,
-                  ", class ",
-                  class,
-                  " are:\n lm, a numeric value (e.g., 2) or a charater like zzz",
-                  "\n with zzz defined in the prior_data",
-                  "e.g., prior_data = list(zzz = 2)"
-                )
-              }
-            }
-            if(!is.null(fxl)) {
-              evaluated_parameter <-
-                lapply(evaluated_parameter, FUN = fxl) %>% unlist()
-            }
-            if (length(evaluated_parameter) < nrep_of_parms)
-              evaluated_parameter <- rep(evaluated_parameter, nrep_of_parms)
-            if (length(evaluated_parameter) > nrep_of_parms)
-              stop("prior elements for nlpar ",
-                   nlpar, ", class ",  class,
-                   " are greater than the parameter dimensions")
-          }
-          
-          
-          
-          # location nlpar g (class b)
-          if (nlpar == "g" & class == "b" & grepl("g", fixedsi)) {
-            if (x_i == paste0("lm", empty_sufx)) {
-              if (g_form_0) {
-                lm_gsubby <- paste0("lm", "_", nlpar, "_", "all", resp_)
-              } else {
-                lm_gsubby <- paste0("lm", "_", nlpar, "", "", resp_)
-              }
-              eit <-  gsub("lm", lm_gsubby, x_i)
-              evaluated_parameter <- ept(eit)
-              if (verbose)
-                message("location parameter specified as lm for nlpar",
-                        nlpar,
-                        " is set as 0")
-            } else if (x_i == paste0("ymeanxmax", empty_sufx)) {
-              eit <-  gsub("ymeanxmax", paste0("ymeanxmax", resp_), x_i)
-              evaluated_parameter <- ept(eit) 
-            } else if (x_i == paste0("ymeanxmidxmaxdiff", empty_sufx)) {
-              eit <-  gsub("ymeanxmidxmaxdiff", 
-                           paste0("ymeanxmidxmaxdiff", resp_), x_i)
-              evaluated_parameter <- ept(eit) 
-            } else if (x_i == paste0("ymax", empty_sufx)) {
-              eit <-  gsub("ymax", paste0("ymax", resp_), x_i)
-              evaluated_parameter <- ept(eit)
-            } else if (x_i == paste0("ymean", empty_sufx)) {
-              stop("option ymean as location parameter not alloweed for nlpar ",
-                   nlpar)
-            } else if (x_i == paste0("ymedian", empty_sufx)) {
-              stop("option ymean as location parameter not alloweed for nlpar ",
-                   nlpar) 
-            } else if (x_i == paste0("estart", empty_sufx)) {
-              eit <-  gsub("estart", paste0("estart", resp_), x_i)
-              evaluated_parameter <- ept(eit)
-            } else {
-              check_evalation_of_numeric_pdata_obj(
-                prior_argument,
-                p_str_in,
-                x_i,
-                x,
-                pname_,
-                dist,
-                nlpar,
-                class,
-                allowed_parm_options,
-                splitmvar_w2
-              )
-              if (is.numeric(eval(parse(text = x_i))) |
-                  !is.null(eval(parse(text = x_i)))) {
-                eit <- x_i
-                evaluated_parameter <- ept(eit)
-              } else {
-                stop(
-                  "location parameter options for nlpar ",
-                  nlpar,
-                  ", class ",
-                  class,
-                  " are:\n lm, a numeric value (e.g., 2) or a charater like zzz",
-                  "\n with zzz defined in the prior_data",
-                  "e.g., prior_data = list(zzz = 2)"
-                )
-              }
-            }
-            if(!is.null(fxl)) {
-              evaluated_parameter <-
-                lapply(evaluated_parameter, FUN = fxl) %>% unlist()
-            }
-            if (length(evaluated_parameter) < nrep_of_parms)
-              evaluated_parameter <- rep(evaluated_parameter, nrep_of_parms)
-            if (length(evaluated_parameter) > nrep_of_parms)
-              stop("prior elements for nlpar ",
-                   nlpar, ", class ",  class,
-                   " are greater than the parameter dimensions")
-          }
-          
-          
-          
-          # location nlpar h (class b)
-          if (nlpar == "h" & class == "b" & grepl("h", fixedsi)) {
-            if (x_i == paste0("lm", empty_sufx)) {
-              if (h_form_0) {
-                lm_gsubby <- paste0("lm", "_", nlpar, "_", "all", resp_)
-              } else {
-                lm_gsubby <- paste0("lm", "_", nlpar, "", "", resp_)
-              }
-              eit <-  gsub("lm", lm_gsubby, x_i)
-              evaluated_parameter <- ept(eit)
-              if (verbose)
-                message("location parameter specified as lm for nlpar",
-                        nlpar,
-                        " is set as 0")
-            } else if (x_i == paste0("ymean", empty_sufx)) {
-              stop("option ymean as location parameter not alloweed for nlpar ",
-                   nlpar)
-            } else if (x_i == paste0("ymedian", empty_sufx)) {
-              stop("option ymean as location parameter not alloweed for nlpar ",
-                   nlpar) 
-            } else if (x_i == paste0("estart", empty_sufx)) {
-              eit <-  gsub("estart", paste0("estart", resp_), x_i)
-              evaluated_parameter <- ept(eit)
-            } else {
-              check_evalation_of_numeric_pdata_obj(
-                prior_argument,
-                p_str_in,
-                x_i,
-                x,
-                pname_,
-                dist,
-                nlpar,
-                class,
-                allowed_parm_options,
-                splitmvar_w2
-              )
-              if (is.numeric(eval(parse(text = x_i))) |
-                  !is.null(eval(parse(text = x_i)))) {
-                eit <- x_i
-                evaluated_parameter <- ept(eit)
-              } else {
-                stop(
-                  "location parameter options for nlpar ",
-                  nlpar,
-                  ", class ",
-                  class,
-                  " are:\n lm, a numeric value (e.g., 2) or a charater like zzz",
-                  "\n with zzz defined in the prior_data",
-                  "e.g., prior_data = list(zzz = 2)"
-                )
-              }
-            }
-            if(!is.null(fxl)) {
-              evaluated_parameter <-
-                lapply(evaluated_parameter, FUN = fxl) %>% unlist()
-            }
-            if (length(evaluated_parameter) < nrep_of_parms)
-              evaluated_parameter <- rep(evaluated_parameter, nrep_of_parms)
-            if (length(evaluated_parameter) > nrep_of_parms)
-              stop("prior elements for nlpar ",
-                   nlpar, ", class ",  class,
-                   " are greater than the parameter dimensions")
-          }
-          
-          
-          
-          
-          # location nlpar i (class b)
-          if (nlpar == "i" & class == "b" & grepl("i", fixedsi)) {
-            if (x_i == paste0("lm", empty_sufx)) {
-              if (i_form_0) {
-                lm_gsubby <- paste0("lm", "_", nlpar, "_", "all", resp_)
-              } else {
-                lm_gsubby <- paste0("lm", "_", nlpar, "", "", resp_)
-              }
-              eit <-  gsub("lm", lm_gsubby, x_i)
-              evaluated_parameter <- ept(eit)
-              if (verbose)
-                message("location parameter specified as lm for nlpar",
-                        nlpar,
-                        " is set as 0")
-            } else if (x_i == paste0("ymean", empty_sufx)) {
-              stop("option ymean as location parameter not alloweed for nlpar ",
-                   nlpar)
-            } else if (x_i == paste0("ymedian", empty_sufx)) {
-              stop("option ymean as location parameter not alloweed for nlpar ",
-                   nlpar) 
-            } else if (x_i == paste0("estart", empty_sufx)) {
-              eit <-  gsub("estart", paste0("estart", resp_), x_i)
-              evaluated_parameter <- ept(eit)
-            } else {
-              check_evalation_of_numeric_pdata_obj(
-                prior_argument,
-                p_str_in,
-                x_i,
-                x,
-                pname_,
-                dist,
-                nlpar,
-                class,
-                allowed_parm_options,
-                splitmvar_w2
-              )
-              if (is.numeric(eval(parse(text = x_i))) |
-                  !is.null(eval(parse(text = x_i)))) {
-                eit <- x_i
-                evaluated_parameter <- ept(eit)
-              } else {
-                stop(
-                  "location parameter options for nlpar ",
-                  nlpar,
-                  ", class ",
-                  class,
-                  " are:\n lm, a numeric value (e.g., 2) or a charater like zzz",
-                  "\n with zzz defined in the prior_data",
-                  "e.g., prior_data = list(zzz = 2)"
-                )
-              }
-            }
-            if(!is.null(fxl)) {
-              evaluated_parameter <-
-                lapply(evaluated_parameter, FUN = fxl) %>% unlist()
-            }
-            if (length(evaluated_parameter) < nrep_of_parms)
-              evaluated_parameter <- rep(evaluated_parameter, nrep_of_parms)
-            if (length(evaluated_parameter) > nrep_of_parms)
-              stop("prior elements for nlpar ",
-                   nlpar, ", class ",  class,
-                   " are greater than the parameter dimensions")
-          }
-          
-          
-          
-          # location nlpar s (class b) - sitar
-          if (nlpar == "s" & class == "b") {
-            if (x_i == paste0("lm", empty_sufx)) {
-              if (s_form_0) {
-                lm_gsubby <- paste0("lm", "_", nlpar, "_", "all", resp_)
-              } else {
-                lm_gsubby <- paste0("lm", "_", nlpar, "", "", resp_)
-              }
-              eit <-  gsub("lm", lm_gsubby, x_i)
-              evaluated_parameter <- ept(eit)
-            } else {
-              check_evalation_of_numeric_pdata_obj(
-                prior_argument,
-                p_str_in,
-                x_i,
-                x,
-                pname_,
-                dist,
-                nlpar,
-                class,
-                allowed_parm_options,
-                splitmvar_w2
-              )
-              if (is.numeric(eval(parse(text = x_i))) |
-                  !is.null(eval(parse(text = x_i)))) {
-                eit <- x_i
-                evaluated_parameter <- ept(eit)
-              } else {
-                stop(
-                  "location parameter options for nlpar ",
-                  nlpar,
-                  ", class ",
-                  class,
-                  " are:\n lm, ymean, ymedian, a numeric value (e.g., 2) or",
-                  "a charater such as zzz",
-                  "\n with zzz defined in the prior_data",
-                  "e.g., prior_data = list(zzz = 2)"
-                )
-              }
-            }
-            if(!is.null(fxl)) {
-              evaluated_parameter <-
-                lapply(evaluated_parameter, FUN = fxl) %>% unlist()
-            }
-            # checks
-            if (nlpar == "s" & !is.null(sncov)) {
-              if (length(evaluated_parameter) == 1) {
-                evaluated_parameter <- rep(evaluated_parameter, nrep_of_parms)
-              } else if (length(evaluated_parameter) == df) {
-                repeach <- nrep_of_parms / df
-                evaluated_parameter <-
-                  rep(
-                    evaluated_parameter,
-                    times = 1,
-                    each = repeach,
-                    length.out = nrep_of_parms
-                  )
-              }
-            } else {
-              if (length(evaluated_parameter) < nrep_of_parms)
-                evaluated_parameter <- rep(evaluated_parameter, nrep_of_parms)
-              if (length(evaluated_parameter) > nrep_of_parms)
-                stop(
-                  "prior elements for nlpar ",
-                  nlpar, ", class ",  class,
-                  " are greater than the parameter dimensions"
-                )
-            }
-          }
-          
-          
-          
-          # location nlpar a cov (class b)
-          if (cov_nlpar == "a" & class == "b" & !is.null(ancov)) {
-            if (x_i == paste0("lm", empty_sufx)) {
-              if (!a_form_0) {
-                lm_gsubby <- paste0("lm", "_", nlpar, "_", "cov", resp_)
-              } else {
-                lm_gsubby <- paste0("lm", "_", nlpar, "_", "cov", resp_)
-              }
-              eit <-  gsub("lm", lm_gsubby, x_i)
-              evaluated_parameter <- ept(eit)
-            } else {
-              check_evalation_of_numeric_pdata_obj(
-                prior_argument,
-                p_str_in,
-                x_i,
-                x,
-                pname_,
-                dist,
-                nlpar,
-                class,
-                allowed_parm_options,
-                splitmvar_w2
-              )
-              if (is.numeric(eval(parse(text = x_i))) |
-                  !is.null(eval(parse(text = x_i)))) {
-                eit <- x_i
-                evaluated_parameter <- ept(eit)
-              } else {
-                stop(
-                  "location parameter options for nlpar ",
-                  nlpar,
-                  ", class ",
-                  class,
-                  " are:\n lm, ymean, ymedian, ymax a numeric value (e.g., 2)",
-                  "or a charater such as zzz",
-                  "\n with zzz defined in the prior_data",
-                  "e.g., prior_data = list(zzz = 2)"
-                )
-              }
-            }
-            if(!is.null(fxl)) {
-              evaluated_parameter <-
-                lapply(evaluated_parameter, FUN = fxl) %>% unlist()
-            }
-            if (length(evaluated_parameter) < nrep_of_parms)
-              evaluated_parameter <- rep(evaluated_parameter, nrep_of_parms)
-            if (length(evaluated_parameter) > nrep_of_parms)
-              stop("prior elements for nlpar ",
-                   nlpar, ", class ",  class,
-                   " are greater than the parameter dimensions")
-          }
-          
-          
-          # location nlpar b cov (class b)
-          if (cov_nlpar == "b" & class == "b" & !is.null(bncov)) {
-            if (x_i == paste0("lm", empty_sufx)) {
-              if (!b_form_0) {
-                lm_gsubby <- paste0("lm", "_", nlpar, "_", "cov", resp_)
-              } else {
-                lm_gsubby <- paste0("lm", "_", nlpar, "_", "cov", resp_)
-              }
-              eit <-  gsub("lm", lm_gsubby, x_i)
-              evaluated_parameter <- ept(eit)
-            } else {
-              check_evalation_of_numeric_pdata_obj(
-                prior_argument,
-                p_str_in,
-                x_i,
-                x,
-                pname_,
-                dist,
-                nlpar,
-                class,
-                allowed_parm_options,
-                splitmvar_w2
-              )
-              if (is.numeric(eval(parse(text = x_i))) |
-                  !is.null(eval(parse(text = x_i)))) {
-                eit <- x_i
-                evaluated_parameter <- ept(eit)
-              } else {
-                stop(
-                  "location parameter options for nlpar ",
-                  nlpar,
-                  ", class ",
-                  class,
-                  " are:\n lm, ymean, ymedian, ymaxs a numeric value (e.g., 2)",
-                  "or a charater such as zzz",
-                  "\n with zzz defined in the prior_data",
-                  "e.g., prior_data = list(zzz = 2)"
-                )
-              }
-            }
-            if(!is.null(fxl)) {
-              evaluated_parameter <-
-                lapply(evaluated_parameter, FUN = fxl) %>% unlist()
-            }
-            if (length(evaluated_parameter) < nrep_of_parms)
-              evaluated_parameter <- rep(evaluated_parameter, nrep_of_parms)
-            if (length(evaluated_parameter) > nrep_of_parms)
-              stop("prior elements for nlpar ",
-                   nlpar, ", class ",  class,
-                   " are greater than the parameter dimensions")
-          }
-          
-          
-          # location nlpar c cov (class b)
-          if (cov_nlpar == "c" & class == "b" & !is.null(cncov)) {
-            if (x_i == paste0("lm", empty_sufx)) {
-              if (!c_form_0) {
-                lm_gsubby <- paste0("lm", "_", nlpar, "_", "cov", resp_)
-              } else {
-                lm_gsubby <- paste0("lm", "_", nlpar, "_", "cov", resp_)
-              }
-              eit <-  gsub("lm", lm_gsubby, x_i)
-              evaluated_parameter <- ept(eit)
-            } else {
-              check_evalation_of_numeric_pdata_obj(
-                prior_argument,
-                p_str_in,
-                x_i,
-                x,
-                pname_,
-                dist,
-                nlpar,
-                class,
-                allowed_parm_options,
-                splitmvar_w2
-              )
-              if (is.numeric(eval(parse(text = x_i))) |
-                  !is.null(eval(parse(text = x_i)))) {
-                eit <- x_i
-                evaluated_parameter <- ept(eit)
-              } else {
-                stop(
-                  "location parameter options for nlpar ",
-                  nlpar,
-                  ", class ",
-                  class,
-                  " are:\n lm, ymean, ymedian, a numeric value (e.g., 2)",
-                  "or a charater such as zzz",
-                  "\n with zzz defined in the prior_data",
-                  "e.g., prior_data = list(zzz = 2)"
-                )
-              }
-            }
-            if(!is.null(fxl)) {
-              evaluated_parameter <-
-                lapply(evaluated_parameter, FUN = fxl) %>% unlist()
-            }
-            if (length(evaluated_parameter) < nrep_of_parms)
-              evaluated_parameter <- rep(evaluated_parameter, nrep_of_parms)
-            if (length(evaluated_parameter) > nrep_of_parms)
-              stop("prior elements for nlpar ",
-                   nlpar, ", class ",  class,
-                   " are greater than the parameter dimensions")
-          }
-          
-          
-          # location nlpar d cov (class b)
-          if (cov_nlpar == "d" & class == "b" & !is.null(dncov)) {
-            if (x_i == paste0("lm", empty_sufx)) {
-              if (!d_form_0) {
-                lm_gsubby <- paste0("lm", "_", nlpar, "_", "cov", resp_)
-              } else {
-                lm_gsubby <- paste0("lm", "_", nlpar, "_", "cov", resp_)
-              }
-              eit <-  gsub("lm", lm_gsubby, x_i)
-              evaluated_parameter <- ept(eit)
-            } else {
-              check_evalation_of_numeric_pdata_obj(
-                prior_argument,
-                p_str_in,
-                x_i,
-                x,
-                pname_,
-                dist,
-                nlpar,
-                class,
-                allowed_parm_options,
-                splitmvar_w2
-              )
-              if (is.numeric(eval(parse(text = x_i))) |
-                  !is.null(eval(parse(text = x_i)))) {
-                eit <- x_i
-                evaluated_parameter <- ept(eit)
-              } else {
-                stop(
-                  "location parameter options for nlpar ",
-                  nlpar,
-                  ", class ",
-                  class,
-                  " are:\n lm, ymean, ymedian, a numeric value (e.g., 2)",
-                  "or a charater such as zzz",
-                  "\n with zzz defined in the prior_data",
-                  "e.g., prior_data = list(zzz = 2)"
-                )
-              }
-            }
-            if(!is.null(fxl)) {
-              evaluated_parameter <-
-                lapply(evaluated_parameter, FUN = fxl) %>% unlist()
-            }
-            if (length(evaluated_parameter) < nrep_of_parms)
-              evaluated_parameter <- rep(evaluated_parameter, nrep_of_parms)
-            if (length(evaluated_parameter) > nrep_of_parms)
-              stop("prior elements for nlpar ",
-                   nlpar, ", class ",  class,
-                   " are greater than the parameter dimensions")
-          }
-          
-          
-          
-          # location nlpar e cov (class b)
-          if (cov_nlpar == "e" & class == "b" & !is.null(encov)) {
-            if (x_i == paste0("lm", empty_sufx)) {
-              if (!e_form_0) {
-                lm_gsubby <- paste0("lm", "_", nlpar, "_", "cov", resp_)
-              } else {
-                lm_gsubby <- paste0("lm", "_", nlpar, "_", "cov", resp_)
-              }
-              eit <-  gsub("lm", lm_gsubby, x_i)
-              evaluated_parameter <- ept(eit)
-            } else {
-              check_evalation_of_numeric_pdata_obj(
-                prior_argument,
-                p_str_in,
-                x_i,
-                x,
-                pname_,
-                dist,
-                nlpar,
-                class,
-                allowed_parm_options,
-                splitmvar_w2
-              )
-              if (is.numeric(eval(parse(text = x_i))) |
-                  !is.null(eval(parse(text = x_i)))) {
-                eit <- x_i
-                evaluated_parameter <- ept(eit)
-              } else {
-                stop(
-                  "location parameter options for nlpar ",
-                  nlpar,
-                  ", class ",
-                  class,
-                  " are:\n lm, ymean, ymedian, a numeric value (e.g., 2)",
-                  "or a charater such as zzz",
-                  "\n with zzz defined in the prior_data",
-                  "e.g., prior_data = list(zzz = 2)"
-                )
-              }
-            }
-            if(!is.null(fxl)) {
-              evaluated_parameter <-
-                lapply(evaluated_parameter, FUN = fxl) %>% unlist()
-            }
-            if (length(evaluated_parameter) < nrep_of_parms)
-              evaluated_parameter <- rep(evaluated_parameter, nrep_of_parms)
-            if (length(evaluated_parameter) > nrep_of_parms)
-              stop("prior elements for nlpar ",
-                   nlpar, ", class ",  class,
-                   " are greater than the parameter dimensions")
-          }
-          
-          
-          
-          
-          # location nlpar f cov (class b)
-          if (cov_nlpar == "f" & class == "b" & !is.null(fncov)) {
-            if (x_i == paste0("lm", empty_sufx)) {
-              if (!f_form_0) {
-                lm_gsubby <- paste0("lm", "_", nlpar, "_", "cov", resp_)
-              } else {
-                lm_gsubby <- paste0("lm", "_", nlpar, "_", "cov", resp_)
-              }
-              eit <-  gsub("lm", lm_gsubby, x_i)
-              evaluated_parameter <- ept(eit)
-            } else {
-              check_evalation_of_numeric_pdata_obj(
-                prior_argument,
-                p_str_in,
-                x_i,
-                x,
-                pname_,
-                dist,
-                nlpar,
-                class,
-                allowed_parm_options,
-                splitmvar_w2
-              )
-              if (is.numeric(eval(parse(text = x_i))) |
-                  !is.null(eval(parse(text = x_i)))) {
-                eit <- x_i
-                evaluated_parameter <- ept(eit)
-              } else {
-                stop(
-                  "location parameter options for nlpar ",
-                  nlpar,
-                  ", class ",
-                  class,
-                  " are:\n lm, ymean, ymedian, a numeric value (e.g., 2)",
-                  "or a charater such as zzz",
-                  "\n with zzz defined in the prior_data",
-                  "e.g., prior_data = list(zzz = 2)"
-                )
-              }
-            }
-            if(!is.null(fxl)) {
-              evaluated_parameter <-
-                lapply(evaluated_parameter, FUN = fxl) %>% unlist()
-            }
-            if (length(evaluated_parameter) < nrep_of_parms)
-              evaluated_parameter <- rep(evaluated_parameter, nrep_of_parms)
-            if (length(evaluated_parameter) > nrep_of_parms)
-              stop("prior elements for nlpar ",
-                   nlpar, ", class ",  class,
-                   " are greater than the parameter dimensions")
-          }
-          
-          
-          
-          # location nlpar g cov (class b)
-          if (cov_nlpar == "g" & class == "b" & !is.null(gncov)) {
-            if (x_i == paste0("lm", empty_sufx)) {
-              if (!g_form_0) {
-                lm_gsubby <- paste0("lm", "_", nlpar, "_", "cov", resp_)
-              } else {
-                lm_gsubby <- paste0("lm", "_", nlpar, "_", "cov", resp_)
-              }
-              eit <-  gsub("lm", lm_gsubby, x_i)
-              evaluated_parameter <- ept(eit)
-            } else {
-              check_evalation_of_numeric_pdata_obj(
-                prior_argument,
-                p_str_in,
-                x_i,
-                x,
-                pname_,
-                dist,
-                nlpar,
-                class,
-                allowed_parm_options,
-                splitmvar_w2
-              )
-              if (is.numeric(eval(parse(text = x_i))) |
-                  !is.null(eval(parse(text = x_i)))) {
-                eit <- x_i
-                evaluated_parameter <- ept(eit)
-              } else {
-                stop(
-                  "location parameter options for nlpar ",
-                  nlpar,
-                  ", class ",
-                  class,
-                  " are:\n lm, ymean, ymedian, a numeric value (e.g., 2)",
-                  "or a charater such as zzz",
-                  "\n with zzz defined in the prior_data",
-                  "e.g., prior_data = list(zzz = 2)"
-                )
-              }
-            }
-            if(!is.null(fxl)) {
-              evaluated_parameter <-
-                lapply(evaluated_parameter, FUN = fxl) %>% unlist()
-            }
-            if (length(evaluated_parameter) < nrep_of_parms)
-              evaluated_parameter <- rep(evaluated_parameter, nrep_of_parms)
-            if (length(evaluated_parameter) > nrep_of_parms)
-              stop("prior elements for nlpar ",
-                   nlpar, ", class ",  class,
-                   " are greater than the parameter dimensions")
-          }
-          
-          
-          
-          # location nlpar h cov (class b)
-          if (cov_nlpar == "h" & class == "b" & !is.null(hncov)) {
-            if (x_i == paste0("lm", empty_sufx)) {
-              if (!h_form_0) {
-                lm_gsubby <- paste0("lm", "_", nlpar, "_", "cov", resp_)
-              } else {
-                lm_gsubby <- paste0("lm", "_", nlpar, "_", "cov", resp_)
-              }
-              eit <-  gsub("lm", lm_gsubby, x_i)
-              evaluated_parameter <- ept(eit)
-            } else {
-              check_evalation_of_numeric_pdata_obj(
-                prior_argument,
-                p_str_in,
-                x_i,
-                x,
-                pname_,
-                dist,
-                nlpar,
-                class,
-                allowed_parm_options,
-                splitmvar_w2
-              )
-              if (is.numeric(eval(parse(text = x_i))) |
-                  !is.null(eval(parse(text = x_i)))) {
-                eit <- x_i
-                evaluated_parameter <- ept(eit)
-              } else {
-                stop(
-                  "location parameter options for nlpar ",
-                  nlpar,
-                  ", class ",
-                  class,
-                  " are:\n lm, ymean, ymedian, a numeric value (e.g., 2)",
-                  "or a charater such as zzz",
-                  "\n with zzz defined in the prior_data",
-                  "e.g., prior_data = list(zzz = 2)"
-                )
-              }
-            }
-            if(!is.null(fxl)) {
-              evaluated_parameter <-
-                lapply(evaluated_parameter, FUN = fxl) %>% unlist()
-            }
-            if (length(evaluated_parameter) < nrep_of_parms)
-              evaluated_parameter <- rep(evaluated_parameter, nrep_of_parms)
-            if (length(evaluated_parameter) > nrep_of_parms)
-              stop("prior elements for nlpar ",
-                   nlpar, ", class ",  class,
-                   " are greater than the parameter dimensions")
-          }
-          
-          
-          
-          
-          # location nlpar i cov (class b)
-          if (cov_nlpar == "i" & class == "b" & !is.null(incov)) {
-            if (x_i == paste0("lm", empty_sufx)) {
-              if (!i_form_0) {
-                lm_gsubby <- paste0("lm", "_", nlpar, "_", "cov", resp_)
-              } else {
-                lm_gsubby <- paste0("lm", "_", nlpar, "_", "cov", resp_)
-              }
-              eit <-  gsub("lm", lm_gsubby, x_i)
-              evaluated_parameter <- ept(eit)
-            } else {
-              check_evalation_of_numeric_pdata_obj(
-                prior_argument,
-                p_str_in,
-                x_i,
-                x,
-                pname_,
-                dist,
-                nlpar,
-                class,
-                allowed_parm_options,
-                splitmvar_w2
-              )
-              if (is.numeric(eval(parse(text = x_i))) |
-                  !is.null(eval(parse(text = x_i)))) {
-                eit <- x_i
-                evaluated_parameter <- ept(eit)
-              } else {
-                stop(
-                  "location parameter options for nlpar ",
-                  nlpar,
-                  ", class ",
-                  class,
-                  " are:\n lm, ymean, ymedian, a numeric value (e.g., 2)",
-                  "or a charater such as zzz",
-                  "\n with zzz defined in the prior_data",
-                  "e.g., prior_data = list(zzz = 2)"
-                )
-              }
-            }
-            if(!is.null(fxl)) {
-              evaluated_parameter <-
-                lapply(evaluated_parameter, FUN = fxl) %>% unlist()
-            }
-            if (length(evaluated_parameter) < nrep_of_parms)
-              evaluated_parameter <- rep(evaluated_parameter, nrep_of_parms)
-            if (length(evaluated_parameter) > nrep_of_parms)
-              stop("prior elements for nlpar ",
-                   nlpar, ", class ",  class,
-                   " are greater than the parameter dimensions")
-          }
-          
-          
-          
-          # location nlpar s cov (class b)
-          if (cov_nlpar == "s" & !is.null(sncov)) {
-            if (x_i == paste0("lm", empty_sufx)) {
-              if (!s_form_0) {
-                lm_gsubby <- paste0("lm", "_", nlpar, "_", "cov", resp_)
-              } else {
-                lm_gsubby <- paste0("lm", "_", nlpar, "_", "cov", resp_)
-              }
-              eit <-  gsub("lm", lm_gsubby, x_i)
-              evaluated_parameter <- ept(eit)
-            } else {
-              check_evalation_of_numeric_pdata_obj(
-                prior_argument,
-                p_str_in,
-                x_i,
-                x,
-                pname_,
-                dist,
-                nlpar,
-                class,
-                allowed_parm_options,
-                splitmvar_w2
-              )
-              if (is.numeric(eval(parse(text = x_i))) |
-                  !is.null(eval(parse(text = x_i)))) {
-                eit <- x_i
-                evaluated_parameter <- ept(eit)
-              } else {
-                stop(
-                  "location parameter options for nlpar ",
-                  nlpar,
-                  ", class ",
-                  class,
-                  " are:\n lm, ymean, ymedian, a numeric value (e.g., 2)",
-                  "or a charater such as zzz",
-                  "\n with zzz defined in the prior_data",
-                  "e.g., prior_data = list(zzz = 2)"
-                )
-              }
-            }
-            if(!is.null(fxl)) {
-              evaluated_parameter <-
-                lapply(evaluated_parameter, FUN = fxl) %>% unlist()
-            }
-            # checks
-            if (nlpar == "s" & !is.null(sncov)) {
-              if (length(evaluated_parameter) == 1) {
-                evaluated_parameter <- rep(evaluated_parameter, nrep_of_parms)
-              } else if (length(evaluated_parameter) == df) {
-                repeach <- nrep_of_parms / df
-                evaluated_parameter <-
-                  rep(evaluated_parameter,
-                      times = 1,
-                      each = repeach)
-              } else {
-                #
-              }
-            } else {
-              if (length(evaluated_parameter) < nrep_of_parms)
-                evaluated_parameter <- rep(evaluated_parameter, nrep_of_parms)
-              if (length(evaluated_parameter) > nrep_of_parms)
-                stop("prior elements for nlpar ",
-                     nlpar, ", class ",  class,
-                     " are greater than the parameter dimensions"
-                )
-            }
-          }
-          
-          
-          
-          
-          # location sigma (class b)
-          
-          if (nlpar == "" & class == "b" & sigma_dpar == 'sigma') {
-            if (x_i == paste0("lm", empty_sufx)) {
-              if (sigma_form_0) {
-                lm_gsubby <- paste0("lm", "_", nlpar, "_", "all", resp_)
-              } else {
-                lm_gsubby <- paste0("lm", "_", nlpar, "", "", resp_)
-              }
-              eit <-  gsub("lm", lm_gsubby, x_i)
-              evaluated_parameter <- ept(eit)
-            } else if (x_i == paste0("ymean", empty_sufx)) {
-              eit <-  gsub("ymean", paste0("ymean", resp_), x_i)
-              evaluated_parameter <- ept(eit)
-            } else if (x_i == paste0("ymedian", empty_sufx)) {
-              eit <-  gsub("ymedian", paste0("ymedian", resp_), x_i)
-              evaluated_parameter <- ept(eit)
-            } else {
-              check_evalation_of_numeric_pdata_obj(
-                prior_argument,
-                p_str_in,
-                x_i,
-                x,
-                pname_,
-                dist,
-                nlpar,
-                class,
-                allowed_parm_options,
-                splitmvar_w2
-              )
-              if (is.numeric(eval(parse(text = x_i))) |
-                  !is.null(eval(parse(text = x_i)))) {
-                eit <- x_i
-                evaluated_parameter <- ept(eit)
-              } else {
-                stop(
-                  "location parameter options for distributional ",
-                  sigma_dpar,
-                  ", class ",
-                  class,
-                  " are:a numeric value (e.g., 2)",
-                  "\n",
-                  " or a charater such as zzz",
-                  "\n with zzz defined in the prior_data",
-                  "\n", 
-                  " e.g., prior_data = list(zzz = 2)"
-                )
-              }
-            }
-            if(!is.null(fxl)) {
-              evaluated_parameter <-
-                lapply(evaluated_parameter, FUN = fxl) %>% unlist()
-            }
-            if (length(evaluated_parameter) < nrep_of_parms)
-              evaluated_parameter <- rep(evaluated_parameter, nrep_of_parms)
-            if (length(evaluated_parameter) > nrep_of_parms)
-              stop("prior elements for distributional ",
-                   sigma_dpar,
-                   " are greater than the parameter dimensions")
-          }
-          
-          
-          
-          # location sigma cov (class b)
-          if (cov_sigma_dpar != "" & class == "b" & cov_sigma_dpar == 'sigma_cov' & 
-              !is.null(sigmancov)) {
-            if (x_i == paste0("lm", empty_sufx)) {
-              if (!sigma_form_0) {
-                # lm_gsubby <- paste0("lm", "_", nlpar, "_", "cov", resp_)
-              } else {
-                # lm_gsubby <- paste0("lm", "_", nlpar, "_", "cov", resp_)
-              }
-              # eit <-  gsub("lm", lm_gsubby, x_i)
-              # evaluated_parameter <- ept(eit)
-            } else {
-              check_evalation_of_numeric_pdata_obj(
-                prior_argument,
-                p_str_in,
-                x_i,
-                x,
-                pname_,
-                dist,
-                nlpar,
-                class,
-                allowed_parm_options,
-                splitmvar_w2
-              )
-              if (is.numeric(eval(parse(text = x_i))) |
-                  !is.null(eval(parse(text = x_i)))) {
-                eit <- x_i
-                evaluated_parameter <- ept(eit)
-              } else {
-                stop(
-                  "location parameter options for distributional ",
-                  sigma_dpar,
-                  ", class ",
-                  class,
-                  " are:\n a numeric value (e.g., 2)",
-                  "or a charater such as zzz",
-                  "\n with zzz defined in the prior_data",
-                  "e.g., prior_data = list(zzz = 2)"
-                )
-              }
-            }
-            if(!is.null(fxl)) {
-              evaluated_parameter <-
-                lapply(evaluated_parameter, FUN = fxl) %>% unlist()
-            }
-            if (length(evaluated_parameter) < nrep_of_parms)
-              evaluated_parameter <- rep(evaluated_parameter, nrep_of_parms)
-            if (length(evaluated_parameter) > nrep_of_parms)
-              stop("prior elements for distributional ",
-                   sigma_dpar,
-                   " are greater than the parameter dimensions")
-          }
-          
-          
-          
-          
-          # location a b c d e random effects
-          
-          # location nlpar a (class sd, typically 0)
-          
-          if (nlpar == "a" & class == "sd" & grepl("a", randomsi)) {
-            check_evalation_of_numeric_pdata_obj(
-              prior_argument,
-              p_str_in,
-              x_i,
-              x,
-              pname_,
-              dist,
-              nlpar,
-              class,
-              allowed_parm_options,
-              splitmvar_w2
-            )
-            if (is.numeric(eval(parse(text = x_i))) |
-                !is.null(eval(parse(text = x_i)))) {
-              eit <- x_i
-              evaluated_parameter <- ept(eit)
-            } else {
-              stop(
-                "location parameter options for nlpar ",
-                nlpar,
-                ", class ",
-                class,
-                " are:\n lm, ymean, ymedian, a numeric value (e.g., 2)",
-                "or a charater such as zzz",
-                "\n with zzz defined in the prior_data",
-                "e.g., prior_data = list(zzz = 2)"
-              )
-            }
-            if(!is.null(fxl)) {
-              evaluated_parameter <-
-                lapply(evaluated_parameter, FUN = fxl) %>% unlist()
-            }
-            if (length(evaluated_parameter) < nrep_of_parms)
-              evaluated_parameter <- rep(evaluated_parameter, nrep_of_parms)
-            if (length(evaluated_parameter) > nrep_of_parms)
-              stop("prior elements for nlpar ",
-                   nlpar, ", class ",  class,
-                   " are greater than the parameter dimensions")
-          }
-          
-          
-          # location nlpar b (class sd, typically 0)
-          if (nlpar == "b" & class == "sd" & grepl("b", randomsi)) {
-            check_evalation_of_numeric_pdata_obj(
-              prior_argument,
-              p_str_in,
-              x_i,
-              x,
-              pname_,
-              dist,
-              nlpar,
-              class,
-              allowed_parm_options,
-              splitmvar_w2
-            )
-            if (is.numeric(eval(parse(text = x_i))) |
-                !is.null(eval(parse(text = x_i)))) {
-              eit <- x_i
-              evaluated_parameter <- ept(eit)
-            } else {
-              stop(
-                "location parameter options for nlpar ",
-                nlpar,
-                ", class ",
-                class,
-                " are:\n lm, a numeric value (e.g., 2) or a charater such as zzz",
-                "\n with zzz defined in the prior_data",
-                "e.g., prior_data = list(zzz = 2)"
-              )
-            }
-            if(!is.null(fxl)) {
-              evaluated_parameter <-
-                lapply(evaluated_parameter, FUN = fxl) %>% unlist()
-            }
-            if (length(evaluated_parameter) < nrep_of_parms)
-              evaluated_parameter <- rep(evaluated_parameter, nrep_of_parms)
-            if (length(evaluated_parameter) > nrep_of_parms)
-              stop("prior elements for nlpar ",
-                   nlpar, ", class ",  class,
-                   " are greater than the parameter dimensions")
-          }
-          
-          # location nlpar c (class sd, typically 0)
-          if (nlpar == "c" & class == "sd" & grepl("c", randomsi)) {
-            check_evalation_of_numeric_pdata_obj(
-              prior_argument,
-              p_str_in,
-              x_i,
-              x,
-              pname_,
-              dist,
-              nlpar,
-              class,
-              allowed_parm_options,
-              splitmvar_w2
-            )
-            if (is.numeric(eval(parse(text = x_i))) |
-                !is.null(eval(parse(text = x_i)))) {
-              eit <- x_i
-              evaluated_parameter <- ept(eit)
-            } else {
-              stop(
-                "location parameter options for nlpar ",
-                nlpar,
-                ", class ",
-                class,
-                " are:\n lm, a numeric value (e.g., 2) or a charater such as zzz",
-                "\n with zzz defined in the prior_data",
-                "e.g., prior_data = list(zzz = 2)"
-              )
-            }
-            if(!is.null(fxl)) {
-              evaluated_parameter <-
-                lapply(evaluated_parameter, FUN = fxl) %>% unlist()
-            }
-            if (length(evaluated_parameter) < nrep_of_parms)
-              evaluated_parameter <- rep(evaluated_parameter, nrep_of_parms)
-            if (length(evaluated_parameter) > nrep_of_parms)
-              stop("prior elements for nlpar ",
-                   nlpar, ", class ",  class,
-                   " are greater than the parameter dimensions")
-          }
-          
-          # location nlpar d (class sd, typically 0)
-          if (nlpar == "d" & class == "sd" & grepl("d", randomsi)) {
-            check_evalation_of_numeric_pdata_obj(
-              prior_argument,
-              p_str_in,
-              x_i,
-              x,
-              pname_,
-              dist,
-              nlpar,
-              class,
-              allowed_parm_options,
-              splitmvar_w2
-            )
-            if (is.numeric(eval(parse(text = x_i))) |
-                !is.null(eval(parse(text = x_i)))) {
-              eit <- x_i
-              evaluated_parameter <- ept(eit)
-            } else {
-              stop(
-                "location parameter options for nlpar ",
-                nlpar,
-                ", class ",
-                class,
-                " are:\n lm, a numeric value (e.g., 2) or a charater such as zzz",
-                "\n with zzz defined in the prior_data",
-                "e.g., prior_data = list(zzz = 2)"
-              )
-            }
-            if(!is.null(fxl)) {
-              evaluated_parameter <-
-                lapply(evaluated_parameter, FUN = fxl) %>% unlist()
-            }
-            if (length(evaluated_parameter) < nrep_of_parms)
-              evaluated_parameter <- rep(evaluated_parameter, nrep_of_parms)
-            if (length(evaluated_parameter) > nrep_of_parms)
-              stop("prior elements for nlpar ",
-                   nlpar, ", class ",  class,
-                   " are greater than the parameter dimensions")
-          }
-          
-          
-          # location nlpar e (class sd, typically 0)
-          if (nlpar == "e" & class == "sd" & grepl("e", randomsi)) {
-            check_evalation_of_numeric_pdata_obj(
-              prior_argument,
-              p_str_in,
-              x_i,
-              x,
-              pname_,
-              dist,
-              nlpar,
-              class,
-              allowed_parm_options,
-              splitmvar_w2
-            )
-            if (is.numeric(eval(parse(text = x_i))) |
-                !is.null(eval(parse(text = x_i)))) {
-              eit <- x_i
-              evaluated_parameter <- ept(eit)
-            } else {
-              stop(
-                "location parameter options for nlpar ",
-                nlpar,
-                ", class ",
-                class,
-                " are:\n lm, a numeric value (e.g., 2) or a charater such as zzz",
-                "\n with zzz defined in the prior_data",
-                "e.g., prior_data = list(zzz = 2)"
-              )
-            }
-            if(!is.null(fxl)) {
-              evaluated_parameter <-
-                lapply(evaluated_parameter, FUN = fxl) %>% unlist()
-            }
-            if (length(evaluated_parameter) < nrep_of_parms)
-              evaluated_parameter <- rep(evaluated_parameter, nrep_of_parms)
-            if (length(evaluated_parameter) > nrep_of_parms)
-              stop("prior elements for nlpar ",
-                   nlpar, ", class ",  class,
-                   " are greater than the parameter dimensions")
-          }
-          
-          
-          
-          # location nlpar f (class sd, typically 0)
-          if (nlpar == "f" & class == "sd" & grepl("f", randomsi)) {
-            check_evalation_of_numeric_pdata_obj(
-              prior_argument,
-              p_str_in,
-              x_i,
-              x,
-              pname_,
-              dist,
-              nlpar,
-              class,
-              allowed_parm_options,
-              splitmvar_w2
-            )
-            if (is.numeric(eval(parse(text = x_i))) |
-                !is.null(eval(parse(text = x_i)))) {
-              eit <- x_i
-              evaluated_parameter <- ept(eit)
-            } else {
-              stop(
-                "location parameter options for nlpar ",
-                nlpar,
-                ", class ",
-                class,
-                " are:\n lm, a numeric value (e.g., 2) or a charater such as zzz",
-                "\n with zzz defined in the prior_data",
-                "e.g., prior_data = list(zzz = 2)"
-              )
-            }
-            if(!is.null(fxl)) {
-              evaluated_parameter <-
-                lapply(evaluated_parameter, FUN = fxl) %>% unlist()
-            }
-            if (length(evaluated_parameter) < nrep_of_parms)
-              evaluated_parameter <- rep(evaluated_parameter, nrep_of_parms)
-            if (length(evaluated_parameter) > nrep_of_parms)
-              stop("prior elements for nlpar ",
-                   nlpar, ", class ",  class,
-                   " are greater than the parameter dimensions")
-          }
-          
-          
-          
-          # location nlpar g (class sd, typically 0)
-          if (nlpar == "g" & class == "sd" & grepl("g", randomsi)) {
-            check_evalation_of_numeric_pdata_obj(
-              prior_argument,
-              p_str_in,
-              x_i,
-              x,
-              pname_,
-              dist,
-              nlpar,
-              class,
-              allowed_parm_options,
-              splitmvar_w2
-            )
-            if (is.numeric(eval(parse(text = x_i))) |
-                !is.null(eval(parse(text = x_i)))) {
-              eit <- x_i
-              evaluated_parameter <- ept(eit)
-            } else {
-              stop(
-                "location parameter options for nlpar ",
-                nlpar,
-                ", class ",
-                class,
-                " are:\n lm, a numeric value (e.g., 2) or a charater such as zzz",
-                "\n with zzz defined in the prior_data",
-                "e.g., prior_data = list(zzz = 2)"
-              )
-            }
-            if(!is.null(fxl)) {
-              evaluated_parameter <-
-                lapply(evaluated_parameter, FUN = fxl) %>% unlist()
-            }
-            if (length(evaluated_parameter) < nrep_of_parms)
-              evaluated_parameter <- rep(evaluated_parameter, nrep_of_parms)
-            if (length(evaluated_parameter) > nrep_of_parms)
-              stop("prior elements for nlpar ",
-                   nlpar, ", class ",  class,
-                   " are greater than the parameter dimensions")
-          }
-          
-          
-          # location nlpar h (class sd, typically 0)
-          if (nlpar == "h" & class == "sd" & grepl("h", randomsi)) {
-            check_evalation_of_numeric_pdata_obj(
-              prior_argument,
-              p_str_in,
-              x_i,
-              x,
-              pname_,
-              dist,
-              nlpar,
-              class,
-              allowed_parm_options,
-              splitmvar_w2
-            )
-            if (is.numeric(eval(parse(text = x_i))) |
-                !is.null(eval(parse(text = x_i)))) {
-              eit <- x_i
-              evaluated_parameter <- ept(eit)
-            } else {
-              stop(
-                "location parameter options for nlpar ",
-                nlpar,
-                ", class ",
-                class,
-                " are:\n lm, a numeric value (e.g., 2) or a charater such as zzz",
-                "\n with zzz defined in the prior_data",
-                "e.g., prior_data = list(zzz = 2)"
-              )
-            }
-            if(!is.null(fxl)) {
-              evaluated_parameter <-
-                lapply(evaluated_parameter, FUN = fxl) %>% unlist()
-            }
-            if (length(evaluated_parameter) < nrep_of_parms)
-              evaluated_parameter <- rep(evaluated_parameter, nrep_of_parms)
-            if (length(evaluated_parameter) > nrep_of_parms)
-              stop("prior elements for nlpar ",
-                   nlpar, ", class ",  class,
-                   " are greater than the parameter dimensions")
-          }
-          
-          
-          
-          
-          # location nlpar i (class sd, typically 0)
-          if (nlpar == "i" & class == "sd" & grepl("i", randomsi)) {
-            check_evalation_of_numeric_pdata_obj(
-              prior_argument,
-              p_str_in,
-              x_i,
-              x,
-              pname_,
-              dist,
-              nlpar,
-              class,
-              allowed_parm_options,
-              splitmvar_w2
-            )
-            if (is.numeric(eval(parse(text = x_i))) |
-                !is.null(eval(parse(text = x_i)))) {
-              eit <- x_i
-              evaluated_parameter <- ept(eit)
-            } else {
-              stop(
-                "location parameter options for nlpar ",
-                nlpar,
-                ", class ",
-                class,
-                " are:\n lm, a numeric value (e.g., 2) or a charater such as zzz",
-                "\n with zzz defined in the prior_data",
-                "e.g., prior_data = list(zzz = 2)"
-              )
-            }
-            if(!is.null(fxl)) {
-              evaluated_parameter <-
-                lapply(evaluated_parameter, FUN = fxl) %>% unlist()
-            }
-            if (length(evaluated_parameter) < nrep_of_parms)
-              evaluated_parameter <- rep(evaluated_parameter, nrep_of_parms)
-            if (length(evaluated_parameter) > nrep_of_parms)
-              stop("prior elements for nlpar ",
-                   nlpar, ", class ",  class,
-                   " are greater than the parameter dimensions")
-          }
-          
-          
-          
-          
-          
-          # location nlpar s (class sd, typically 0)
-          if (nlpar == "s" & class == "sd") {
-            if (x_i == paste0("lm", empty_sufx)) {
-              if (s_form_0_gr) {
-                lm_gsubby <- paste0("lm", "_", nlpar, "_", "all", resp_)
-              } else {
-                lm_gsubby <- paste0("lm", "_", nlpar, "", "", resp_)
-              }
-              eit <-  gsub("lm", lm_gsubby, x_i)
-              evaluated_parameter <- ept(eit)
-            } else {
-              check_evalation_of_numeric_pdata_obj(
-                prior_argument,
-                p_str_in,
-                x_i,
-                x,
-                pname_,
-                dist,
-                nlpar,
-                class,
-                allowed_parm_options,
-                splitmvar_w2
-              )
-              if (is.numeric(eval(parse(text = x_i))) |
-                  !is.null(eval(parse(text = x_i)))) {
-                eit <- x_i
-                evaluated_parameter <- ept(eit)
-              } else {
-                stop(
-                  "location parameter options for nlpar ",
-                  nlpar,
-                  ", class ",
-                  class,
-                  " are:\n lm, ymean, ymedian, a numeric value (e.g., 2) or",
-                  "a charater such as zzz",
-                  "\n with zzz defined in the prior_data",
-                  "e.g., prior_data = list(zzz = 2)"
-                )
-              }
-            }
-            if(!is.null(fxl)) {
-              evaluated_parameter <-
-                lapply(evaluated_parameter, FUN = fxl) %>% unlist()
-            }
-            # checks
-            if (nlpar == "s" & !is.null(sncov_gr)) {
-              if (length(evaluated_parameter) == 1) {
-                evaluated_parameter <- rep(evaluated_parameter, nrep_of_parms)
-              } else if (length(evaluated_parameter) == df) {
-                repeach <- nrep_of_parms / df
-                evaluated_parameter <-
-                  rep(
-                    evaluated_parameter,
-                    times = 1,
-                    each = repeach,
-                    length.out = nrep_of_parms
-                  )
-              }
-            } else {
-              if (length(evaluated_parameter) < nrep_of_parms)
-                evaluated_parameter <- rep(evaluated_parameter, nrep_of_parms)
-              if (length(evaluated_parameter) > nrep_of_parms)
-                stop(
-                  "prior elements for nlpar ",
-                  nlpar, ", class ",  class,
-                  " are greater than the parameter dimensions"
-                )
-            }
-          }
-          
-          
-          
-          
-          # location nlpar a cov (class sd, typically 0)
-          if (cov_nlpar == "a" & class == "sd" & !is.null(ancov_gr)) {
-            check_evalation_of_numeric_pdata_obj(
-              prior_argument,
-              p_str_in,
-              x_i,
-              x,
-              pname_,
-              dist,
-              nlpar,
-              class,
-              allowed_parm_options,
-              splitmvar_w2
-            )
-            if (is.numeric(eval(parse(text = x_i))) |
-                !is.null(eval(parse(text = x_i)))) {
-              eit <- x_i
-              evaluated_parameter <- ept(eit)
-            } else {
-              stop(
-                "location parameter options for nlpar ",
-                nlpar,
-                ", class ",
-                class,
-                " are:\n lm, ymean, ymedian, a numeric value (e.g., 2)",
-                "or a charater such as zzz",
-                "\n with zzz defined in the prior_data",
-                "e.g., prior_data = list(zzz = 2)"
-              )
-            }
-            if(!is.null(fxl)) {
-              evaluated_parameter <-
-                lapply(evaluated_parameter, FUN = fxl) %>% unlist()
-            }
-            if (length(evaluated_parameter) < nrep_of_parms)
-              evaluated_parameter <- rep(evaluated_parameter, nrep_of_parms)
-            if (length(evaluated_parameter) > nrep_of_parms)
-              stop("prior elements for nlpar ",
-                   nlpar, ", class ",  class,
-                   " are greater than the parameter dimensions")
-          }
-          
-          
-          # location nlpar b cov (class sd, typically 0)
-          if (cov_nlpar == "b" & class == "sd" & !is.null(bncov_gr)) {
-            check_evalation_of_numeric_pdata_obj(
-              prior_argument,
-              p_str_in,
-              x_i,
-              x,
-              pname_,
-              dist,
-              nlpar,
-              class,
-              allowed_parm_options,
-              splitmvar_w2
-            )
-            if (is.numeric(eval(parse(text = x_i))) |
-                !is.null(eval(parse(text = x_i)))) {
-              eit <- x_i
-              evaluated_parameter <- ept(eit)
-            } else {
-              stop(
-                "location parameter options for nlpar ",
-                nlpar,
-                ", class ",
-                class,
-                " are:\n lm, ymean, ymedian, a numeric value (e.g., 2)",
-                "or a charater such as zzz",
-                "\n with zzz defined in the prior_data",
-                "e.g., prior_data = list(zzz = 2)"
-              )
-            }
-            if(!is.null(fxl)) {
-              evaluated_parameter <-
-                lapply(evaluated_parameter, FUN = fxl) %>% unlist()
-            }
-            if (length(evaluated_parameter) < nrep_of_parms)
-              evaluated_parameter <- rep(evaluated_parameter, nrep_of_parms)
-            if (length(evaluated_parameter) > nrep_of_parms)
-              stop("prior elements for nlpar ",
-                   nlpar, ", class ",  class,
-                   " are greater than the parameter dimensions")
-          }
-          
-          
-          
-          # location nlpar c cov (class sd, typically 0)
-          if (cov_nlpar == "c" & class == "sd" & !is.null(cncov_gr)) {
-            check_evalation_of_numeric_pdata_obj(
-              prior_argument,
-              p_str_in,
-              x_i,
-              x,
-              pname_,
-              dist,
-              nlpar,
-              class,
-              allowed_parm_options,
-              splitmvar_w2
-            )
-            if (is.numeric(eval(parse(text = x_i))) |
-                !is.null(eval(parse(text = x_i)))) {
-              eit <- x_i
-              evaluated_parameter <- ept(eit)
-            } else {
-              stop(
-                "location parameter options for nlpar ",
-                nlpar,
-                ", class ",
-                class,
-                " are:\n lm, ymean, ymedian, a numeric value (e.g., 2)",
-                "or a charater such as zzz",
-                "\n with zzz defined in the prior_data",
-                "e.g., prior_data = list(zzz = 2)"
-              )
-            }
-            if(!is.null(fxl)) {
-              evaluated_parameter <-
-                lapply(evaluated_parameter, FUN = fxl) %>% unlist()
-            }
-            if (length(evaluated_parameter) < nrep_of_parms)
-              evaluated_parameter <- rep(evaluated_parameter, nrep_of_parms)
-            if (length(evaluated_parameter) > nrep_of_parms)
-              stop("prior elements for nlpar ",
-                   nlpar, ", class ",  class,
-                   " are greater than the parameter dimensions")
-          }
-          
-          
-          # location nlpar d cov (class sd, typically 0)
-          if (cov_nlpar == "d" & class == "sd" & !is.null(dncov_gr)) {
-            check_evalation_of_numeric_pdata_obj(
-              prior_argument,
-              p_str_in,
-              x_i,
-              x,
-              pname_,
-              dist,
-              nlpar,
-              class,
-              allowed_parm_options,
-              splitmvar_w2
-            )
-            if (is.numeric(eval(parse(text = x_i))) |
-                !is.null(eval(parse(text = x_i)))) {
-              eit <- x_i
-              evaluated_parameter <- ept(eit)
-            } else {
-              stop(
-                "location parameter options for nlpar ",
-                nlpar,
-                ", class ",
-                class,
-                " are:\n lm, ymean, ymedian, a numeric value (e.g., 2)",
-                "or a charater such as zzz",
-                "\n with zzz defined in the prior_data",
-                "e.g., prior_data = list(zzz = 2)"
-              )
-            }
-            if(!is.null(fxl)) {
-              evaluated_parameter <-
-                lapply(evaluated_parameter, FUN = fxl) %>% unlist()
-            }
-            if (length(evaluated_parameter) < nrep_of_parms)
-              evaluated_parameter <- rep(evaluated_parameter, nrep_of_parms)
-            if (length(evaluated_parameter) > nrep_of_parms)
-              stop("prior elements for nlpar ",
-                   nlpar, ", class ",  class,
-                   " are greater than the parameter dimensions")
-          }
-          
-          
-          
-          
-          # location nlpar e cov (class sd, typically 0)
-          if (cov_nlpar == "e" & class == "sd" & !is.null(encov_gr)) {
-            check_evalation_of_numeric_pdata_obj(
-              prior_argument,
-              p_str_in,
-              x_i,
-              x,
-              pname_,
-              dist,
-              nlpar,
-              class,
-              allowed_parm_options,
-              splitmvar_w2
-            )
-            if (is.numeric(eval(parse(text = x_i))) |
-                !is.null(eval(parse(text = x_i)))) {
-              eit <- x_i
-              evaluated_parameter <- ept(eit)
-            } else {
-              stop(
-                "location parameter options for nlpar ",
-                nlpar,
-                ", class ",
-                class,
-                " are:\n lm, ymean, ymedian, a numeric value (e.g., 2)",
-                "or a charater such as zzz",
-                "\n with zzz defined in the prior_data",
-                "e.g., prior_data = list(zzz = 2)"
-              )
-            }
-            if(!is.null(fxl)) {
-              evaluated_parameter <-
-                lapply(evaluated_parameter, FUN = fxl) %>% unlist()
-            }
-            if (length(evaluated_parameter) < nrep_of_parms)
-              evaluated_parameter <- rep(evaluated_parameter, nrep_of_parms)
-            if (length(evaluated_parameter) > nrep_of_parms)
-              stop("prior elements for nlpar ",
-                   nlpar, ", class ",  class,
-                   " are greater than the parameter dimensions")
-          }
-          
-          
-          
-          
-          # location nlpar f cov (class sd, typically 0)
-          if (cov_nlpar == "f" & class == "sd" & !is.null(fncov_gr)) {
-            check_evalation_of_numeric_pdata_obj(
-              prior_argument,
-              p_str_in,
-              x_i,
-              x,
-              pname_,
-              dist,
-              nlpar,
-              class,
-              allowed_parm_options,
-              splitmvar_w2
-            )
-            if (is.numeric(eval(parse(text = x_i))) |
-                !is.null(eval(parse(text = x_i)))) {
-              eit <- x_i
-              evaluated_parameter <- ept(eit)
-            } else {
-              stop(
-                "location parameter options for nlpar ",
-                nlpar,
-                ", class ",
-                class,
-                " are:\n lm, ymean, ymedian, a numeric value (e.g., 2)",
-                "or a charater such as zzz",
-                "\n with zzz defined in the prior_data",
-                "e.g., prior_data = list(zzz = 2)"
-              )
-            }
-            if(!is.null(fxl)) {
-              evaluated_parameter <-
-                lapply(evaluated_parameter, FUN = fxl) %>% unlist()
-            }
-            if (length(evaluated_parameter) < nrep_of_parms)
-              evaluated_parameter <- rep(evaluated_parameter, nrep_of_parms)
-            if (length(evaluated_parameter) > nrep_of_parms)
-              stop("prior elements for nlpar ",
-                   nlpar, ", class ",  class,
-                   " are greater than the parameter dimensions")
-          }
-          
-          
-          
-          
-          # location nlpar g cov (class sd, typically 0)
-          if (cov_nlpar == "g" & class == "sd" & !is.null(gncov_gr)) {
-            check_evalation_of_numeric_pdata_obj(
-              prior_argument,
-              p_str_in,
-              x_i,
-              x,
-              pname_,
-              dist,
-              nlpar,
-              class,
-              allowed_parm_options,
-              splitmvar_w2
-            )
-            if (is.numeric(eval(parse(text = x_i))) |
-                !is.null(eval(parse(text = x_i)))) {
-              eit <- x_i
-              evaluated_parameter <- ept(eit)
-            } else {
-              stop(
-                "location parameter options for nlpar ",
-                nlpar,
-                ", class ",
-                class,
-                " are:\n lm, ymean, ymedian, a numeric value (e.g., 2)",
-                "or a charater such as zzz",
-                "\n with zzz defined in the prior_data",
-                "e.g., prior_data = list(zzz = 2)"
-              )
-            }
-            if(!is.null(fxl)) {
-              evaluated_parameter <-
-                lapply(evaluated_parameter, FUN = fxl) %>% unlist()
-            }
-            if (length(evaluated_parameter) < nrep_of_parms)
-              evaluated_parameter <- rep(evaluated_parameter, nrep_of_parms)
-            if (length(evaluated_parameter) > nrep_of_parms)
-              stop("prior elements for nlpar ",
-                   nlpar, ", class ",  class,
-                   " are greater than the parameter dimensions")
-          }
-          
-          
-          
-          # location nlpar h cov (class sd, typically 0)
-          if (cov_nlpar == "h" & class == "sd" & !is.null(hncov_gr)) {
-            check_evalation_of_numeric_pdata_obj(
-              prior_argument,
-              p_str_in,
-              x_i,
-              x,
-              pname_,
-              dist,
-              nlpar,
-              class,
-              allowed_parm_options,
-              splitmvar_w2
-            )
-            if (is.numeric(eval(parse(text = x_i))) |
-                !is.null(eval(parse(text = x_i)))) {
-              eit <- x_i
-              evaluated_parameter <- ept(eit)
-            } else {
-              stop(
-                "location parameter options for nlpar ",
-                nlpar,
-                ", class ",
-                class,
-                " are:\n lm, ymean, ymedian, a numeric value (e.g., 2)",
-                "or a charater such as zzz",
-                "\n with zzz defined in the prior_data",
-                "e.g., prior_data = list(zzz = 2)"
-              )
-            }
-            if(!is.null(fxl)) {
-              evaluated_parameter <-
-                lapply(evaluated_parameter, FUN = fxl) %>% unlist()
-            }
-            if (length(evaluated_parameter) < nrep_of_parms)
-              evaluated_parameter <- rep(evaluated_parameter, nrep_of_parms)
-            if (length(evaluated_parameter) > nrep_of_parms)
-              stop("prior elements for nlpar ",
-                   nlpar, ", class ",  class,
-                   " are greater than the parameter dimensions")
-          }
-          
-          
-          
-          # location nlpar i cov (class sd, typically 0)
-          if (cov_nlpar == "i" & class == "sd" & !is.null(incov_gr)) {
-            check_evalation_of_numeric_pdata_obj(
-              prior_argument,
-              p_str_in,
-              x_i,
-              x,
-              pname_,
-              dist,
-              nlpar,
-              class,
-              allowed_parm_options,
-              splitmvar_w2
-            )
-            if (is.numeric(eval(parse(text = x_i))) |
-                !is.null(eval(parse(text = x_i)))) {
-              eit <- x_i
-              evaluated_parameter <- ept(eit)
-            } else {
-              stop(
-                "location parameter options for nlpar ",
-                nlpar,
-                ", class ",
-                class,
-                " are:\n lm, ymean, ymedian, a numeric value (e.g., 2)",
-                "or a charater such as zzz",
-                "\n with zzz defined in the prior_data",
-                "e.g., prior_data = list(zzz = 2)"
-              )
-            }
-            if(!is.null(fxl)) {
-              evaluated_parameter <-
-                lapply(evaluated_parameter, FUN = fxl) %>% unlist()
-            }
-            if (length(evaluated_parameter) < nrep_of_parms)
-              evaluated_parameter <- rep(evaluated_parameter, nrep_of_parms)
-            if (length(evaluated_parameter) > nrep_of_parms)
-              stop("prior elements for nlpar ",
-                   nlpar, ", class ",  class,
-                   " are greater than the parameter dimensions")
-          }
-          
-          
-          
-          
-          
-          # location nlpar s cov (class sd, typically 0)
-          if (cov_nlpar == "s" & !is.null(sncov_gr)) {
-            if (x_i == paste0("lm", empty_sufx)) {
-              if (!s_form_0_gr) {
-                lm_gsubby <- paste0("lm", "_", nlpar, "_", "cov", resp_)
-              } else {
-                lm_gsubby <- paste0("lm", "_", nlpar, "_", "cov", resp_)
-              }
-              eit <-  gsub("lm", lm_gsubby, x_i)
-              evaluated_parameter <- ept(eit)
-            } else {
-              check_evalation_of_numeric_pdata_obj(
-                prior_argument,
-                p_str_in,
-                x_i,
-                x,
-                pname_,
-                dist,
-                nlpar,
-                class,
-                allowed_parm_options,
-                splitmvar_w2
-              )
-              if (is.numeric(eval(parse(text = x_i))) |
-                  !is.null(eval(parse(text = x_i)))) {
-                eit <- x_i
-                evaluated_parameter <- ept(eit)
-              } else {
-                stop(
-                  "location parameter options for nlpar ",
-                  nlpar,
-                  ", class ",
-                  class,
-                  " are:\n lm, ymean, ymedian, a numeric value (e.g., 2)",
-                  "or a charater such as zzz",
-                  "\n with zzz defined in the prior_data",
-                  "e.g., prior_data = list(zzz = 2)"
-                )
-              }
-            }
-            if(!is.null(fxl)) {
-              evaluated_parameter <-
-                lapply(evaluated_parameter, FUN = fxl) %>% unlist()
-            }
-            # checks
-            if (nlpar == "s" & !is.null(sncov_gr)) {
-              if (length(evaluated_parameter) == 1) {
-                evaluated_parameter <- rep(evaluated_parameter, nrep_of_parms)
-              } else if (length(evaluated_parameter) == df) {
-                repeach <- nrep_of_parms / df
-                evaluated_parameter <-
-                  rep(evaluated_parameter,
-                      times = 1,
-                      each = repeach)
-              } else {
-                #
-              }
-            } else {
-              if (length(evaluated_parameter) < nrep_of_parms)
-                evaluated_parameter <- rep(evaluated_parameter, nrep_of_parms)
-              if (length(evaluated_parameter) > nrep_of_parms)
-                stop("prior elements for nlpar ",
-                     nlpar, ", class ",  class,
-                     " are greater than the parameter dimensions"
-                )
-            }
-          }
-          
-          
-          
-          
-          # location sigma (class sd, typically 0)
-          if (nlpar == "" & class == "sd" & sigma_dpar == 'sigma') {
-            check_evalation_of_numeric_pdata_obj(
-              prior_argument,
-              p_str_in,
-              x_i,
-              x,
-              pname_,
-              dist,
-              nlpar,
-              class,
-              allowed_parm_options,
-              splitmvar_w2
-            )
-            if (is.numeric(eval(parse(text = x_i))) |
-                !is.null(eval(parse(text = x_i)))) {
-              eit <- x_i
-              evaluated_parameter <- ept(eit)
-            } else {
-              stop(
-                "location parameter options for distributional ",
-                sigma_dpar,
-                ", class ",
-                class,
-                " are:\n a numeric value (e.g., 2)",
-                "or a charater such as zzz",
-                "\n with zzz defined in the prior_data",
-                "e.g., prior_data = list(zzz = 2)"
-              )
-            }
-            if(!is.null(fxl)) {
-              evaluated_parameter <-
-                lapply(evaluated_parameter, FUN = fxl) %>% unlist()
-            }
-            if (length(evaluated_parameter) < nrep_of_parms)
-              evaluated_parameter <- rep(evaluated_parameter, nrep_of_parms)
-            if (length(evaluated_parameter) > nrep_of_parms)
-              stop("prior elements for distributional ",
-                   sigma_dpar,
-                   " are greater than the parameter dimensions")
-          }
-          
-          
-          # location sigma cov (class sd, typically 0)
-          if (cov_sigma_dpar != "" & class == "sd" & cov_sigma_dpar == 'sigma_cov' & 
-              !is.null(sigmancov_gr)) {
-            check_evalation_of_numeric_pdata_obj(
-              prior_argument,
-              p_str_in,
-              x_i,
-              x,
-              pname_,
-              dist,
-              nlpar,
-              class,
-              allowed_parm_options,
-              splitmvar_w2
-            )
-            if (is.numeric(eval(parse(text = x_i))) |
-                !is.null(eval(parse(text = x_i)))) {
-              eit <- x_i
-              evaluated_parameter <- ept(eit)
-            } else {
-              stop(
-                "location parameter options for distributional ",
-                sigma_dpar,
-                ", class ",
-                class,
-                " are:\n a numeric value (e.g., 2)",
-                "or a charater such as zzz",
-                "\n with zzz defined in the prior_data",
-                "e.g., prior_data = list(zzz = 2)"
-              )
-            }
-            if(!is.null(fxl)) {
-              evaluated_parameter <-
-                lapply(evaluated_parameter, FUN = fxl) %>% unlist()
-            }
-            if (length(evaluated_parameter) < nrep_of_parms)
-              evaluated_parameter <- rep(evaluated_parameter, nrep_of_parms)
-            if (length(evaluated_parameter) > nrep_of_parms)
-              stop("prior elements for distributional ",
-                   sigma_dpar,
-                   " are greater than the parameter dimensions")
-          }
-          
-          
-          
-          
-          # location rsd param
-          if (class == "sigma") {
-            check_evalation_of_numeric_pdata_obj(
-              prior_argument,
-              p_str_in,
-              x_i,
-              x,
-              pname_,
-              dist,
-              nlpar,
-              class,
-              allowed_parm_options,
-              splitmvar_w2
-            )
-            if (is.numeric(eval(parse(text = x_i))) |
-                !is.null(eval(parse(text = x_i)))) {
-              eit <- x_i
-              evaluated_parameter <- ept(eit)
-            } else {
-              stop(
-                "location parameter options for nlpar ",
-                nlpar,
-                ", class ",
-                class,
-                " are:\n lm, ymean, ymedian, a numeric value (e.g., 2)",
-                "or a charater such as zzz",
-                "\n with zzz defined in the prior_data",
-                "e.g., prior_data = list(zzz = 2)"
-              )
-            }
-            if(!is.null(fxl)) {
-              evaluated_parameter <-
-                lapply(evaluated_parameter, FUN = fxl) %>% unlist()
-            }
-            if (length(evaluated_parameter) < nrep_of_parms)
-              evaluated_parameter <- rep(evaluated_parameter, nrep_of_parms)
-            if (length(evaluated_parameter) > nrep_of_parms)
-              stop("prior elements for nlpar ",
-                   nlpar, ", class ",  class,
-                   " are greater than the parameter dimensions")
-          }
-          
-          
-          
-          # location dpar param ~
-          if (!is.null(dparncov) & class == "") {
-            check_evalation_of_numeric_pdata_obj(
-              prior_argument,
-              p_str_in,
-              x_i,
-              x,
-              pname_,
-              dist,
-              nlpar,
-              class,
-              allowed_parm_options,
-              splitmvar_w2
-            )
-            if (is.numeric(eval(parse(text = x_i))) |
-                !is.null(eval(parse(text = x_i)))) {
-              eit <- x_i
-              evaluated_parameter <- ept(eit)
-            } else {
-              stop(
-                "location parameter options for nlpar ",
-                nlpar,
-                ", class ",
-                class,
-                " are:\n lm, ymean, ymedian, a numeric value (e.g., 2)",
-                "or a charater such as zzz",
-                "\n with zzz defined in the prior_data",
-                "e.g., prior_data = list(zzz = 2)"
-              )
-            }
-            if(!is.null(fxl)) {
-              evaluated_parameter <-
-                lapply(evaluated_parameter, FUN = fxl) %>% unlist()
-            }
-            if (length(evaluated_parameter) < nrep_of_parms)
-              evaluated_parameter <- rep(evaluated_parameter, nrep_of_parms)
-            if (length(evaluated_parameter) > nrep_of_parms)
-              stop("prior elements for nlpar ",
-                   nlpar, ", class ",  class,
-                   " are greater than the parameter dimensions")
-          }
-          
-          
-        } # if(grepl("^location$", i))
-        
-        
-        
-        
-        
-        # set scale parameter -> for normal, log normal, cauchy, studdent_t
-        
-        if (grepl("^scale$", pname_)) {
-          # scale a b c d e f g h i fixed effects
-          # scale nlpar a (class b)
-          if (nlpar == "a" & class == "b" & grepl("a", fixedsi)) {
-            if (x_i == paste0("ysd", empty_sufx)) {
-              eit <-  gsub("ysd", paste0("ysd", resp_), x_i)
-              evaluated_parameter <- scale_factor * ept(eit)
-            } else if (x_i == paste0("ymad", empty_sufx)) {
-              eit <-  gsub("ymad", paste0("ymad", resp_), x_i)
-              evaluated_parameter <- scale_factor * ept(eit)
-            } else if (x_i == paste0("lme_sd_a", empty_sufx)) {
-              eit <-  gsub("lme_sd_a", paste0("lme_sd_a", resp_), x_i)
-              evaluated_parameter <- scale_factor * ept(eit)
-            } else if (x_i == paste0("ysdxmin", empty_sufx)) {
-              eit <-  gsub("ysdxmin", paste0("ysdxmin", resp_), x_i)
-              evaluated_parameter <- scale_factor * ept(eit) 
-            } else if (x_i == paste0("ysdxmin", empty_sufx)) {
-              eit <-  gsub("ysdxmin", paste0("ysdxmin", resp_), x_i)
-              evaluated_parameter <- scale_factor * ept(eit)
-            } else {
-              check_evalation_of_numeric_pdata_obj(
-                prior_argument,
-                p_str_in,
-                x_i,
-                x,
-                pname_,
-                dist,
-                nlpar,
-                class,
-                allowed_parm_options,
-                splitmvar_w2
-              )
-              if (is.numeric(eval(parse(text = x_i))) |
-                  !is.null(eval(parse(text = x_i)))) {
-                eit <- x_i
-                evaluated_parameter <- scale_factor * ept(eit)
-              } else {
-                stop(
-                  "scale parameter options for nlpar ",
-                  nlpar,
-                  ", class ",
-                  class,
-                  " are:\n ysd, ysd, lme_sd_a, or a numeric value (e.g., 2)",
-                  "or a charater such as zzz",
-                  "\n with zzz defined in the prior_data",
-                  "e.g., prior_data = list(zzz = 2)"
-                )
-              }
-            }
-            if(!is.null(fxs)) {
-              evaluated_parameter <-
-                lapply(evaluated_parameter, FUN = fxs) %>% unlist()
-            }
-            if (length(evaluated_parameter) < nrep_of_parms)
-              evaluated_parameter <- rep(evaluated_parameter, nrep_of_parms)
-            if (length(evaluated_parameter) > nrep_of_parms)
-              stop("prior elements for nlpar ",
-                   nlpar, ", class ",  class,
-                   " are greater than the parameter dimensions")
-          }
-          
-          
-          # scale nlpar b (class b)
-          if (nlpar == "b" & class == "b" & grepl("b", fixedsi)) {
-            if (x_i == paste0("ysd", empty_sufx)) {
-              eit <-  gsub("ysd", paste0("ysd", resp_), x_i)
-              evaluated_parameter <- scale_factor * ept(eit)
-            } else if (x_i == paste0("ymad", empty_sufx)) {
-              eit <-  gsub("ymad", paste0("ymad", resp_), x_i)
-              evaluated_parameter <- scale_factor * ept(eit)
-            } else if (x_i == paste0("lme_sd_a", empty_sufx)) {
-              eit <-  gsub("lme_sd_a", paste0("lme_sd_a", resp_), x_i)
-              evaluated_parameter <- scale_factor * ept(eit)
-            } else {
-              check_evalation_of_numeric_pdata_obj(
-                prior_argument,
-                p_str_in,
-                x_i,
-                x,
-                pname_,
-                dist,
-                nlpar,
-                class,
-                allowed_parm_options,
-                splitmvar_w2
-              )
-              if (is.numeric(eval(parse(text = x_i))) |
-                  !is.null(eval(parse(text = x_i)))) {
-                eit <- x_i
-                evaluated_parameter <- scale_factor * ept(eit)
-              } else {
-                stop(
-                  "scale parameter options for nlpar ",
-                  nlpar,
-                  ", class ",
-                  class,
-                  " are:\n ysd, ysd, lme_sd_a, or a numeric value (e.g., 2)",
-                  "or a charater such as zzz",
-                  "\n with zzz defined in the prior_data",
-                  "e.g., prior_data = list(zzz = 2)"
-                )
-              }
-            }
-            if(!is.null(fxs)) {
-              evaluated_parameter <-
-                lapply(evaluated_parameter, FUN = fxs) %>% unlist()
-            }
-            if (length(evaluated_parameter) < nrep_of_parms)
-              evaluated_parameter <- rep(evaluated_parameter, nrep_of_parms)
-            if (length(evaluated_parameter) > nrep_of_parms)
-              stop("prior elements for nlpar ",
-                   nlpar, ", class ",  class,
-                   " are greater than the parameter dimensions")
-          }
-          
-          
-          # scale nlpar c (class b)
-          if (nlpar == "c" & class == "b" & grepl("c", fixedsi)) {
-            if (x_i == paste0("vsd", empty_sufx)) {
-              eit <-  gsub("vsd", paste0("vsd", resp_), x_i)
-              evaluated_parameter <- scale_factor * ept(eit)
-            } else if (x_i == paste0("vmad", empty_sufx)) {
-              eit <-  gsub("vmad", paste0("vmad", resp_), x_i)
-              evaluated_parameter <- scale_factor * ept(eit)
-            } else {
-              check_evalation_of_numeric_pdata_obj(
-                prior_argument,
-                p_str_in,
-                x_i,
-                x,
-                pname_,
-                dist,
-                nlpar,
-                class,
-                allowed_parm_options,
-                splitmvar_w2
-              )
-              if (is.numeric(eval(parse(text = x_i))) |
-                  !is.null(eval(parse(text = x_i)))) {
-                eit <- x_i
-                evaluated_parameter <- scale_factor * ept(eit)
-              } else {
-                stop(
-                  "scale parameter options for nlpar ",
-                  nlpar,
-                  ", class ",
-                  class,
-                  " are:\n lm, a numeric value (e.g., 2) or a charater like zzz",
-                  "\n with zzz defined in the prior_data", 
-                  "e.g., prior_data = list(zzz = 2)"
-                )
-              }
-            }
-            if(!is.null(fxs)) {
-              evaluated_parameter <-
-                lapply(evaluated_parameter, FUN = fxs) %>% unlist()
-            }
-            if (length(evaluated_parameter) < nrep_of_parms)
-              evaluated_parameter <- rep(evaluated_parameter, nrep_of_parms)
-            if (length(evaluated_parameter) > nrep_of_parms)
-              stop("prior elements for nlpar ",
-                   nlpar, ", class ",  class,
-                   " are greater than the parameter dimensions")
-          }
-          
-          
-          # scale nlpar d (class b)
-          if (nlpar == "d" & class == "b" & grepl("d", fixedsi)) {
-            if (x_i == paste0("ysd", empty_sufx)) {
-              eit <-  gsub("ysd", paste0("ysd", resp_), x_i)
-              evaluated_parameter <- scale_factor * ept(eit)
-            } else if (x_i == paste0("ymad", empty_sufx)) {
-              eit <-  gsub("ymad", paste0("ymad", resp_), x_i)
-              evaluated_parameter <- scale_factor * ept(eit)
-            } else if (x_i == paste0("dsd", empty_sufx)) {
-              eit <-  gsub("dsd", paste0("vsd", resp_), x_i)
-              evaluated_parameter <- scale_factor * ept(eit)
-            } else if (x_i == paste0("dmad", empty_sufx)) {
-              eit <-  gsub("dmad", paste0("dmad", resp_), x_i)
-              evaluated_parameter <- scale_factor * ept(eit)
-            } else if (x_i == paste0("ysdxmid", empty_sufx)) {
-              eit <-  gsub("ysdxmid", paste0("ysdxmid", resp_), x_i)
-              evaluated_parameter <- scale_factor * ept(eit) 
-            } else if (x_i == paste0("ysdxmid", empty_sufx)) {
-              eit <-  gsub("ysdxmid", paste0("ysdxmid", resp_), x_i)
-              evaluated_parameter <- scale_factor * ept(eit)
-            } else {
-              check_evalation_of_numeric_pdata_obj(
-                prior_argument,
-                p_str_in,
-                x_i,
-                x,
-                pname_,
-                dist,
-                nlpar,
-                class,
-                allowed_parm_options,
-                splitmvar_w2
-              )
-              if (is.numeric(eval(parse(text = x_i))) |
-                  !is.null(eval(parse(text = x_i)))) {
-                eit <- x_i
-                evaluated_parameter <- scale_factor * ept(eit)
-              } else {
-                stop(
-                  "scale parameter options for nlpar ",
-                  nlpar,
-                  ", class ",
-                  class,
-                  " are:\n lm, a numeric value (e.g., 2) or a charater like zzz",
-                  "\n with zzz defined in the prior_data",
-                  "e.g., prior_data = list(zzz = 2)"
-                )
-              }
-            }
-            if(!is.null(fxs)) {
-              evaluated_parameter <-
-                lapply(evaluated_parameter, FUN = fxs) %>% unlist()
-            }
-            if (length(evaluated_parameter) < nrep_of_parms)
-              evaluated_parameter <- rep(evaluated_parameter, nrep_of_parms)
-            if (length(evaluated_parameter) > nrep_of_parms)
-              stop("prior elements for nlpar ",
-                   nlpar, ", class ",  class,
-                   " are greater than the parameter dimensions")
-          }
-          
-          
-          # scale nlpar e (class b)
-          if (nlpar == "e" & class == "b" & grepl("e", fixedsi)) {
-            if (x_i == paste0("xsd", empty_sufx)) {
-              eit <-  gsub("xsd", paste0("xsd", resp_), x_i)
-              evaluated_parameter <- scale_factor * ept(eit)
-            } else if (x_i == paste0("xmad", empty_sufx)) {
-              eit <-  gsub("xmad", paste0("xmad", resp_), x_i)
-              evaluated_parameter <- scale_factor * ept(eit)
-            } else {
-              check_evalation_of_numeric_pdata_obj(
-                prior_argument,
-                p_str_in,
-                x_i,
-                x,
-                pname_,
-                dist,
-                nlpar,
-                class,
-                allowed_parm_options,
-                splitmvar_w2
-              )
-              if (is.numeric(eval(parse(text = x_i))) |
-                  !is.null(eval(parse(text = x_i)))) {
-                eit <- x_i
-                evaluated_parameter <- scale_factor * ept(eit)
-              } else {
-                stop(
-                  "scale parameter options for nlpar ",
-                  nlpar,
-                  ", class ",
-                  class,
-                  " are:\n lm, a numeric value (e.g., 2) or a charater like zzz",
-                  "\n with zzz defined in the prior_data",
-                  "e.g., prior_data = list(zzz = 2)"
-                )
-              }
-            }
-            if(!is.null(fxs)) {
-              evaluated_parameter <-
-                lapply(evaluated_parameter, FUN = fxs) %>% unlist()
-            }
-            if (length(evaluated_parameter) < nrep_of_parms)
-              evaluated_parameter <- rep(evaluated_parameter, nrep_of_parms)
-            if (length(evaluated_parameter) > nrep_of_parms)
-              stop("prior elements for nlpar ",
-                   nlpar, ", class ",  class,
-                   " are greater than the parameter dimensions")
-          }
-          
-          
-          
-          
-          # scale nlpar f (class b)
-          if (nlpar == "f" & class == "b" & grepl("f", fixedsi)) {
-            if (x_i == paste0("xsd", empty_sufx)) {
-              eit <-  gsub("xsd", paste0("xsd", resp_), x_i)
-              evaluated_parameter <- scale_factor * ept(eit)
-            } else if (x_i == paste0("xmad", empty_sufx)) {
-              eit <-  gsub("xmad", paste0("xmad", resp_), x_i)
-              evaluated_parameter <- scale_factor * ept(eit)
-            } else {
-              check_evalation_of_numeric_pdata_obj(
-                prior_argument,
-                p_str_in,
-                x_i,
-                x,
-                pname_,
-                dist,
-                nlpar,
-                class,
-                allowed_parm_options,
-                splitmvar_w2
-              )
-              if (is.numeric(eval(parse(text = x_i))) |
-                  !is.null(eval(parse(text = x_i)))) {
-                eit <- x_i
-                evaluated_parameter <- scale_factor * ept(eit)
-              } else {
-                stop(
-                  "scale parameter options for nlpar ",
-                  nlpar,
-                  ", class ",
-                  class,
-                  " are:\n lm, a numeric value (e.g., 2) or a charater like zzz",
-                  "\n with zzz defined in the prior_data",
-                  "e.g., prior_data = list(zzz = 2)"
-                )
-              }
-            }
-            if(!is.null(fxs)) {
-              evaluated_parameter <-
-                lapply(evaluated_parameter, FUN = fxs) %>% unlist()
-            }
-            if (length(evaluated_parameter) < nrep_of_parms)
-              evaluated_parameter <- rep(evaluated_parameter, nrep_of_parms)
-            if (length(evaluated_parameter) > nrep_of_parms)
-              stop("prior elements for nlpar ",
-                   nlpar, ", class ",  class,
-                   " are greater than the parameter dimensions")
-          }
-          
-          
-          
-          # scale nlpar g (class b)
-          if (nlpar == "g" & class == "b" & grepl("g", fixedsi)) {
-            if (x_i == paste0("xsd", empty_sufx)) {
-              eit <-  gsub("xsd", paste0("xsd", resp_), x_i)
-              evaluated_parameter <- scale_factor * ept(eit)
-            } else if (x_i == paste0("xmad", empty_sufx)) {
-              eit <-  gsub("xmad", paste0("xmad", resp_), x_i)
-              evaluated_parameter <- scale_factor * ept(eit)
-            } else if (x_i == paste0("ysdxmax", empty_sufx)) {
-              eit <-  gsub("ysdxmax", paste0("ysdxmax", resp_), x_i)
-              evaluated_parameter <- scale_factor * ept(eit) 
-            } else if (x_i == paste0("ysdxmidxmaxdiff", empty_sufx)) {
-              eit <-  gsub("ysdxmidxmaxdiff", 
-                           paste0("ysdxmidxmaxdiff", resp_), x_i)
-              evaluated_parameter <- scale_factor * ept(eit)
-            } else {
-              check_evalation_of_numeric_pdata_obj(
-                prior_argument,
-                p_str_in,
-                x_i,
-                x,
-                pname_,
-                dist,
-                nlpar,
-                class,
-                allowed_parm_options,
-                splitmvar_w2
-              )
-              if (is.numeric(eval(parse(text = x_i))) |
-                  !is.null(eval(parse(text = x_i)))) {
-                eit <- x_i
-                evaluated_parameter <- scale_factor * ept(eit)
-              } else {
-                stop(
-                  "scale parameter options for nlpar ",
-                  nlpar,
-                  ", class ",
-                  class,
-                  " are:\n lm, a numeric value (e.g., 2) or a charater like zzz",
-                  "\n with zzz defined in the prior_data",
-                  "e.g., prior_data = list(zzz = 2)"
-                )
-              }
-            }
-            if(!is.null(fxs)) {
-              evaluated_parameter <-
-                lapply(evaluated_parameter, FUN = fxs) %>% unlist()
-            }
-            if (length(evaluated_parameter) < nrep_of_parms)
-              evaluated_parameter <- rep(evaluated_parameter, nrep_of_parms)
-            if (length(evaluated_parameter) > nrep_of_parms)
-              stop("prior elements for nlpar ",
-                   nlpar, ", class ",  class,
-                   " are greater than the parameter dimensions")
-          }
-          
-          
-          
-          # scale nlpar h (class b)
-          if (nlpar == "h" & class == "b" & grepl("h", fixedsi)) {
-            if (x_i == paste0("xsd", empty_sufx)) {
-              eit <-  gsub("xsd", paste0("xsd", resp_), x_i)
-              evaluated_parameter <- scale_factor * ept(eit)
-            } else if (x_i == paste0("xmad", empty_sufx)) {
-              eit <-  gsub("xmad", paste0("xmad", resp_), x_i)
-              evaluated_parameter <- scale_factor * ept(eit)
-            } else {
-              check_evalation_of_numeric_pdata_obj(
-                prior_argument,
-                p_str_in,
-                x_i,
-                x,
-                pname_,
-                dist,
-                nlpar,
-                class,
-                allowed_parm_options,
-                splitmvar_w2
-              )
-              if (is.numeric(eval(parse(text = x_i))) |
-                  !is.null(eval(parse(text = x_i)))) {
-                eit <- x_i
-                evaluated_parameter <- scale_factor * ept(eit)
-              } else {
-                stop(
-                  "scale parameter options for nlpar ",
-                  nlpar,
-                  ", class ",
-                  class,
-                  " are:\n lm, a numeric value (e.g., 2) or a charater like zzz",
-                  "\n with zzz defined in the prior_data",
-                  "e.g., prior_data = list(zzz = 2)"
-                )
-              }
-            }
-            if(!is.null(fxs)) {
-              evaluated_parameter <-
-                lapply(evaluated_parameter, FUN = fxs) %>% unlist()
-            }
-            if (length(evaluated_parameter) < nrep_of_parms)
-              evaluated_parameter <- rep(evaluated_parameter, nrep_of_parms)
-            if (length(evaluated_parameter) > nrep_of_parms)
-              stop("prior elements for nlpar ",
-                   nlpar, ", class ",  class,
-                   " are greater than the parameter dimensions")
-          }
-          
-          
-          
-          # scale nlpar i (class b)
-          if (nlpar == "i" & class == "b" & grepl("i", fixedsi)) {
-            if (x_i == paste0("xsd", empty_sufx)) {
-              eit <-  gsub("xsd", paste0("xsd", resp_), x_i)
-              evaluated_parameter <- scale_factor * ept(eit)
-            } else if (x_i == paste0("xmad", empty_sufx)) {
-              eit <-  gsub("xmad", paste0("xmad", resp_), x_i)
-              evaluated_parameter <- scale_factor * ept(eit)
-            } else {
-              check_evalation_of_numeric_pdata_obj(
-                prior_argument,
-                p_str_in,
-                x_i,
-                x,
-                pname_,
-                dist,
-                nlpar,
-                class,
-                allowed_parm_options,
-                splitmvar_w2
-              )
-              if (is.numeric(eval(parse(text = x_i))) |
-                  !is.null(eval(parse(text = x_i)))) {
-                eit <- x_i
-                evaluated_parameter <- scale_factor * ept(eit)
-              } else {
-                stop(
-                  "scale parameter options for nlpar ",
-                  nlpar,
-                  ", class ",
-                  class,
-                  " are:\n lm, a numeric value (e.g., 2) or a charater like zzz",
-                  "\n with zzz defined in the prior_data",
-                  "e.g., prior_data = list(zzz = 2)"
-                )
-              }
-            }
-            if(!is.null(fxs)) {
-              evaluated_parameter <-
-                lapply(evaluated_parameter, FUN = fxs) %>% unlist()
-            }
-            if (length(evaluated_parameter) < nrep_of_parms)
-              evaluated_parameter <- rep(evaluated_parameter, nrep_of_parms)
-            if (length(evaluated_parameter) > nrep_of_parms)
-              stop("prior elements for nlpar ",
-                   nlpar, ", class ",  class,
-                   " are greater than the parameter dimensions")
-          }
-          
-          
-          
-          # scale nlpar s (class b) - sitar
-          if (nlpar == "s" & class == "b") {
-            if (x_i == paste0("lm", empty_sufx)) {
-              if (s_form_0) {
-                lm_gsubby <- paste0("lm", "_", 'sdx', "_", "all", resp_)
-              } else {
-                lm_gsubby <- paste0("lm", "_", 'sdx', "", "", resp_)
-              }
-              eit <-  gsub("lm", lm_gsubby, x_i)
-              evaluated_parameter <- scale_factor * ept(eit)
-            } else if (x_i == paste0("stau", empty_sufx)) {
-              evaluated_parameter <- rep(NA, nrep_of_parms)
-            } else {
-              check_evalation_of_numeric_pdata_obj(
-                prior_argument,
-                p_str_in,
-                x_i,
-                x,
-                pname_,
-                dist,
-                nlpar,
-                class,
-                allowed_parm_options,
-                splitmvar_w2
-              )
-              if (is.numeric(eval(parse(text = x_i))) |
-                  !is.null(eval(parse(text = x_i)))) {
-                eit <- x_i
-                evaluated_parameter <- scale_factor * ept(eit)
-              } else {
-                stop(
-                  "location parameter options for nlpar ",
-                  nlpar,
-                  ", class ",
-                  class,
-                  " are:\n lm, ymean, ymedian, a numeric value (e.g., 2)",
-                  "or a charater such as zzz",
-                  "\n with zzz defined in the prior_data", 
-                  "e.g., prior_data = list(zzz = 2)"
-                )
-              }
-            }
-            if(!is.null(fxs)) {
-              evaluated_parameter <-
-                lapply(evaluated_parameter, FUN = fxs) %>% unlist()
-            }
-            # checks
-            if (nlpar == "s" & !is.null(sncov)) {
-              if (length(evaluated_parameter) == 1) {
-                evaluated_parameter <- rep(evaluated_parameter, nrep_of_parms)
-              } else if (length(evaluated_parameter) == df) {
-                repeach <- nrep_of_parms / df
-                evaluated_parameter <-
-                  rep(evaluated_parameter,
-                      times = 1,
-                      each = repeach)
-              }
-            } else {
-              if (length(evaluated_parameter) < nrep_of_parms)
-                evaluated_parameter <- rep(evaluated_parameter, nrep_of_parms)
-              if (length(evaluated_parameter) > nrep_of_parms)
-                stop("prior elements for nlpar ",
-                     nlpar, ", class ",  class,
-                     " are greater than the parameter dimensions"
-                )
-            }
-          }
-          
-          
-          
-          # scale nlpar a cov (class b)
-          if (cov_nlpar == "a" & class == "b" & !is.null(ancov)) {
-            if (x_i == paste0("sdacov", empty_sufx)) {
-              eit <-  gsub("sdacov", paste0("acov_sd", resp_), x_i)
-              evaluated_parameter <- scale_factor * ept(eit)
-            } else {
-              check_evalation_of_numeric_pdata_obj(
-                prior_argument,
-                p_str_in,
-                x_i,
-                x,
-                pname_,
-                dist,
-                nlpar,
-                class,
-                allowed_parm_options,
-                splitmvar_w2
-              )
-              if (is.numeric(eval(parse(text = x_i))) |
-                  !is.null(eval(parse(text = x_i)))) {
-                eit <- x_i
-                evaluated_parameter <- scale_factor * ept(eit)
-              } else {
-                stop(
-                  "scale parameter options for nlpar ",
-                  nlpar,
-                  ", class ",
-                  class,
-                  " are:\n lm, ymean, ymedian, a numeric value (e.g., 2)",
-                  "or a charater such as zzz",
-                  "\n with zzz defined in the prior_data",
-                  "e.g., prior_data = list(zzz = 2)"
-                )
-              }
-            }
-            if(!is.null(fxs)) {
-              evaluated_parameter <-
-                lapply(evaluated_parameter, FUN = fxs) %>% unlist()
-            }
-            if (length(evaluated_parameter) < nrep_of_parms)
-              evaluated_parameter <- rep(evaluated_parameter, nrep_of_parms)
-            if (length(evaluated_parameter) > nrep_of_parms)
-              stop("prior elements for nlpar ",
-                   nlpar, ", class ",  class,
-                   " are greater than the parameter dimensions")
-          }
-          
-          
-          # scale nlpar b cov (class b)
-          if (cov_nlpar == "b" & class == "b" & !is.null(bncov)) {
-            if (x_i == paste0("sdbcov", empty_sufx)) {
-              eit <-  gsub("sdbcov", paste0("bcov_sd", resp_), x_i)
-              evaluated_parameter <- scale_factor * ept(eit)
-            } else {
-              check_evalation_of_numeric_pdata_obj(
-                prior_argument,
-                p_str_in,
-                x_i,
-                x,
-                pname_,
-                dist,
-                nlpar,
-                class,
-                allowed_parm_options,
-                splitmvar_w2
-              )
-              if (is.numeric(eval(parse(text = x_i))) |
-                  !is.null(eval(parse(text = x_i)))) {
-                eit <- x_i
-                evaluated_parameter <- scale_factor * ept(eit)
-              } else {
-                stop(
-                  "scale parameter options for nlpar ",
-                  nlpar,
-                  ", class ",
-                  class,
-                  " are:\n lm, ymean, ymedian, a numeric value (e.g., 2)",
-                  "or a charater such as zzz",
-                  "\n with zzz defined in the prior_data",
-                  "e.g., prior_data = list(zzz = 2)"
-                )
-              }
-            }
-            if(!is.null(fxs)) {
-              evaluated_parameter <-
-                lapply(evaluated_parameter, FUN = fxs) %>% unlist()
-            }
-            if (length(evaluated_parameter) < nrep_of_parms)
-              evaluated_parameter <- rep(evaluated_parameter, nrep_of_parms)
-            if (length(evaluated_parameter) > nrep_of_parms)
-              stop("prior elements for nlpar ",
-                   nlpar, ", class ",  class,
-                   " are greater than the parameter dimensions")
-          } # if (cov_nlpar == "b" & class == "b" & !is.null(bncov)) {
-          
-          
-          
-          # scale nlpar c cov (class b)
-          if (cov_nlpar == "c" & class == "b" & !is.null(cncov)) {
-            if (x_i == paste0("sdccov", empty_sufx)) {
-              eit <-  gsub("sdccov", paste0("ccov_sd", resp_), x_i)
-              evaluated_parameter <- scale_factor * ept(eit)
-            } else {
-              check_evalation_of_numeric_pdata_obj(
-                prior_argument,
-                p_str_in,
-                x_i,
-                x,
-                pname_,
-                dist,
-                nlpar,
-                class,
-                allowed_parm_options,
-                splitmvar_w2
-              )
-              if (is.numeric(eval(parse(text = x_i))) |
-                  !is.null(eval(parse(text = x_i)))) {
-                eit <- x_i
-                evaluated_parameter <- scale_factor * ept(eit)
-              } else {
-                stop(
-                  "scale parameter options for nlpar ",
-                  nlpar,
-                  ", class ",
-                  class,
-                  " are:\n lm, ymean, ymedian, a numeric value (e.g., 2)",
-                  "or a charater such as zzz",
-                  "\n with zzz defined in the prior_data",
-                  "e.g., prior_data = list(zzz = 2)"
-                )
-              }
-            }
-            if(!is.null(fxs)) {
-              evaluated_parameter <-
-                lapply(evaluated_parameter, FUN = fxs) %>% unlist()
-            }
-            if (length(evaluated_parameter) < nrep_of_parms)
-              evaluated_parameter <- rep(evaluated_parameter, nrep_of_parms)
-            if (length(evaluated_parameter) > nrep_of_parms)
-              stop("prior elements for nlpar ",
-                   nlpar, ", class ",  class,
-                   " are greater than the parameter dimensions")
-          }
-          
-          
-          
-          # scale nlpar d cov (class b)
-          if (cov_nlpar == "d" & class == "b" & !is.null(dncov)) {
-            if (x_i == paste0("sddcov", empty_sufx)) {
-              eit <-  gsub("sddcov", paste0("dcov_sd", resp_), x_i)
-              evaluated_parameter <- scale_factor * ept(eit)
-            } else {
-              check_evalation_of_numeric_pdata_obj(
-                prior_argument,
-                p_str_in,
-                x_i,
-                x,
-                pname_,
-                dist,
-                nlpar,
-                class,
-                allowed_parm_options,
-                splitmvar_w2
-              )
-              if (is.numeric(eval(parse(text = x_i))) |
-                  !is.null(eval(parse(text = x_i)))) {
-                eit <- x_i
-                evaluated_parameter <- scale_factor * ept(eit)
-              } else {
-                stop(
-                  "scale parameter options for nlpar ",
-                  nlpar,
-                  ", class ",
-                  class,
-                  " are:\n lm, ymean, ymedian, a numeric value (e.g., 2)",
-                  "or a charater such as zzz",
-                  "\n with zzz defined in the prior_data",
-                  "e.g., prior_data = list(zzz = 2)"
-                )
-              }
-            }
-            if(!is.null(fxs)) {
-              evaluated_parameter <-
-                lapply(evaluated_parameter, FUN = fxs) %>% unlist()
-            }
-            if (length(evaluated_parameter) < nrep_of_parms)
-              evaluated_parameter <- rep(evaluated_parameter, nrep_of_parms)
-            if (length(evaluated_parameter) > nrep_of_parms)
-              stop("prior elements for nlpar ",
-                   nlpar, ", class ",  class,
-                   " are greater than the parameter dimensions")
-          }
-          
-          
-          
-          # scale nlpar e cov (class b)
-          if (cov_nlpar == "e" & class == "b" & !is.null(encov)) {
-            if (x_i == paste0("sdecov", empty_sufx)) {
-              eit <-  gsub("sdecov", paste0("ecov_sd", resp_), x_i)
-              evaluated_parameter <- scale_factor * ept(eit)
-            } else {
-              check_evalation_of_numeric_pdata_obj(
-                prior_argument,
-                p_str_in,
-                x_i,
-                x,
-                pname_,
-                dist,
-                nlpar,
-                class,
-                allowed_parm_options,
-                splitmvar_w2
-              )
-              if (is.numeric(eval(parse(text = x_i))) |
-                  !is.null(eval(parse(text = x_i)))) {
-                eit <- x_i
-                evaluated_parameter <- scale_factor * ept(eit)
-              } else {
-                stop(
-                  "scale parameter options for nlpar ",
-                  nlpar,
-                  ", class ",
-                  class,
-                  " are:\n lm, ymean, ymedian, a numeric value (e.g., 2)",
-                  "or a charater such as zzz",
-                  "\n with zzz defined in the prior_data",
-                  "e.g., prior_data = list(zzz = 2)"
-                )
-              }
-            }
-            if(!is.null(fxs)) {
-              evaluated_parameter <-
-                lapply(evaluated_parameter, FUN = fxs) %>% unlist()
-            }
-            if (length(evaluated_parameter) < nrep_of_parms)
-              evaluated_parameter <- rep(evaluated_parameter, nrep_of_parms)
-            if (length(evaluated_parameter) > nrep_of_parms)
-              stop("prior elements for nlpar ",
-                   nlpar, ", class ",  class,
-                   " are greater than the parameter dimensions")
-          }
-          
-          
-          
-          
-          # scale nlpar f cov (class b)
-          if (cov_nlpar == "f" & class == "b" & !is.null(fncov)) {
-            if (x_i == paste0("sdfcov", empty_sufx)) {
-              eit <-  gsub("sdfcov", paste0("fcov_sd", resp_), x_i)
-              evaluated_parameter <- scale_factor * ept(eit)
-            } else {
-              check_evalation_of_numeric_pdata_obj(
-                prior_argument,
-                p_str_in,
-                x_i,
-                x,
-                pname_,
-                dist,
-                nlpar,
-                class,
-                allowed_parm_options,
-                splitmvar_w2
-              )
-              if (is.numeric(eval(parse(text = x_i))) |
-                  !is.null(eval(parse(text = x_i)))) {
-                eit <- x_i
-                evaluated_parameter <- scale_factor * ept(eit)
-              } else {
-                stop(
-                  "scale parameter options for nlpar ",
-                  nlpar,
-                  ", class ",
-                  class,
-                  " are:\n lm, ymean, ymedian, a numeric value (e.g., 2)",
-                  "or a charater such as zzz",
-                  "\n with zzz defined in the prior_data",
-                  "e.g., prior_data = list(zzz = 2)"
-                )
-              }
-            }
-            if(!is.null(fxs)) {
-              evaluated_parameter <-
-                lapply(evaluated_parameter, FUN = fxs) %>% unlist()
-            }
-            if (length(evaluated_parameter) < nrep_of_parms)
-              evaluated_parameter <- rep(evaluated_parameter, nrep_of_parms)
-            if (length(evaluated_parameter) > nrep_of_parms)
-              stop("prior elements for nlpar ",
-                   nlpar, ", class ",  class,
-                   " are greater than the parameter dimensions")
-          }
-          
-          
-          
-          
-          # scale nlpar g cov (class b)
-          if (cov_nlpar == "g" & class == "b" & !is.null(gncov)) {
-            if (x_i == paste0("sdfcov", empty_sufx)) {
-              eit <-  gsub("sdfcov", paste0("gcov_sd", resp_), x_i)
-              evaluated_parameter <- scale_factor * ept(eit)
-            } else {
-              check_evalation_of_numeric_pdata_obj(
-                prior_argument,
-                p_str_in,
-                x_i,
-                x,
-                pname_,
-                dist,
-                nlpar,
-                class,
-                allowed_parm_options,
-                splitmvar_w2
-              )
-              if (is.numeric(eval(parse(text = x_i))) |
-                  !is.null(eval(parse(text = x_i)))) {
-                eit <- x_i
-                evaluated_parameter <- scale_factor * ept(eit)
-              } else {
-                stop(
-                  "scale parameter options for nlpar ",
-                  nlpar,
-                  ", class ",
-                  class,
-                  " are:\n lm, ymean, ymedian, a numeric value (e.g., 2)",
-                  "or a charater such as zzz",
-                  "\n with zzz defined in the prior_data",
-                  "e.g., prior_data = list(zzz = 2)"
-                )
-              }
-            }
-            if(!is.null(fxs)) {
-              evaluated_parameter <-
-                lapply(evaluated_parameter, FUN = fxs) %>% unlist()
-            }
-            if (length(evaluated_parameter) < nrep_of_parms)
-              evaluated_parameter <- rep(evaluated_parameter, nrep_of_parms)
-            if (length(evaluated_parameter) > nrep_of_parms)
-              stop("prior elements for nlpar ",
-                   nlpar, ", class ",  class,
-                   " are greater than the parameter dimensions")
-          }
-          
-          
-          
-          # scale nlpar h cov (class b)
-          if (cov_nlpar == "h" & class == "b" & !is.null(hncov)) {
-            if (x_i == paste0("sdfcov", empty_sufx)) {
-              eit <-  gsub("sdfcov", paste0("hcov_sd", resp_), x_i)
-              evaluated_parameter <- scale_factor * ept(eit)
-            } else {
-              check_evalation_of_numeric_pdata_obj(
-                prior_argument,
-                p_str_in,
-                x_i,
-                x,
-                pname_,
-                dist,
-                nlpar,
-                class,
-                allowed_parm_options,
-                splitmvar_w2
-              )
-              if (is.numeric(eval(parse(text = x_i))) |
-                  !is.null(eval(parse(text = x_i)))) {
-                eit <- x_i
-                evaluated_parameter <- scale_factor * ept(eit)
-              } else {
-                stop(
-                  "scale parameter options for nlpar ",
-                  nlpar,
-                  ", class ",
-                  class,
-                  " are:\n lm, ymean, ymedian, a numeric value (e.g., 2)",
-                  "or a charater such as zzz",
-                  "\n with zzz defined in the prior_data",
-                  "e.g., prior_data = list(zzz = 2)"
-                )
-              }
-            }
-            if(!is.null(fxs)) {
-              evaluated_parameter <-
-                lapply(evaluated_parameter, FUN = fxs) %>% unlist()
-            }
-            if (length(evaluated_parameter) < nrep_of_parms)
-              evaluated_parameter <- rep(evaluated_parameter, nrep_of_parms)
-            if (length(evaluated_parameter) > nrep_of_parms)
-              stop("prior elements for nlpar ",
-                   nlpar, ", class ",  class,
-                   " are greater than the parameter dimensions")
-          }
-          
-          
-          
-          # scale nlpar i cov (class b)
-          if (cov_nlpar == "f" & class == "b" & !is.null(incov)) {
-            if (x_i == paste0("sdfcov", empty_sufx)) {
-              eit <-  gsub("sdfcov", paste0("icov_sd", resp_), x_i)
-              evaluated_parameter <- scale_factor * ept(eit)
-            } else {
-              check_evalation_of_numeric_pdata_obj(
-                prior_argument,
-                p_str_in,
-                x_i,
-                x,
-                pname_,
-                dist,
-                nlpar,
-                class,
-                allowed_parm_options,
-                splitmvar_w2
-              )
-              if (is.numeric(eval(parse(text = x_i))) |
-                  !is.null(eval(parse(text = x_i)))) {
-                eit <- x_i
-                evaluated_parameter <- scale_factor * ept(eit)
-              } else {
-                stop(
-                  "scale parameter options for nlpar ",
-                  nlpar,
-                  ", class ",
-                  class,
-                  " are:\n lm, ymean, ymedian, a numeric value (e.g., 2)",
-                  "or a charater such as zzz",
-                  "\n with zzz defined in the prior_data",
-                  "e.g., prior_data = list(zzz = 2)"
-                )
-              }
-            }
-            if(!is.null(fxs)) {
-              evaluated_parameter <-
-                lapply(evaluated_parameter, FUN = fxs) %>% unlist()
-            }
-            if (length(evaluated_parameter) < nrep_of_parms)
-              evaluated_parameter <- rep(evaluated_parameter, nrep_of_parms)
-            if (length(evaluated_parameter) > nrep_of_parms)
-              stop("prior elements for nlpar ",
-                   nlpar, ", class ",  class,
-                   " are greater than the parameter dimensions")
-          }
-          
-          
-          # scale nlpar s cov (class b) - sitar
-          if (cov_nlpar == "s" & class == "b" & !is.null(sncov)) {
-            if (x_i == paste0("lm", empty_sufx)) {
-              if (!s_form_0) {
-                lm_gsubby <- paste0("lm", "_", 'sdx', "_", "cov", resp_)
-              } else {
-                lm_gsubby <- paste0("lm", "_", 'sdx', "_", "cov", resp_)
-              }
-              eit <-  gsub("lm", lm_gsubby, x_i)
-              evaluated_parameter <- scale_factor * ept(eit)
-            } else {
-              check_evalation_of_numeric_pdata_obj(
-                prior_argument,
-                p_str_in,
-                x_i,
-                x,
-                pname_,
-                dist,
-                nlpar,
-                class,
-                allowed_parm_options,
-                splitmvar_w2
-              )
-              if (is.numeric(eval(parse(text = x_i))) |
-                  !is.null(eval(parse(text = x_i)))) {
-                eit <- x_i
-                evaluated_parameter <- scale_factor * ept(eit)
-              }
-            }
-            if(!is.null(fxs)) {
-              evaluated_parameter <-
-                lapply(evaluated_parameter, FUN = fxs) %>% unlist()
-            }
-            # checks
-            if (nlpar == "s" & !is.null(sncov)) {
-              if (length(evaluated_parameter) == 1) {
-                evaluated_parameter <- rep(evaluated_parameter, nrep_of_parms)
-              } else if (length(evaluated_parameter) == df) {
-                repeach <- nrep_of_parms / df
-                evaluated_parameter <-
-                  rep(evaluated_parameter,
-                      times = 1,
-                      each = repeach)
-              } else {
-                #
-              }
-            } else {
-              if (length(evaluated_parameter) < nrep_of_parms)
-                evaluated_parameter <- rep(evaluated_parameter, nrep_of_parms)
-              if (length(evaluated_parameter) > nrep_of_parms)
-                stop("prior elements for nlpar ",
-                     nlpar, ", class ",  class,
-                     " are greater than the parameter dimensions"
-                )
-            }
-          }
-          
-          
-          
-          
-          
-          
-          # scale sigma (class b)
-          if (nlpar == "" & class == "b" & sigma_dpar == "sigma") {
-            if (x_i == paste0("ysd", empty_sufx)) {
-              eit <-  gsub("ysd", paste0("ysd", resp_), x_i)
-              evaluated_parameter <- scale_factor * ept(eit)
-            } else if (x_i == paste0("ysd", empty_sufx)) {
-              eit <-  gsub("vsd", paste0("vsd", resp_), x_i)
-              evaluated_parameter <- scale_factor * ept(eit)
-            } else if (x_i == paste0("ymad", empty_sufx)) {
-              eit <-  gsub("vmad", paste0("vmad", resp_), x_i)
-              evaluated_parameter <- scale_factor * ept(eit)
-            } else {
-              check_evalation_of_numeric_pdata_obj(
-                prior_argument,
-                p_str_in,
-                x_i,
-                x,
-                pname_,
-                dist,
-                nlpar,
-                class,
-                allowed_parm_options,
-                splitmvar_w2
-              )
-              if (is.numeric(eval(parse(text = x_i))) |
-                  !is.null(eval(parse(text = x_i)))) {
-                eit <- x_i
-                evaluated_parameter <- scale_factor * ept(eit)
-              } else {
-                stop(
-                  "scale parameter options for distributional ",
-                  sigma_dpar,
-                  ", class ",
-                  class,
-                  " are:\n a numeric value (e.g., 2) or a charater like zzz",
-                  "\n with zzz defined in the prior_data", 
-                  "e.g., prior_data = list(zzz = 2)"
-                )
-              }
-            }
-            if(!is.null(fxs)) {
-              evaluated_parameter <-
-                lapply(evaluated_parameter, FUN = fxs) %>% unlist()
-            }
-            if (length(evaluated_parameter) < nrep_of_parms)
-              evaluated_parameter <- rep(evaluated_parameter, nrep_of_parms)
-            if (length(evaluated_parameter) > nrep_of_parms)
-              stop("prior elements for distributional ",
-                   sigma_dpar,
-                   " are greater than the parameter dimensions")
-          }
-          
-          
-          # scale sigma cov (class b)
-          if (cov_sigma_dpar != "" & class == "b" & cov_sigma_dpar == 'sigma_cov' & 
-              !is.null(sigmancov)) {
-            if (x_i == paste0("sdacov", empty_sufx)) {
-              eit <-  gsub("sdacov", paste0("acov_sd", resp_), x_i)
-              evaluated_parameter <- scale_factor * ept(eit)
-            } else {
-              check_evalation_of_numeric_pdata_obj(
-                prior_argument,
-                p_str_in,
-                x_i,
-                x,
-                pname_,
-                dist,
-                nlpar,
-                class,
-                allowed_parm_options,
-                splitmvar_w2
-              )
-              if (is.numeric(eval(parse(text = x_i))) |
-                  !is.null(eval(parse(text = x_i)))) {
-                eit <- x_i
-                evaluated_parameter <- scale_factor * ept(eit)
-              } else {
-                stop(
-                  "scale parameter options for distributional ",
-                  sigma_dpar,
-                  ", class ",
-                  class,
-                  " are:\n lm, ymean, ymedian, a numeric value (e.g., 2)",
-                  "or a charater such as zzz",
-                  "\n with zzz defined in the prior_data",
-                  "e.g., prior_data = list(zzz = 2)"
-                )
-              }
-            }
-            if(!is.null(fxs)) {
-              evaluated_parameter <-
-                lapply(evaluated_parameter, FUN = fxs) %>% unlist()
-            }
-            if (length(evaluated_parameter) < nrep_of_parms)
-              evaluated_parameter <- rep(evaluated_parameter, nrep_of_parms)
-            if (length(evaluated_parameter) > nrep_of_parms)
-              stop("prior elements fordistributional ",
-                   sigma_dpar,
-                   " are greater than the parameter dimensions")
-          }
-          
-          
-          
-          
-          
-          
-          
-          
-          # scale a b c d e f g h i random effects
-          
-          # scale a (class sd)
-          if (nlpar == "a" & class == "sd" & grepl("a", randomsi)) {
-            if (x_i == paste0("ysd", empty_sufx)) {
-              eit <-  gsub("ysd", paste0("ysd", resp_), x_i)
-              evaluated_parameter <- scale_factor * ept(eit)
-            } else if (x_i == paste0("ymad", empty_sufx)) {
-              eit <-  gsub("ymad", paste0("ymad", resp_), x_i)
-              evaluated_parameter <- scale_factor * ept(eit)
-            } else if (x_i == paste0("lme_sd_a", empty_sufx)) {
-              eit <-  gsub("lme_sd_a", paste0("lme_sd_a", resp_), x_i)
-              evaluated_parameter <- scale_factor * ept(eit)
-            } else if (x_i == paste0("ysdxmax", empty_sufx)) {
-              eit <-  gsub("ysdxmax", paste0("ysdxmax", resp_), x_i)
-              evaluated_parameter <- scale_factor * ept(eit) 
-            } else if (x_i == paste0("ysdxmin", empty_sufx)) {
-              eit <-  gsub("ysdxmin", paste0("ysdxmin", resp_), x_i)
-              evaluated_parameter <- scale_factor * ept(eit)
-            } else {
-              check_evalation_of_numeric_pdata_obj(
-                prior_argument,
-                p_str_in,
-                x_i,
-                x,
-                pname_,
-                dist,
-                nlpar,
-                class,
-                allowed_parm_options,
-                splitmvar_w2
-              )
-              if (is.numeric(eval(parse(text = x_i))) |
-                  !is.null(eval(parse(text = x_i)))) {
-                eit <- x_i
-                evaluated_parameter <- scale_factor * ept(eit)
-              } else {
-                stop(
-                  "scale parameter options for nlpar ",
-                  nlpar,
-                  ", class ",
-                  class,
-                  " are:\n ysd, ysd, lme_sd_a, or a numeric value (e.g., 2)",
-                  "or a charater such as zzz",
-                  "\n with zzz defined in the prior_data",
-                  "e.g., prior_data = list(zzz = 2)"
-                )
-              }
-            }
-            if(!is.null(fxs)) {
-              evaluated_parameter <-
-                lapply(evaluated_parameter, FUN = fxs) %>% unlist()
-            }
-            if (length(evaluated_parameter) < nrep_of_parms)
-              evaluated_parameter <- rep(evaluated_parameter, nrep_of_parms)
-            if (length(evaluated_parameter) > nrep_of_parms)
-              stop("prior elements for nlpar ",
-                   nlpar, ", class ",  class,
-                   " are greater than the parameter dimensions")
-          }
-          
-          
-          # scale b (class sd)
-          if (nlpar == "b" & class == "sd" & grepl("b", randomsi)) {
-            if (x_i == paste0("ysd", empty_sufx)) {
-              eit <-  gsub("ysd", paste0("ysd", resp_), x_i)
-              evaluated_parameter <- scale_factor * ept(eit)
-            } else if (x_i == paste0("ymad", empty_sufx)) {
-              eit <-  gsub("ymad", paste0("ymad", resp_), x_i)
-              evaluated_parameter <- scale_factor * ept(eit)
-            } else if (x_i == paste0("lme_sd_a", empty_sufx)) {
-              eit <-  gsub("lme_sd_a", paste0("lme_sd_a", resp_), x_i)
-              evaluated_parameter <- scale_factor * ept(eit)
-            } else {
-              check_evalation_of_numeric_pdata_obj(
-                prior_argument,
-                p_str_in,
-                x_i,
-                x,
-                pname_,
-                dist,
-                nlpar,
-                class,
-                allowed_parm_options,
-                splitmvar_w2
-              )
-              if (is.numeric(eval(parse(text = x_i))) |
-                  !is.null(eval(parse(text = x_i)))) {
-                eit <- x_i
-                evaluated_parameter <- scale_factor * ept(eit)
-              } else {
-                stop(
-                  "scale parameter options for nlpar ",
-                  nlpar,
-                  ", class ",
-                  class,
-                  " are:\n ysd, ysd, lme_sd_a, or a numeric value (e.g., 2)",
-                  "or a charater such as zzz",
-                  "\n with zzz defined in the prior_data",
-                  "e.g., prior_data = list(zzz = 2)"
-                )
-              }
-            }
-            if(!is.null(fxs)) {
-              evaluated_parameter <-
-                lapply(evaluated_parameter, FUN = fxs) %>% unlist()
-            }
-            if (length(evaluated_parameter) < nrep_of_parms)
-              evaluated_parameter <- rep(evaluated_parameter, nrep_of_parms)
-            if (length(evaluated_parameter) > nrep_of_parms)
-              stop("prior elements for nlpar ",
-                   nlpar, ", class ",  class,
-                   " are greater than the parameter dimensions")
-          }
-          
-          
-          # scale c (class sd)
-          if (nlpar == "c" & class == "sd" & grepl("c", randomsi)) {
-            check_evalation_of_numeric_pdata_obj(
-              prior_argument,
-              p_str_in,
-              x_i,
-              x,
-              pname_,
-              dist,
-              nlpar,
-              class,
-              allowed_parm_options,
-              splitmvar_w2
-            )
-            if (is.numeric(eval(parse(text = x_i))) |
-                !is.null(eval(parse(text = x_i)))) {
-              eit <- x_i
-              evaluated_parameter <- scale_factor * ept(eit)
-            } else {
-              stop(
-                "scale parameter options for nlpar ",
-                nlpar,
-                ", class ",
-                class,
-                " are:\n lm, a numeric value (e.g., 2) or a charater such as zzz",
-                "\n with zzz defined in the prior_data",
-                "e.g., prior_data = list(zzz = 2)"
-              )
-            }
-            if(!is.null(fxs)) {
-              evaluated_parameter <-
-                lapply(evaluated_parameter, FUN = fxs) %>% unlist()
-            }
-            if (length(evaluated_parameter) < nrep_of_parms)
-              evaluated_parameter <- rep(evaluated_parameter, nrep_of_parms)
-            if (length(evaluated_parameter) > nrep_of_parms)
-              stop("prior elements for nlpar ",
-                   nlpar, ", class ",  class,
-                   " are greater than the parameter dimensions")
-          }
-          
-          
-          # scale d (class sd)
-          if (nlpar == "d" & class == "sd" & grepl("d", randomsi)) {
-            if (x_i == paste0("ysd", empty_sufx)) {
-              eit <-  gsub("ysd", paste0("ysd", resp_), x_i)
-              evaluated_parameter <- scale_factor * ept(eit)
-            } else if (x_i == paste0("ymad", empty_sufx)) {
-              eit <-  gsub("ymad", paste0("ymad", resp_), x_i)
-              evaluated_parameter <- scale_factor * ept(eit)
-            } else if (x_i == paste0("ysdxmid", empty_sufx)) {
-              eit <-  gsub("ysdxmid", paste0("ysdxmid", resp_), x_i)
-              evaluated_parameter <- scale_factor * ept(eit) 
-            } else if (x_i == paste0("ysdxmidxmaxdiff", empty_sufx)) {
-              eit <-  gsub("ysdxmidxmaxdiff", 
-                           paste0("ysdxmidxmaxdiff", resp_), x_i)
-              evaluated_parameter <- scale_factor * ept(eit) 
-            } else if (x_i == paste0("ysdxmax", empty_sufx)) {
-              eit <-  gsub("ysdxmax", paste0("ysdxmax", resp_), x_i)
-              evaluated_parameter <- scale_factor * ept(eit)
-            } else {
-              check_evalation_of_numeric_pdata_obj(
-                prior_argument,
-                p_str_in,
-                x_i,
-                x,
-                pname_,
-                dist,
-                nlpar,
-                class,
-                allowed_parm_options,
-                splitmvar_w2
-              )
-              if (is.numeric(eval(parse(text = x_i))) |
-                  !is.null(eval(parse(text = x_i)))) {
-                eit <- x_i
-                evaluated_parameter <- scale_factor * ept(eit)
-              } else {
-                stop(
-                  "scale parameter options for nlpar ",
-                  nlpar,
-                  ", class ",
-                  class,
-                  " are:\n ysd, ysd, lme_sd_a, or a numeric value (e.g., 2)",
-                  "or a charater such as zzz",
-                  "\n with zzz defined in the prior_data",
-                  "e.g., prior_data = list(zzz = 2)"
-                )
-              }
-            }
-            if(!is.null(fxs)) {
-              evaluated_parameter <-
-                lapply(evaluated_parameter, FUN = fxs) %>% unlist()
-            }
-            if (length(evaluated_parameter) < nrep_of_parms)
-              evaluated_parameter <- rep(evaluated_parameter, nrep_of_parms)
-            if (length(evaluated_parameter) > nrep_of_parms)
-              stop("prior elements for nlpar ",
-                   nlpar, ", class ",  class,
-                   " are greater than the parameter dimensions")
-          }
-          
-          
-          # scale e (class sd)
-          if (nlpar == "e" & class == "sd" & grepl("e", randomsi)) {
-            check_evalation_of_numeric_pdata_obj(
-              prior_argument,
-              p_str_in,
-              x_i,
-              x,
-              pname_,
-              dist,
-              nlpar,
-              class,
-              allowed_parm_options,
-              splitmvar_w2
-            )
-            if (is.numeric(eval(parse(text = x_i))) |
-                !is.null(eval(parse(text = x_i)))) {
-              eit <- x_i
-              evaluated_parameter <- scale_factor * ept(eit)
-            } else {
-              stop(
-                "scale parameter options for nlpar ",
-                nlpar,
-                ", class ",
-                class,
-                " are:\n lm, a numeric value (e.g., 2) or a charater such as zzz",
-                "\n with zzz defined in the prior_data",
-                "e.g., prior_data = list(zzz = 2)"
-              )
-            }
-            if(!is.null(fxs)) {
-              evaluated_parameter <-
-                lapply(evaluated_parameter, FUN = fxs) %>% unlist()
-            }
-            if (length(evaluated_parameter) < nrep_of_parms)
-              evaluated_parameter <- rep(evaluated_parameter, nrep_of_parms)
-            if (length(evaluated_parameter) > nrep_of_parms)
-              stop("prior elements for nlpar ",
-                   nlpar, ", class ",  class,
-                   " are greater than the parameter dimensions")
-          }
-          
-          
-          
-          
-          # scale f (class sd)
-          if (nlpar == "f" & class == "sd" & grepl("f", randomsi)) {
-            check_evalation_of_numeric_pdata_obj(
-              prior_argument,
-              p_str_in,
-              x_i,
-              x,
-              pname_,
-              dist,
-              nlpar,
-              class,
-              allowed_parm_options,
-              splitmvar_w2
-            )
-            if (is.numeric(eval(parse(text = x_i))) |
-                !is.null(eval(parse(text = x_i)))) {
-              eit <- x_i
-              evaluated_parameter <- scale_factor * ept(eit)
-            } else {
-              stop(
-                "scale parameter options for nlpar ",
-                nlpar,
-                ", class ",
-                class,
-                " are:\n lm, a numeric value (e.g., 2) or a charater such as zzz",
-                "\n with zzz defined in the prior_data",
-                "e.g., prior_data = list(zzz = 2)"
-              )
-            }
-            if(!is.null(fxs)) {
-              evaluated_parameter <-
-                lapply(evaluated_parameter, FUN = fxs) %>% unlist()
-            }
-            if (length(evaluated_parameter) < nrep_of_parms)
-              evaluated_parameter <- rep(evaluated_parameter, nrep_of_parms)
-            if (length(evaluated_parameter) > nrep_of_parms)
-              stop("prior elements for nlpar ",
-                   nlpar, ", class ",  class,
-                   " are greater than the parameter dimensions")
-          }
-          
-          
-          
-          # scale g (class sd)
-          if (nlpar == "g" & class == "sd" & grepl("g", randomsi)) {
-            if (x_i == paste0("ysd", empty_sufx)) {
-              eit <-  gsub("ysd", paste0("ysd", resp_), x_i)
-              evaluated_parameter <- scale_factor * ept(eit)
-            } else if (x_i == paste0("ymad", empty_sufx)) {
-              eit <-  gsub("ymad", paste0("ymad", resp_), x_i)
-              evaluated_parameter <- scale_factor * ept(eit)
-            } else if (x_i == paste0("ysdxmid", empty_sufx)) {
-              eit <-  gsub("ysdxmid", paste0("ysdxmid", resp_), x_i)
-              evaluated_parameter <- scale_factor * ept(eit) 
-            } else if (x_i == paste0("ysdxmidxmaxdiff", empty_sufx)) {
-              eit <-  gsub("ysdxmidxmaxdiff", 
-                           paste0("ysdxmidxmaxdiff", resp_), x_i)
-              evaluated_parameter <- scale_factor * ept(eit) 
-            } else if (x_i == paste0("ysdxmax", empty_sufx)) {
-              eit <-  gsub("ysdxmax", paste0("ysdxmax", resp_), x_i)
-              evaluated_parameter <- scale_factor * ept(eit)
-            } else {
-              check_evalation_of_numeric_pdata_obj(
-                prior_argument,
-                p_str_in,
-                x_i,
-                x,
-                pname_,
-                dist,
-                nlpar,
-                class,
-                allowed_parm_options,
-                splitmvar_w2
-              )
-              if (is.numeric(eval(parse(text = x_i))) |
-                  !is.null(eval(parse(text = x_i)))) {
-                eit <- x_i
-                evaluated_parameter <- scale_factor * ept(eit)
-              } else {
-                stop(
-                  "scale parameter options for nlpar ",
-                  nlpar,
-                  ", class ",
-                  class,
-                  " are:\n ysd, ysd, lme_sd_a, or a numeric value (e.g., 2)",
-                  "or a charater such as zzz",
-                  "\n with zzz defined in the prior_data",
-                  "e.g., prior_data = list(zzz = 2)"
-                )
-              }
-            }
-            if(!is.null(fxs)) {
-              evaluated_parameter <-
-                lapply(evaluated_parameter, FUN = fxs) %>% unlist()
-            }
-            if (length(evaluated_parameter) < nrep_of_parms)
-              evaluated_parameter <- rep(evaluated_parameter, nrep_of_parms)
-            if (length(evaluated_parameter) > nrep_of_parms)
-              stop("prior elements for nlpar ",
-                   nlpar, ", class ",  class,
-                   " are greater than the parameter dimensions")
-          }
-          
-          
-          
-          # scale h (class sd)
-          if (nlpar == "h" & class == "sd" & grepl("h", randomsi)) {
-            check_evalation_of_numeric_pdata_obj(
-              prior_argument,
-              p_str_in,
-              x_i,
-              x,
-              pname_,
-              dist,
-              nlpar,
-              class,
-              allowed_parm_options,
-              splitmvar_w2
-            )
-            if (is.numeric(eval(parse(text = x_i))) |
-                !is.null(eval(parse(text = x_i)))) {
-              eit <- x_i
-              evaluated_parameter <- scale_factor * ept(eit)
-            } else {
-              stop(
-                "scale parameter options for nlpar ",
-                nlpar,
-                ", class ",
-                class,
-                " are:\n lm, a numeric value (e.g., 2) or a charater such as zzz",
-                "\n with zzz defined in the prior_data",
-                "e.g., prior_data = list(zzz = 2)"
-              )
-            }
-            if(!is.null(fxs)) {
-              evaluated_parameter <-
-                lapply(evaluated_parameter, FUN = fxs) %>% unlist()
-            }
-            if (length(evaluated_parameter) < nrep_of_parms)
-              evaluated_parameter <- rep(evaluated_parameter, nrep_of_parms)
-            if (length(evaluated_parameter) > nrep_of_parms)
-              stop("prior elements for nlpar ",
-                   nlpar, ", class ",  class,
-                   " are greater than the parameter dimensions")
-          }
-          
-          
-          
-          # scale i (class sd)
-          if (nlpar == "i" & class == "sd" & grepl("i", randomsi)) {
-            check_evalation_of_numeric_pdata_obj(
-              prior_argument,
-              p_str_in,
-              x_i,
-              x,
-              pname_,
-              dist,
-              nlpar,
-              class,
-              allowed_parm_options,
-              splitmvar_w2
-            )
-            if (is.numeric(eval(parse(text = x_i))) |
-                !is.null(eval(parse(text = x_i)))) {
-              eit <- x_i
-              evaluated_parameter <- scale_factor * ept(eit)
-            } else {
-              stop(
-                "scale parameter options for nlpar ",
-                nlpar,
-                ", class ",
-                class,
-                " are:\n lm, a numeric value (e.g., 2) or a charater such as zzz",
-                "\n with zzz defined in the prior_data",
-                "e.g., prior_data = list(zzz = 2)"
-              )
-            }
-            if(!is.null(fxs)) {
-              evaluated_parameter <-
-                lapply(evaluated_parameter, FUN = fxs) %>% unlist()
-            }
-            if (length(evaluated_parameter) < nrep_of_parms)
-              evaluated_parameter <- rep(evaluated_parameter, nrep_of_parms)
-            if (length(evaluated_parameter) > nrep_of_parms)
-              stop("prior elements for nlpar ",
-                   nlpar, ", class ",  class,
-                   " are greater than the parameter dimensions")
-          }
-          
-          
-          
-          # scale nlpar s (class sd) - sitar
-          if (nlpar == "s" & class == "sd" & grepl("s", randomsi)) {
-            if (x_i == paste0("lm", empty_sufx)) {
-              if (s_form_0_gr) {
-                lm_gsubby <- paste0("lm", "_", 'sdx', "_", "all", resp_)
-              } else {
-                lm_gsubby <- paste0("lm", "_", 'sdx', "", "", resp_)
-              }
-              eit <-  gsub("lm", lm_gsubby, x_i)
-              evaluated_parameter <- scale_factor * ept(eit)
-            } else if (x_i == paste0("stau", empty_sufx)) {
-              evaluated_parameter <- rep(NA, nrep_of_parms)
-            } else {
-              check_evalation_of_numeric_pdata_obj(
-                prior_argument,
-                p_str_in,
-                x_i,
-                x,
-                pname_,
-                dist,
-                nlpar,
-                class,
-                allowed_parm_options,
-                splitmvar_w2
-              )
-              if (is.numeric(eval(parse(text = x_i))) |
-                  !is.null(eval(parse(text = x_i)))) {
-                eit <- x_i
-                evaluated_parameter <- scale_factor * ept(eit)
-              } else {
-                stop(
-                  "location parameter options for nlpar ",
-                  nlpar,
-                  ", class ",
-                  class,
-                  " are:\n lm, ymean, ymedian, a numeric value (e.g., 2)",
-                  "or a charater such as zzz",
-                  "\n with zzz defined in the prior_data", 
-                  "e.g., prior_data = list(zzz = 2)"
-                )
-              }
-            }
-            if(!is.null(fxs)) {
-              evaluated_parameter <-
-                lapply(evaluated_parameter, FUN = fxs) %>% unlist()
-            }
-            # checks
-            if (nlpar == "s" & !is.null(sncov_gr)) {
-              if (length(evaluated_parameter) == 1) {
-                evaluated_parameter <- rep(evaluated_parameter, nrep_of_parms)
-              } else if (length(evaluated_parameter) == df) {
-                repeach <- nrep_of_parms / df
-                evaluated_parameter <-
-                  rep(evaluated_parameter,
-                      times = 1,
-                      each = repeach)
-              }
-            } else {
-              if (length(evaluated_parameter) < nrep_of_parms)
-                evaluated_parameter <- rep(evaluated_parameter, nrep_of_parms)
-              if (length(evaluated_parameter) > nrep_of_parms)
-                stop("prior elements for nlpar ",
-                     nlpar, ", class ",  class,
-                     " are greater than the parameter dimensions"
-                )
-            }
-          }
-          
-          
-          
-          
-          # scale a cov (class sd)
-          if (cov_nlpar == "a" & class == "sd" & !is.null(ancov_gr)) {
-            if (x_i == paste0("sdacov", empty_sufx)) {
-              eit <-  gsub("sdacov", paste0("acov_sd_gr", resp_), x_i)
-              evaluated_parameter <- scale_factor * ept(eit)
-            } else {
-              check_evalation_of_numeric_pdata_obj(
-                prior_argument,
-                p_str_in,
-                x_i,
-                x,
-                pname_,
-                dist,
-                nlpar,
-                class,
-                allowed_parm_options,
-                splitmvar_w2
-              )
-              if (is.numeric(eval(parse(text = x_i))) |
-                  !is.null(eval(parse(text = x_i)))) {
-                eit <- x_i
-                evaluated_parameter <- scale_factor * ept(eit)
-              } else {
-                stop(
-                  "scale parameter options for nlpar ",
-                  nlpar,
-                  ", class ",
-                  class,
-                  " are:\n lm, ymean, ymedian, a numeric value (e.g., 2)",
-                  "or a charater such as zzz",
-                  "\n with zzz defined in the prior_data",
-                  "e.g., prior_data = list(zzz = 2)"
-                )
-              }
-            }
-            if(!is.null(fxs)) {
-              evaluated_parameter <-
-                lapply(evaluated_parameter, FUN = fxs) %>% unlist()
-            }
-            if (length(evaluated_parameter) < nrep_of_parms)
-              evaluated_parameter <- rep(evaluated_parameter, nrep_of_parms)
-            if (length(evaluated_parameter) > nrep_of_parms)
-              stop("prior elements for nlpar ",
-                   nlpar, ", class ",  class,
-                   " are greater than the parameter dimensions")
-          }
-          
-          
-          # scale b cov (class sd)
-          if (cov_nlpar == "b" & class == "sd" & !is.null(bncov_gr)) {
-            if (x_i == paste0("sdbcov", empty_sufx)) {
-              eit <-  gsub("sdbcov", paste0("bcov_sd_gr", resp_), x_i)
-              evaluated_parameter <- scale_factor * ept(eit)
-            } else {
-              check_evalation_of_numeric_pdata_obj(
-                prior_argument,
-                p_str_in,
-                x_i,
-                x,
-                pname_,
-                dist,
-                nlpar,
-                class,
-                allowed_parm_options,
-                splitmvar_w2
-              )
-              if (is.numeric(eval(parse(text = x_i))) |
-                  !is.null(eval(parse(text = x_i)))) {
-                eit <- x_i
-                evaluated_parameter <- scale_factor * ept(eit)
-              } else {
-                stop(
-                  "scale parameter options for nlpar ",
-                  nlpar,
-                  ", class ",
-                  class,
-                  " are:\n lm, ymean, ymedian, a numeric value (e.g., 2)",
-                  "or a charater such as zzz",
-                  "\n with zzz defined in the prior_data",
-                  "e.g., prior_data = list(zzz = 2)"
-                )
-              }
-            }
-            if(!is.null(fxs)) {
-              evaluated_parameter <-
-                lapply(evaluated_parameter, FUN = fxs) %>% unlist()
-            }
-            if (length(evaluated_parameter) < nrep_of_parms)
-              evaluated_parameter <- rep(evaluated_parameter, nrep_of_parms)
-            if (length(evaluated_parameter) > nrep_of_parms)
-              stop("prior elements for nlpar ",
-                   nlpar, ", class ",  class,
-                   " are greater than the parameter dimensions")
-          }
-          
-          
-          
-          # scale c cov (class sd)
-          if (cov_nlpar == "c" & class == "sd" & !is.null(cncov_gr)) {
-            if (x_i == paste0("sdccov", empty_sufx)) {
-              eit <-  gsub("sdccov", paste0("ccov_sd_gr", resp_), x_i)
-              evaluated_parameter <- scale_factor * ept(eit)
-            } else {
-              check_evalation_of_numeric_pdata_obj(
-                prior_argument,
-                p_str_in,
-                x_i,
-                x,
-                pname_,
-                dist,
-                nlpar,
-                class,
-                allowed_parm_options,
-                splitmvar_w2
-              )
-              if (is.numeric(eval(parse(text = x_i))) |
-                  !is.null(eval(parse(text = x_i)))) {
-                eit <- x_i
-                evaluated_parameter <- scale_factor * ept(eit)
-              } else {
-                stop(
-                  "scale parameter options for nlpar ",
-                  nlpar,
-                  ", class ",
-                  class,
-                  " are:\n lm, ymean, ymedian, a numeric value (e.g., 2)",
-                  "or a charater such as zzz",
-                  "\n with zzz defined in the prior_data",
-                  "e.g., prior_data = list(zzz = 2)"
-                )
-              }
-            }
-            if(!is.null(fxs)) {
-              evaluated_parameter <-
-                lapply(evaluated_parameter, FUN = fxs) %>% unlist()
-            }
-            if (length(evaluated_parameter) < nrep_of_parms)
-              evaluated_parameter <- rep(evaluated_parameter, nrep_of_parms)
-            if (length(evaluated_parameter) > nrep_of_parms)
-              stop("prior elements for nlpar ",
-                   nlpar, ", class ",  class,
-                   " are greater than the parameter dimensions")
-          }
-          
-          
-          
-          # scale d cov (class sd)
-          if (cov_nlpar == "c" & class == "sd" & !is.null(dncov_gr)) {
-            if (x_i == paste0("sdccov", empty_sufx)) {
-              eit <-  gsub("sdccov", paste0("ccov_sd_gr", resp_), x_i)
-              evaluated_parameter <- scale_factor * ept(eit)
-            } else {
-              check_evalation_of_numeric_pdata_obj(
-                prior_argument,
-                p_str_in,
-                x_i,
-                x,
-                pname_,
-                dist,
-                nlpar,
-                class,
-                allowed_parm_options,
-                splitmvar_w2
-              )
-              if (is.numeric(eval(parse(text = x_i))) |
-                  !is.null(eval(parse(text = x_i)))) {
-                eit <- x_i
-                evaluated_parameter <- scale_factor * ept(eit)
-              } else {
-                stop(
-                  "scale parameter options for nlpar ",
-                  nlpar,
-                  ", class ",
-                  class,
-                  " are:\n lm, ymean, ymedian, a numeric value (e.g., 2)",
-                  "or a charater such as zzz",
-                  "\n with zzz defined in the prior_data",
-                  "e.g., prior_data = list(zzz = 2)"
-                )
-              }
-            }
-            if(!is.null(fxs)) {
-              evaluated_parameter <-
-                lapply(evaluated_parameter, FUN = fxs) %>% unlist()
-            }
-            if (length(evaluated_parameter) < nrep_of_parms)
-              evaluated_parameter <- rep(evaluated_parameter, nrep_of_parms)
-            if (length(evaluated_parameter) > nrep_of_parms)
-              stop("prior elements for nlpar ",
-                   nlpar, ", class ",  class,
-                   " are greater than the parameter dimensions")
-          }
-          
-          
-          
-          
-          # scale e cov (class sd)
-          if (cov_nlpar == "e" & class == "sd" & !is.null(encov_gr)) {
-            if (x_i == paste0("sdecov", empty_sufx)) {
-              eit <-  gsub("sdecov", paste0("ecov_sd_gr", resp_), x_i)
-              evaluated_parameter <- scale_factor * ept(eit)
-            } else {
-              check_evalation_of_numeric_pdata_obj(
-                prior_argument,
-                p_str_in,
-                x_i,
-                x,
-                pname_,
-                dist,
-                nlpar,
-                class,
-                allowed_parm_options,
-                splitmvar_w2
-              )
-              if (is.numeric(eval(parse(text = x_i))) |
-                  !is.null(eval(parse(text = x_i)))) {
-                eit <- x_i
-                evaluated_parameter <- scale_factor * ept(eit)
-              } else {
-                stop(
-                  "scale parameter options for nlpar ",
-                  nlpar,
-                  ", class ",
-                  class,
-                  " are:\n lm, ymean, ymedian, a numeric value (e.g., 2)",
-                  "or a charater such as zzz",
-                  "\n with zzz defined in the prior_data",
-                  "e.g., prior_data = list(zzz = 2)"
-                )
-              }
-            }
-            if(!is.null(fxs)) {
-              evaluated_parameter <-
-                lapply(evaluated_parameter, FUN = fxs) %>% unlist()
-            }
-            if (length(evaluated_parameter) < nrep_of_parms)
-              evaluated_parameter <- rep(evaluated_parameter, nrep_of_parms)
-            if (length(evaluated_parameter) > nrep_of_parms)
-              stop("prior elements for nlpar ",
-                   nlpar, ", class ",  class,
-                   " are greater than the parameter dimensions")
-          }
-          
-          
-          
-          
-          # scale f cov (class sd)
-          if (cov_nlpar == "f" & class == "sd" & !is.null(fncov_gr)) {
-            if (x_i == paste0("sdfcov", empty_sufx)) {
-              eit <-  gsub("sdfcov", paste0("fcov_sd_gr", resp_), x_i)
-              evaluated_parameter <- scale_factor * ept(eit)
-            } else {
-              check_evalation_of_numeric_pdata_obj(
-                prior_argument,
-                p_str_in,
-                x_i,
-                x,
-                pname_,
-                dist,
-                nlpar,
-                class,
-                allowed_parm_options,
-                splitmvar_w2
-              )
-              if (is.numeric(eval(parse(text = x_i))) |
-                  !is.null(eval(parse(text = x_i)))) {
-                eit <- x_i
-                evaluated_parameter <- scale_factor * ept(eit)
-              } else {
-                stop(
-                  "scale parameter options for nlpar ",
-                  nlpar,
-                  ", class ",
-                  class,
-                  " are:\n lm, ymean, ymedian, a numeric value (e.g., 2)",
-                  "or a charater such as zzz",
-                  "\n with zzz defined in the prior_data",
-                  "e.g., prior_data = list(zzz = 2)"
-                )
-              }
-            }
-            if(!is.null(fxs)) {
-              evaluated_parameter <-
-                lapply(evaluated_parameter, FUN = fxs) %>% unlist()
-            }
-            if (length(evaluated_parameter) < nrep_of_parms)
-              evaluated_parameter <- rep(evaluated_parameter, nrep_of_parms)
-            if (length(evaluated_parameter) > nrep_of_parms)
-              stop("prior elements for nlpar ",
-                   nlpar, ", class ",  class,
-                   " are greater than the parameter dimensions")
-          }
-          
-          
-          
-          # scale g cov (class sd)
-          if (cov_nlpar == "g" & class == "sd" & !is.null(fncov_gr)) {
-            if (x_i == paste0("sdfcov", empty_sufx)) {
-              eit <-  gsub("sdfcov", paste0("gcov_sd_gr", resp_), x_i)
-              evaluated_parameter <- scale_factor * ept(eit)
-            } else {
-              check_evalation_of_numeric_pdata_obj(
-                prior_argument,
-                p_str_in,
-                x_i,
-                x,
-                pname_,
-                dist,
-                nlpar,
-                class,
-                allowed_parm_options,
-                splitmvar_w2
-              )
-              if (is.numeric(eval(parse(text = x_i))) |
-                  !is.null(eval(parse(text = x_i)))) {
-                eit <- x_i
-                evaluated_parameter <- scale_factor * ept(eit)
-              } else {
-                stop(
-                  "scale parameter options for nlpar ",
-                  nlpar,
-                  ", class ",
-                  class,
-                  " are:\n lm, ymean, ymedian, a numeric value (e.g., 2)",
-                  "or a charater such as zzz",
-                  "\n with zzz defined in the prior_data",
-                  "e.g., prior_data = list(zzz = 2)"
-                )
-              }
-            }
-            if(!is.null(fxs)) {
-              evaluated_parameter <-
-                lapply(evaluated_parameter, FUN = fxs) %>% unlist()
-            }
-            if (length(evaluated_parameter) < nrep_of_parms)
-              evaluated_parameter <- rep(evaluated_parameter, nrep_of_parms)
-            if (length(evaluated_parameter) > nrep_of_parms)
-              stop("prior elements for nlpar ",
-                   nlpar, ", class ",  class,
-                   " are greater than the parameter dimensions")
-          }
-          
-          
-          
-          
-          # scale h cov (class sd)
-          if (cov_nlpar == "h" & class == "sd" & !is.null(hncov_gr)) {
-            if (x_i == paste0("sdfcov", empty_sufx)) {
-              eit <-  gsub("sdfcov", paste0("hcov_sd_gr", resp_), x_i)
-              evaluated_parameter <- scale_factor * ept(eit)
-            } else {
-              check_evalation_of_numeric_pdata_obj(
-                prior_argument,
-                p_str_in,
-                x_i,
-                x,
-                pname_,
-                dist,
-                nlpar,
-                class,
-                allowed_parm_options,
-                splitmvar_w2
-              )
-              if (is.numeric(eval(parse(text = x_i))) |
-                  !is.null(eval(parse(text = x_i)))) {
-                eit <- x_i
-                evaluated_parameter <- scale_factor * ept(eit)
-              } else {
-                stop(
-                  "scale parameter options for nlpar ",
-                  nlpar,
-                  ", class ",
-                  class,
-                  " are:\n lm, ymean, ymedian, a numeric value (e.g., 2)",
-                  "or a charater such as zzz",
-                  "\n with zzz defined in the prior_data",
-                  "e.g., prior_data = list(zzz = 2)"
-                )
-              }
-            }
-            if(!is.null(fxs)) {
-              evaluated_parameter <-
-                lapply(evaluated_parameter, FUN = fxs) %>% unlist()
-            }
-            if (length(evaluated_parameter) < nrep_of_parms)
-              evaluated_parameter <- rep(evaluated_parameter, nrep_of_parms)
-            if (length(evaluated_parameter) > nrep_of_parms)
-              stop("prior elements for nlpar ",
-                   nlpar, ", class ",  class,
-                   " are greater than the parameter dimensions")
-          }
-          
-          
-          
-          
-          # scale i cov (class sd)
-          if (cov_nlpar == "i" & class == "sd" & !is.null(incov_gr)) {
-            if (x_i == paste0("sdfcov", empty_sufx)) {
-              eit <-  gsub("sdfcov", paste0("icov_sd_gr", resp_), x_i)
-              evaluated_parameter <- scale_factor * ept(eit)
-            } else {
-              check_evalation_of_numeric_pdata_obj(
-                prior_argument,
-                p_str_in,
-                x_i,
-                x,
-                pname_,
-                dist,
-                nlpar,
-                class,
-                allowed_parm_options,
-                splitmvar_w2
-              )
-              if (is.numeric(eval(parse(text = x_i))) |
-                  !is.null(eval(parse(text = x_i)))) {
-                eit <- x_i
-                evaluated_parameter <- scale_factor * ept(eit)
-              } else {
-                stop(
-                  "scale parameter options for nlpar ",
-                  nlpar,
-                  ", class ",
-                  class,
-                  " are:\n lm, ymean, ymedian, a numeric value (e.g., 2)",
-                  "or a charater such as zzz",
-                  "\n with zzz defined in the prior_data",
-                  "e.g., prior_data = list(zzz = 2)"
-                )
-              }
-            }
-            if(!is.null(fxs)) {
-              evaluated_parameter <-
-                lapply(evaluated_parameter, FUN = fxs) %>% unlist()
-            }
-            if (length(evaluated_parameter) < nrep_of_parms)
-              evaluated_parameter <- rep(evaluated_parameter, nrep_of_parms)
-            if (length(evaluated_parameter) > nrep_of_parms)
-              stop("prior elements for nlpar ",
-                   nlpar, ", class ",  class,
-                   " are greater than the parameter dimensions")
-          }
-          
-          
-          
-          
-          
-          # scale nlpar s cov (class sd) - sitar
-          if (cov_nlpar == "s" & class == "sd" & !is.null(sncov_gr)) {
-            if (x_i == paste0("lm", empty_sufx)) {
-              if (!s_form_0_gr) {
-                lm_gsubby <- paste0("lm", "_", 'sdx', "_", "cov", resp_)
-              } else {
-                lm_gsubby <- paste0("lm", "_", 'sdx', "_", "cov", resp_)
-              }
-              eit <-  gsub("lm", lm_gsubby, x_i)
-              evaluated_parameter <- scale_factor * ept(eit)
-            } else {
-              check_evalation_of_numeric_pdata_obj(
-                prior_argument,
-                p_str_in,
-                x_i,
-                x,
-                pname_,
-                dist,
-                nlpar,
-                class,
-                allowed_parm_options,
-                splitmvar_w2
-              )
-              if (is.numeric(eval(parse(text = x_i))) |
-                  !is.null(eval(parse(text = x_i)))) {
-                eit <- x_i
-                evaluated_parameter <- scale_factor * ept(eit)
-              }
-            }
-            if(!is.null(fxs)) {
-              evaluated_parameter <-
-                lapply(evaluated_parameter, FUN = fxs) %>% unlist()
-            }
-            # checks
-            if (nlpar == "s" & !is.null(sncov_gr)) {
-              if (length(evaluated_parameter) == 1) {
-                evaluated_parameter <- rep(evaluated_parameter, nrep_of_parms)
-              } else if (length(evaluated_parameter) == df) {
-                repeach <- nrep_of_parms / df
-                evaluated_parameter <-
-                  rep(evaluated_parameter,
-                      times = 1,
-                      each = repeach)
-              } else {
-                #
-              }
-            } else {
-              if (length(evaluated_parameter) < nrep_of_parms)
-                evaluated_parameter <- rep(evaluated_parameter, nrep_of_parms)
-              if (length(evaluated_parameter) > nrep_of_parms)
-                stop("prior elements for nlpar ",
-                     nlpar, ", class ",  class,
-                     " are greater than the parameter dimensions"
-                )
-            }
-          }
-          
-          
-          
-          
-          
-          # scale sigma (class sd)
-          if (nlpar == "" & class == "sd" & sigma_dpar == "sigma") {
-            if (x_i == paste0("vsd", empty_sufx)) {
-              eit <-  gsub("vsd", paste0("vsd", resp_), x_i)
-              evaluated_parameter <- scale_factor * ept(eit)
-            } else if (x_i == paste0("vmad", empty_sufx)) {
-              eit <-  gsub("vmad", paste0("vmad", resp_), x_i)
-              evaluated_parameter <- scale_factor * ept(eit)
-            } else {
-              check_evalation_of_numeric_pdata_obj(
-                prior_argument,
-                p_str_in,
-                x_i,
-                x,
-                pname_,
-                dist,
-                nlpar,
-                class,
-                allowed_parm_options,
-                splitmvar_w2
-              )
-              if (is.numeric(eval(parse(text = x_i))) |
-                  !is.null(eval(parse(text = x_i)))) {
-                eit <- x_i
-                evaluated_parameter <- scale_factor * ept(eit)
-              } else {
-                stop(
-                  "scale parameter options for distributional ",
-                  sigma_dpar,
-                  ", class ",
-                  class,
-                  " are:\n a numeric value (e.g., 2) or a charater like zzz",
-                  "\n with zzz defined in the prior_data", 
-                  "e.g., prior_data = list(zzz = 2)"
-                )
-              }
-            }
-            if(!is.null(fxs)) {
-              evaluated_parameter <-
-                lapply(evaluated_parameter, FUN = fxs) %>% unlist()
-            }
-            if (length(evaluated_parameter) < nrep_of_parms)
-              evaluated_parameter <- rep(evaluated_parameter, nrep_of_parms)
-            if (length(evaluated_parameter) > nrep_of_parms)
-              stop("prior elements for distributional ",
-                   sigma_dpar,
-                   " are greater than the parameter dimensions")
-          }
-          
-          
-          
-          # scale sigma cov (class sd)
-          if (cov_sigma_dpar != "" & class == "sd" & sigma_dpar == "sigma" & 
-              !is.null(sigmancov)) {
-            if (x_i == paste0("sdacov", empty_sufx)) {
-              eit <-  gsub("sdacov", paste0("acov_sd", resp_), x_i)
-              evaluated_parameter <- scale_factor * ept(eit)
-            } else {
-              check_evalation_of_numeric_pdata_obj(
-                prior_argument,
-                p_str_in,
-                x_i,
-                x,
-                pname_,
-                dist,
-                nlpar,
-                class,
-                allowed_parm_options,
-                splitmvar_w2
-              )
-              if (is.numeric(eval(parse(text = x_i))) |
-                  !is.null(eval(parse(text = x_i)))) {
-                eit <- x_i
-                evaluated_parameter <- scale_factor * ept(eit)
-              } else {
-                stop(
-                  "scale parameter options for distributional ",
-                  sigma_dpar,
-                  ", class ",
-                  class,
-                  " are:\n lm, ymean, ymedian, a numeric value (e.g., 2)",
-                  "or a charater such as zzz",
-                  "\n with zzz defined in the prior_data",
-                  "e.g., prior_data = list(zzz = 2)"
-                )
-              }
-            }
-            if(!is.null(fxs)) {
-              evaluated_parameter <-
-                lapply(evaluated_parameter, FUN = fxs) %>% unlist()
-            }
-            if (length(evaluated_parameter) < nrep_of_parms)
-              evaluated_parameter <- rep(evaluated_parameter, nrep_of_parms)
-            if (length(evaluated_parameter) > nrep_of_parms)
-              stop("prior elements fordistributional ",
-                   sigma_dpar,
-                   " are greater than the parameter dimensions")
-          }
-          
-          
-          
-          
-          
-          # scale sigma (class sd)
-          if (class == "sigma") {
-            if (x_i == paste0("ysd", empty_sufx)) {
-              eit <-  gsub("ysd", paste0("ysd", resp_), x_i)
-              evaluated_parameter <- scale_factor * ept(eit)
-            } else if (x_i == paste0("ymad", empty_sufx)) {
-              eit <-  gsub("ymad", paste0("ymad", resp_), x_i)
-              evaluated_parameter <- scale_factor * ept(eit)
-            } else if (x_i == paste0("lme_rsd", empty_sufx)) {
-              eit <-  gsub("lme_rsd", paste0("lme_rsd", resp_), x_i)
-              evaluated_parameter <- scale_factor * ept(eit)
-            } else if (x_i == paste0("lm_rsd", empty_sufx)) {
-              eit <-  gsub("lm_rsd", paste0("lm_rsd", resp_), x_i)
-              evaluated_parameter <- scale_factor * ept(eit)
-            } else {
-              check_evalation_of_numeric_pdata_obj(
-                prior_argument,
-                p_str_in,
-                x_i,
-                x,
-                pname_,
-                dist,
-                nlpar,
-                class,
-                allowed_parm_options,
-                splitmvar_w2
-              )
-              if (is.numeric(eval(parse(text = x_i))) |
-                  !is.null(eval(parse(text = x_i)))) {
-                eit <- x_i
-                evaluated_parameter <- scale_factor * ept(eit)
-              } else {
-                stop(
-                  "scale parameter options for nlpar ",
-                  nlpar,
-                  ", class ",
-                  class,
-                  " are:\n lm, ymean, ymedian, a numeric value (e.g., 2)",
-                  "or a charater such as zzz",
-                  "\n with zzz defined in the prior_data",
-                  "e.g., prior_data = list(zzz = 2)"
-                )
-              }
-            }
-            if(!is.null(fxs)) {
-              evaluated_parameter <-
-                lapply(evaluated_parameter, FUN = fxs) %>% unlist()
-            }
-            if (length(evaluated_parameter) < nrep_of_parms)
-              evaluated_parameter <- rep(evaluated_parameter, nrep_of_parms)
-            if (length(evaluated_parameter) > nrep_of_parms)
-              stop("prior elements for nlpar ",
-                   nlpar, ", class ",  class,
-                   " are greater than the parameter dimensions")
-          }
-          
-          
-          # scale dpar (class sd) sigma ~ 
-          if (!is.null(dparncov) & class == "") {
-            if (x_i == paste0("ysd", empty_sufx)) {
-              eit <-  gsub("ysd", paste0("ysd", resp_), x_i)
-              evaluated_parameter <- scale_factor * ept(eit)
-            } else if (x_i == paste0("ymad", empty_sufx)) {
-              eit <-  gsub("ymad", paste0("ymad", resp_), x_i)
-              evaluated_parameter <- scale_factor * ept(eit)
-            } else if (x_i == paste0("lme_rsd", empty_sufx)) {
-              eit <-  gsub("lme_rsd", paste0("lme_rsd", resp_), x_i)
-              evaluated_parameter <- scale_factor * ept(eit)
-            } else if (x_i == paste0("lm_rsd", empty_sufx)) {
-              eit <-  gsub("lm_rsd", paste0("lm_rsd", resp_), x_i)
-              evaluated_parameter <- scale_factor * ept(eit)
-            } else {
-              check_evalation_of_numeric_pdata_obj(
-                prior_argument,
-                p_str_in,
-                x_i,
-                x,
-                pname_,
-                dist,
-                nlpar,
-                class,
-                allowed_parm_options,
-                splitmvar_w2
-              )
-              if (is.numeric(eval(parse(text = x_i))) |
-                  !is.null(eval(parse(text = x_i)))) {
-                eit <- x_i
-                evaluated_parameter <- scale_factor * ept(eit)
-              } else {
-                stop(
-                  "scale parameter options for nlpar ",
-                  nlpar,
-                  ", class ",
-                  class,
-                  " are:\n lm, ymean, ymedian, a numeric value (e.g., 2)",
-                  "or a charater such as zzz",
-                  "\n with zzz defined in the prior_data",
-                  "e.g., prior_data = list(zzz = 2)"
-                )
-              }
-            }
-            if(!is.null(fxs)) {
-              evaluated_parameter <-
-                lapply(evaluated_parameter, FUN = fxs) %>% unlist()
-            }
-            if (length(evaluated_parameter) < nrep_of_parms)
-              evaluated_parameter <- rep(evaluated_parameter, nrep_of_parms)
-            if (length(evaluated_parameter) > nrep_of_parms)
-              stop("prior elements for nlpar ",
-                   nlpar, ", class ",  class,
-                   " are greater than the parameter dimensions")
-          }
-        }
-        
-      } # end if(method_location_scale == "original" )
-        
-
-        # if(method_location_scale == "via_functions") {
-        #   list_objs <- mget(ls())
-        #   if (grepl("^location$", pname_)) {
-        #     evaluated_parameterx <- get_prior_location(list_objs = list_objs, envir = NULL)
-        #   }
-        # 
-        #   if (grepl("^scale$", pname_)) {
-        #     evaluated_parameterx <- get_prior_scale(list_objs = list_objs, envir = NULL)
-        #     print(evaluated_parameterx)
-        #   }
-        # }
-        
-        
-        # if(method_location_scale == "via_functions") {
-        #   list_objs <- mget(ls())
-        #   list_objs$pname_ <- "location"
-        #   evaluated_parameter <- get_prior_location(list_objs = list_objs, envir = NULL)
-        #   print(evaluated_parameter)
-        #   list_objs$pname_ <- "scale"
-        #   evaluated_parameter <- get_prior_scale(list_objs = list_objs, envir = NULL)
-        #   print(evaluated_parameter)
-        # }
-       
-        # stop()
-        
-        
-        # set degree of freedom df parameters -> for student_t
-        
-        if (grepl("^df$", pname_)) {
-          check_evalation_of_numeric_pdata_obj(
-            prior_argument,
-            p_str_in,
-            x_i,
-            x,
-            pname_,
-            dist,
-            nlpar,
-            class,
-            allowed_parm_options,
-            splitmvar_w2
-          )
-          if (is.numeric(eval(parse(text = x_i))) |
-              !is.null(eval(parse(text = x_i)))) {
-            eit <- x_i
-            evaluated_parameter <- ept(eit)
-          } else {
-            stop(
-              "df parameter options for nlpar ",
-              nlpar,
-              ", class ",
-              class,
-              " are:\n zzzz, a numeric value (e.g., 2) or a charater such as zzz",
-              "\n with zzz defined in the prior_data",
-              "e.g., prior_data = list(zzz = 2)"
-            )
-          }
-          # checks
-          if (nlpar == "s" & !is.null(sncov)) {
-            if (length(evaluated_parameter) == 1) {
-              evaluated_parameter <- rep(evaluated_parameter, nrep_of_parms)
-            } else if (length(evaluated_parameter) == df) {
-              repeach <- nrep_of_parms / df
-              evaluated_parameter <-
-                rep(evaluated_parameter,
-                    times = 1,
-                    each = repeach)
-            }
-          } else {
-            if (length(evaluated_parameter) < nrep_of_parms)
-              evaluated_parameter <- rep(evaluated_parameter, nrep_of_parms)
-            if (length(evaluated_parameter) > nrep_of_parms)
-              stop("prior elements for nlpar ",
-                   nlpar, ", class ",  class,
-                   " are greater than the parameter dimensions")
-          }
-        }
-        
-        
-        # set nu_shape parameters -> for student_nu
-        
-        if (grepl("^nu_shape$", pname_)) {
-          check_evalation_of_numeric_pdata_obj(
-            prior_argument,
-            p_str_in,
-            x_i,
-            x,
-            pname_,
-            dist,
-            nlpar,
-            class,
-            allowed_parm_options,
-            splitmvar_w2
-          )
-          if (is.numeric(eval(parse(text = x_i))) |
-              !is.null(eval(parse(text = x_i)))) {
-            eit <- x_i
-            evaluated_parameter <- ept(eit)
-          } else {
-            stop(
-              "df parameter options for nlpar ",
-              nlpar,
-              ", class ",
-              class,
-              " are:\n zzzz, a numeric value (e.g., 2) or a charater such as zzz",
-              "\n with zzz defined in the prior_data",
-              "e.g., prior_data = list(zzz = 2)"
-            )
-          }
-          # checks
-          if (nlpar == "s" & !is.null(sncov)) {
-            if (length(evaluated_parameter) == 1) {
-              evaluated_parameter <- rep(evaluated_parameter, nrep_of_parms)
-            } else if (length(evaluated_parameter) == df) {
-              repeach <- nrep_of_parms / df
-              evaluated_parameter <-
-                rep(evaluated_parameter,
-                    times = 1,
-                    each = repeach)
-            }
-          } else {
-            if (length(evaluated_parameter) < nrep_of_parms)
-              evaluated_parameter <- rep(evaluated_parameter, nrep_of_parms)
-            if (length(evaluated_parameter) > nrep_of_parms)
-              stop("prior elements for nlpar ",
-                   nlpar, ", class ",  class,
-                   " are greater than the parameter dimensions")
-          }
-        }
-        
-        
-        # set nu_scale parameters -> for student_nu
-        
-        if (grepl("^nu_scale$", pname_)) {
-          check_evalation_of_numeric_pdata_obj(
-            prior_argument,
-            p_str_in,
-            x_i,
-            x,
-            pname_,
-            dist,
-            nlpar,
-            class,
-            allowed_parm_options,
-            splitmvar_w2
-          )
-          if (is.numeric(eval(parse(text = x_i))) |
-              !is.null(eval(parse(text = x_i)))) {
-            eit <- x_i
-            evaluated_parameter <- ept(eit)
-          } else {
-            stop(
-              "df parameter options for nlpar ",
-              nlpar,
-              ", class ",
-              class,
-              " are:\n zzzz, a numeric value (e.g., 2) or a charater such as zzz",
-              "\n with zzz defined in the prior_data",
-              "e.g., prior_data = list(zzz = 2)"
-            )
-          }
-          # checks
-          if (nlpar == "s" & !is.null(sncov)) {
-            if (length(evaluated_parameter) == 1) {
-              evaluated_parameter <- rep(evaluated_parameter, nrep_of_parms)
-            } else if (length(evaluated_parameter) == df) {
-              repeach <- nrep_of_parms / df
-              evaluated_parameter <-
-                rep(evaluated_parameter,
-                    times = 1,
-                    each = repeach)
-            }
-          } else {
-            if (length(evaluated_parameter) < nrep_of_parms)
-              evaluated_parameter <- rep(evaluated_parameter, nrep_of_parms)
-            if (length(evaluated_parameter) > nrep_of_parms)
-              stop("prior elements for nlpar ",
-                   nlpar, ", class ",  class,
-                   " are greater than the parameter dimensions")
-          }
-        }
-        
-        
-        
-        
-        
-        # set rate parameters -> for exponential
-        
-        if (grepl("^rate$", pname_)) {
-          if (x_i == paste0("ysd", empty_sufx)) {
-            eit <-  gsub("ysd", paste0("ysd", resp_), x_i)
-            evaluated_parameter <- 1 / (scale_factor * ept(eit))
-          } else if (x_i == paste0("ymad", empty_sufx)) {
-            eit <-  gsub("ymad", paste0("ymad", resp_), x_i)
-            evaluated_parameter <- 1 / (scale_factor * ept(eit))
-          } else if (x_i == paste0("lme_rsd", empty_sufx)) {
-            eit <-  gsub("lme_rsd", paste0("lme_rsd", resp_), x_i)
-            evaluated_parameter <- scale_factor * ept(eit)
-          } else if (x_i == paste0("lm_rsd", empty_sufx)) {
-            eit <-  gsub("lm_rsd", paste0("lm_rsd", resp_), x_i)
-            evaluated_parameter <- scale_factor * ept(eit)
-          } else if (x_i == paste0("lme_sd_a", empty_sufx)) {
-            eit <-  gsub("lme_sd_a", paste0("lme_sd_a", resp_), x_i)
-            evaluated_parameter <- scale_factor * ept(eit)
-          } else {
-            check_evalation_of_numeric_pdata_obj(
-              prior_argument,
-              p_str_in,
-              x_i,
-              x,
-              pname_,
-              dist,
-              nlpar,
-              class,
-              allowed_parm_options,
-              splitmvar_w2
-            )
-            if (is.numeric(eval(parse(text = x_i))) |
-                !is.null(eval(parse(text = x_i)))) {
-              eit <- x_i
-              evaluated_parameter <- 1 / ept(eit)
-            }
-          }
-          # checks
-          if (nlpar == "s" & !is.null(sncov)) {
-            if (length(evaluated_parameter) == 1) {
-              evaluated_parameter <- rep(evaluated_parameter, nrep_of_parms)
-            } else if (length(evaluated_parameter) == df) {
-              repeach <- nrep_of_parms / df
-              evaluated_parameter <-
-                rep(evaluated_parameter,
-                    times = 1,
-                    each = repeach)
-            }
-          } else {
-            if (length(evaluated_parameter) < nrep_of_parms)
-              evaluated_parameter <- rep(evaluated_parameter, nrep_of_parms)
-            if (length(evaluated_parameter) > nrep_of_parms)
-              stop("prior elements for nlpar ",
-                   nlpar, ", class ",  class,
-                   " are greater than the parameter dimensions")
-          }
-        }
-        
-        
-        
-        # set shape parameter -> for gamma inv_gamma (scale already covered)
-        
-        if (grepl("^shape$", pname_)) {
-          check_evalation_of_numeric_pdata_obj(
-            prior_argument,
-            p_str_in,
-            x_i,
-            x,
-            pname_,
-            dist,
-            nlpar,
-            class,
-            allowed_parm_options,
-            splitmvar_w2
-          )
-          if (is.numeric(eval(parse(text = x_i))) |
-              !is.null(eval(parse(text = x_i)))) {
-            eit <- x_i
-            evaluated_parameter <- ept(eit)
-          } else {
-            stop(
-              "df parameter options for nlpar ",
-              nlpar,
-              ", class ",
-              class,
-              " are:\n zzzz, a numeric value (e.g., 2) or a charater such as zzz",
-              "\n with zzz defined in the prior_data", 
-              "e.g., prior_data = list(zzz = 2)"
-            )
-          }
-          # checks
-          if (nlpar == "s" & !is.null(sncov)) {
-            if (length(evaluated_parameter) == 1) {
-              evaluated_parameter <- rep(evaluated_parameter, nrep_of_parms)
-            } else if (length(evaluated_parameter) == df) {
-              repeach <- nrep_of_parms / df
-              evaluated_parameter <-
-                rep(evaluated_parameter,
-                    times = 1,
-                    each = repeach)
-            }
-          } else {
-            if (length(evaluated_parameter) < nrep_of_parms)
-              evaluated_parameter <- rep(evaluated_parameter, nrep_of_parms)
-            if (length(evaluated_parameter) > nrep_of_parms)
-              stop("prior elements for nlpar ",
-                   nlpar, ", class ",  class,
-                   " are greater than the parameter dimensions")
-          }
-        }
-        
-        
-        
-        # set lower upper parameters -> for uniform
-        
-        if (grepl("^lower$", pname_)) {
-          if (x_i == paste0("lm", empty_sufx)) {
-            if (nlpar == "a" & class == "b" & grepl("a", fixedsi)) {
-              if (a_form_0) {
-                lm_gsubby <- paste0("lm", "_", nlpar, "_", "all", resp_)
-              } else {
-                lm_gsubby <- paste0("lm", "_", nlpar, "", "", resp_)
-              }
-              eit <-  gsub("lm", lm_gsubby, x_i)
-              evaluated_parameter <- ept(eit)[1]
-            }
-            if (nlpar == "s") {
-              if (s_form_0) {
-                lm_gsubby <- paste0("lm", "_", nlpar, "_", "all", resp_)
-              } else {
-                lm_gsubby <- paste0("lm", "_", nlpar, "", "", resp_)
-              }
-              eit <-  gsub("lm", lm_gsubby, x_i)
-              evaluated_parameter <- ept(eit)
-            }
-          } else {
-            check_evalation_of_numeric_pdata_obj(
-              prior_argument,
-              p_str_in,
-              x_i,
-              x,
-              pname_,
-              dist,
-              nlpar,
-              class,
-              allowed_parm_options,
-              splitmvar_w2
-            )
-            if (is.numeric(eval(parse(text = x_i))) |
-                !is.null(eval(parse(text = x_i)))) {
-              eit <- x_i
-              evaluated_parameter <- ept(eit)
-            } else {
-              stop(
-                "lower parameter options for nlpar ",
-                nlpar,
-                ", class ",
-                class,
-                " are:\n lm, a numeric value (e.g., 2) or a charater such as zzz",
-                "\n with zzz defined in the", 
-                "prior_data e.g., prior_data = list(zzz = 2)"
-              )
-            }
-          }
-          # checks
-          if (nlpar == "s" & !is.null(sncov)) {
-            if (length(evaluated_parameter) == 1) {
-              evaluated_parameter <- rep(evaluated_parameter, nrep_of_parms)
-            } else if (length(evaluated_parameter) == df) {
-              repeach <- nrep_of_parms / df
-              evaluated_parameter <-
-                rep(evaluated_parameter,
-                    times = 1,
-                    each = repeach)
-            }
-          } else {
-            if (length(evaluated_parameter) < nrep_of_parms)
-              evaluated_parameter <- rep(evaluated_parameter, nrep_of_parms)
-            if (length(evaluated_parameter) > nrep_of_parms)
-              stop("prior elements for nlpar ",
-                   nlpar, ", class ",  class,
-                   " are greater than the parameter dimensions")
-          }
-          evaluated_parameter <- evaluated_parameter - addrange
-          evaluated_parameter_lower <- evaluated_parameter
-        }
-        
-        
-        
-        if (grepl("^upper$", pname_)) {
-          if (x_i == paste0("lm", empty_sufx)) {
-            if (nlpar == "a" & class == "b" & grepl("a", fixedsi)) {
-              if (a_form_0) {
-                lm_gsubby <- paste0("lm", "_", nlpar, "_", "all", resp_)
-              } else {
-                lm_gsubby <- paste0("lm", "_", nlpar, "", "", resp_)
-              }
-              eit <-  gsub("lm", lm_gsubby, x_i)
-              evaluated_parameter <- ept(eit)[1]
-            }
-            if (nlpar == "s") {
-              if (s_form_0) {
-                lm_gsubby <- paste0("lm", "_", nlpar, "_", "all", resp_)
-              } else {
-                lm_gsubby <- paste0("lm", "_", nlpar, "", "", resp_)
-              }
-              eit <-  gsub("lm", lm_gsubby, x_i)
-              evaluated_parameter <- ept(eit)
-            }
-          } else {
-            check_evalation_of_numeric_pdata_obj(
-              prior_argument,
-              p_str_in,
-              x_i,
-              x,
-              pname_,
-              dist,
-              nlpar,
-              class,
-              allowed_parm_options,
-              splitmvar_w2
-            )
-            if (is.numeric(eval(parse(text = x_i))) |
-                !is.null(eval(parse(text = x_i)))) {
-              eit <- x_i
-              evaluated_parameter <- ept(eit)
-            } else {
-              stop(
-                "upper parameter options for nlpar ",
-                nlpar,
-                ", class ",
-                class,
-                " are:\n lm, a numeric value (e.g., 2) or a charater such as zzz",
-                "\n with zzz defined in the prior_data",
-                "e.g., prior_data = list(zzz = 2)"
-              )
-            }
-          }
-          # checks
-          if (nlpar == "s" & !is.null(sncov)) {
-            if (length(evaluated_parameter) == 1) {
-              evaluated_parameter <- rep(evaluated_parameter, nrep_of_parms)
-            } else if (length(evaluated_parameter) == df) {
-              repeach <- nrep_of_parms / df
-              evaluated_parameter <-
-                rep(evaluated_parameter,
-                    times = 1,
-                    each = repeach)
-            }
-          } else {
-            if (length(evaluated_parameter) < nrep_of_parms)
-              evaluated_parameter <- rep(evaluated_parameter, nrep_of_parms)
-            if (length(evaluated_parameter) > nrep_of_parms)
-              stop("prior elements for nlpar ",
-                   nlpar, ", class ",  class,
-                   " are greater than the parameter dimensions")
-          }
-          evaluated_parameter <- evaluated_parameter + addrange
-          evaluated_parameter_upper <- evaluated_parameter
-        }
-        
-        
-        
-        # set eta parameter -> for lkj - also for mvr rescor
-        
-        if (grepl("^eta$", pname_)) {
-          check_evalation_of_numeric_pdata_obj(
-            prior_argument,
-            p_str_in,
-            x_i,
-            x,
-            pname_,
-            dist,
-            nlpar,
-            class,
-            allowed_parm_options,
-            splitmvar_w2
-          )
-          if (is.numeric(eval(parse(text = x_i))) |
-              !is.null(eval(parse(text = x_i)))) {
-            eit <- x_i
-            evaluated_parameter <- ept(eit)
-          } else {
-            stop(
-              "df parameter options for nlpar ",
-              nlpar,
-              ", class ",
-              class,
-              " are:\n zzz, a numeric value (e.g., 2) or a charater such as zzz",
-              "\n with zzz defined in the prior_data",
-              "e.g., prior_data = list(zzz = 2)"
-            )
-          }
-          if (length(evaluated_parameter) < nrep_of_parms)
-            evaluated_parameter <- rep(evaluated_parameter, nrep_of_parms)
-          if (length(evaluated_parameter) > nrep_of_parms)
-            stop("prior elements for nlpar ",
-                 nlpar, ", class ",  class,
-                 " are greater than the parameter dimensions")
-        }
-        
-        
-        # set autocr parameter -> ar ma arma
-        
-        if (setautocorr & class != "b") {
-          check_evalation_of_numeric_pdata_obj(
-            prior_argument,
-            p_str_in,
-            x_i,
-            x,
-            pname_,
-            dist,
-            nlpar,
-            class,
-            allowed_parm_options,
-            splitmvar_w2
-          )
-          if (is.numeric(eval(parse(text = x_i))) |
-              !is.null(eval(parse(text = x_i)))) {
-            eit <- x_i
-            evaluated_parameter <- ept(eit)
-          } else {
-            stop(
-              "df parameter options for nlpar ",
-              nlpar,
-              ", class ",
-              class,
-              " are:\n zzzz, a numeric value (e.g., 2) or a charater such as zzz",
-              "\n with zzz defined in the prior_data",
-              "e.g., prior_data = list(zzz = 2)"
-            )
-          }
-          if (length(evaluated_parameter) < nrep_of_parms)
-            evaluated_parameter <- rep(evaluated_parameter, nrep_of_parms)
-          if (length(evaluated_parameter) > nrep_of_parms)
-            stop("prior elements for nlpar ",
-                 nlpar, ", class ",  class,
-                 " are greater than the parameter dimensions")
-        }
-        
-       
-        
-        
-        # make unique names
-        
-        if (nlpar != "")
-          prefix <- nlpar
-        if (nlpar != "" &
-            cov_nlpar != "")
-          prefix <- paste0(cov_nlpar, "_", "cov")
-        if (class == 'cor')
-          prefix <- 'lkj'
-        if (class == 'rescor')
-          prefix <- 'lkj'
-        if (class == 'sigma')
-          prefix <- 'sigma'
-        if (setautocorr)
-          prefix <- class
-        if (dpar != "")
-          prefix <- dpar
-        
-        
-        if (sigma_dpar == 'sigma' ) {
-          prefix <- 'sigma'
-        }
-        
-        if (cov_sigma_dpar == 'sigma_cov' ) {
-          prefix <- 'sigma_cov'
-        }
-        
-        
-        
-        
-        
-        if (setautocorr) {
-          add_cla_to_name <- NULL
-        } else if (class == "" |
-                   class == "sigma" | dpar != "" & !is.null(dparncov)) {
-          add_cla_to_name <- NULL
-        } else {
-          add_cla_to_name <- paste0(sep_indicator, class)
-        }
-        
-       
-        
-        # This is required to set unique stanvar names for higher level sd 
-        
-        if (class == 'sd' | class == 'cor') {
-          group_arg_groupvar_paste <-  group # group_arg_groupvar
-          group_arg_groupvar_paste <- gsub(":", "_", group_arg_groupvar_paste)
-          suppressWarnings({
-            set_str_names[i] <- paste0(set_str_names[i], "_", 
-                                       group_arg_groupvar_paste)
-          })
-        }
-        
-        
-        # This is required to set unique stanvar names for sigma_prior_cor 
-        # and gr_prior_cor
-        
-        if (class == 'cor') {
-          group_arg_groupvar_paste <-  group
-          if (sigma_dpar == 'sigma') lkj_arg_cor_paste <-  'sigma'
-          if (sigma_dpar != 'sigma') lkj_arg_cor_paste <-  'gr'
-          set_str_names[i] <- paste0(set_str_names[i], "_", 
-                                     lkj_arg_cor_paste)
-        }
-        
-        
-        
-        
-        
-        
-        name_parameter <-
-          paste0(prefix,
-                 add_cla_to_name,
-                 sep_indicator,
-                 set_str_names[i], 
-                 resp_)
-        
-        # name_parameter <- paste0(name_parameter, add_gr_id)
-        
-       
-        assign(name_parameter, evaluated_parameter)
-        
-        if (change_default_data_pll_args) {
-          stanvars_data[[name_parameter]] <-
-            brms::stanvar(
-              eval(parse(text = name_parameter)),
-              name = name_parameter,
-              block = "data",
-              pll_args = ept(set_data_pll_args)
-            )
-        } else {
-          stanvars_data[[name_parameter]] <-
-            brms::stanvar(eval(parse(text = name_parameter)),
-                          name = name_parameter, block = "data")
-        }
-        
-       
-        
-        collect_name_parameter <-
-          c(collect_name_parameter, name_parameter)
-      }
-      
-      
-      
-      
-      
-      
-      
-      # assigning bounds
-      
-      # name_lb <-
-      #   paste0(prefix, 
-      #          add_cla_to_name, 
-      #          sep_indicator, 
-      #          "lb",
-      #          resp_)
-      # 
-      # name_ub <-
-      #   paste0(prefix, 
-      #          add_cla_to_name, 
-      #          sep_indicator, 
-      #          "ub", 
-      #          resp_)
-      
-      if(is.null(resp_) | resp_ == "") {
-        name_lb <- paste0(name_parameter, "_", 'lb')
-        name_ub <- paste0(name_parameter, "_", 'ub')
-      } else {
-        name_lb <- gsub(resp_, paste0("_", 'lb', "", resp_),  name_parameter)
-        name_ub <- gsub(resp_, paste0("_", 'ub', "", resp_),  name_parameter)
-      }
-      
-      
-      
-      if (grepl("^lb$", pname_)  & !grepl("b_", x_i, fixed = T) ) {
-        # if (grepl("^lb$", pname_)) {
-        if (!(is.na(eval(parse(text = x_i))) |
-              eval(parse(text = x_i)) == "NA")) {
-          lowerbound <- eval(parse(text = x_i))
-          if (length(lowerbound < length(evaluated_parameter))) {
-            lowerbound <- rep(lowerbound, length(evaluated_parameter))
-          }
-          assign(name_lb, lowerbound)
-          if (change_default_data_pll_args) {
-            stanvars_data[[name_lb]] <- brms::stanvar(
-              eval(parse(text = name_lb)),
-              name = name_lb,
-              block = "data",
-              pll_args = ept(set_data_pll_args)
-            )
-          } else {
-            stanvars_data[[name_lb]] <- 
-              brms::stanvar(eval(parse(text = name_lb)),
-                            name = name_lb, block = "data")
-          }
-        } else {
-          lowerbound <- NA
-          if (length(lowerbound < length(evaluated_parameter))) {
-            lowerbound <- rep(lowerbound, length(evaluated_parameter))
-          }
-          assign(name_lb, rep(lowerbound, length(evaluated_parameter)))
-        }
-      } # if (grepl("^lb$", pname_)) {
-      
-      # added on 2/8/2023 to allow parameter as lb ub bound 
-      
-      if (grepl("^lb$", pname_)  & grepl("b_", x_i, fixed = T) ) {
-        set_x_i_p_bound <- x_i
-        if(resp_ != "") {
-          set_x_i_p_bound <- gsub("b_", paste0("b", resp_, "_"), 
-                                  set_x_i_p_bound, fixed = T)
-        } 
-        lowerbound <- set_x_i_p_bound
-        assign(name_lb, lowerbound)
-      }
-      
-      
-      if (grepl("^ub$", pname_) & !grepl("b_", x_i, fixed = T) ) {
-        # if (grepl("^ub$", pname_)) {
-        if (!(is.na(eval(parse(text = x_i))) |
-              eval(parse(text = x_i)) == "NA")) {
-          upperbound <- eval(parse(text = x_i))
-          if (length(upperbound < length(evaluated_parameter))) {
-            upperbound <- rep(upperbound, length(evaluated_parameter))
-          }
-          assign(name_ub, upperbound)
-          if (change_default_data_pll_args) {
-            stanvars_data[[name_ub]] <- brms::stanvar(
-              eval(parse(text = name_ub)),
-              name = name_ub,
-              block = "data",
-              pll_args = ept(set_data_pll_args)
-            )
-          } else {
-            stanvars_data[[name_ub]] <- 
-              brms::stanvar(eval(parse(text = name_ub)), 
-                            name = name_ub, block = "data")
-          }
-        } else {
-          upperbound <- NA
-          if (length(upperbound < length(evaluated_parameter))) {
-            upperbound <- rep(upperbound, length(evaluated_parameter))
-          }
-          assign(name_ub, rep(upperbound, length(evaluated_parameter)))
-        }
-      } # if (grepl("^ub$", pname_)) {
-      
-      # added on 2/8/2023 to allow parameter as lb ub bound 
-      
-      if (grepl("^ub$", pname_)  & grepl("b_", x_i, fixed = T) ) {
-        set_x_i_p_bound <- x_i
-        if(resp_ != "") {
-          set_x_i_p_bound <- gsub("b_", paste0("b", resp_, "_"), 
-                                  set_x_i_p_bound, fixed = T)
-        } 
-        upperbound <- set_x_i_p_bound
-        assign(name_ub, upperbound)
-      }
-      
-      
-      if (grepl("^lb$", pname_)) {
-        if (dist == "lognormal" |
-            dist == "gamma" | dist == "inv_gamma" | dist == "exponential") {
-          if (all(is.na(lowerbound) |
-                  lowerbound == "NA"))
-            lowerbound <- name_lb
-          assign(name_lb, rep(0, length(evaluated_parameter)))
-          if (change_default_data_pll_args) {
-            stanvars_data[[name_lb]] <- brms::stanvar(
-              eval(parse(text = name_lb)),
-              name = name_lb,
-              block = "data",
-              pll_args = ept(set_data_pll_args)
-            )
-          } else {
-            stanvars_data[[name_lb]] <- 
-              brms::stanvar(eval(parse(text = name_lb)),
-                            name = name_lb, block = "data")
-          }
-        }
-      }
-      
-      cov_sigma_dpar_mxg <- 
-        paste0("It appears you have specified a lower bounded prior",
-                 "\n ",
-                " '", dist, "' for covariate effect ", 
-               cov_sigma_dpar, " with formulation '~1'",
-                "\n ",
-                 " This does not make sense to restrict 
-               the covariate effect strictly positive",
-                 "\n ",
-                 " Therefore, either use non bounded prior 
-               such as 'normal' distribution ",
-                "\n ",
-                " or else change the formulation to '~0+'")
-      
-      if (cov_sigma_dpar == 'sigma_cov' & class == 'b' ) {
-        if(dist %in% strict_positive_dists) {
-          if(!sigma_form_0) stop(cov_sigma_dpar_mxg)
-        }
-      }
-      
-      
-    } # end of loop for (i in 1:length(x)) {
-    
-    ########################
-    
-    # After exiting the loop for (i in 1:length(x)), execute transformation of 
-    # location scale parameters for log transformed 
-
-    # if fxls = 'log', then assign them 
-    dont_allow_0 <- FALSE
-    if(fxls == 'log') {
-      dont_allow_0 <- TRUE
-      loc_log <- function(loc_parm, sca_parm) {
-        log_mu <- log(loc_parm / sqrt(sca_parm^2 / loc_parm^2 + 1))
-        log_mu
-      }
-      sca_log <- function(loc_parm, sca_parm) {
-        log_sd <- sqrt(log(sca_parm^2 / loc_parm^2 + 1))
-        log_sd
-      }
-      loc_sca_log <- list(loc_log = loc_log, sca_log = sca_log)
-      fxls <- 'loc_sca_log'
-    }
-    
-    fxls <- ept(fxls)
-    
-    if(!is.null(fxls)) {
-      if(is.list(fxls)) {
-        fxls <- fxls
-      } else if(is.na(fxls)) {
-        fxls <- FALSE
-      } else if(!fxls) {
-        fxls <- FALSE
-      } else if(fxls) {
-        fxls <- TRUE
-      } else  {
-        # fxls <- fxls
-      }
-    } else if(is.null(fxls)) {
-      fxls <- FALSE
-    }
-    
-    if(is.list(fxls)) {
-      if(length(fxls) != 2) 
-        stop("length of fxls must be 2")
-      assign('fun_log_loc', fxls[[1]])
-      assign('fun_log_sca', fxls[[2]])
-      fxls <- TRUE
-    } else {
-      fun_log_loc <- function(loc_parm, sca_parm) {
-        log_mu <- log(loc_parm / sqrt(sca_parm^2 / loc_parm^2 + 1))
-        log_mu
-      }
-      fun_log_sca <- function(loc_parm, sca_parm) {
-        log_sd <- sqrt(log(sca_parm^2 / loc_parm^2 + 1))
-        log_sd
-      }
-    }
-    
-    
-    if(fxls) {
-      
-      for (collect_name_parameteri in collect_name_parameter) {
-        if (grepl("_location", collect_name_parameteri)) {
-          loc_parm <- ept(collect_name_parameteri)
-        }
-        if (grepl("_scale", collect_name_parameteri)) {
-          sca_parm <- ept(collect_name_parameteri)
-        }
-      } # for (collect_name_parameteri in collect_name_parameter) {
-      
-      
-      inf_fun <- function(x) if(x <=0) x <- 0.000001 else x
-      
-      if(dont_allow_0) {
-        loc_parm <- lapply(loc_parm, inf_fun) %>% unlist()
-        sca_parm <- lapply(sca_parm, inf_fun) %>% unlist()
-      }
-      
-      
-      log_mu <- fun_log_loc(loc_parm, sca_parm)
-      log_sd <- fun_log_sca(loc_parm, sca_parm)
-      
-      if(any(is.infinite(log_mu))) {
-        stop("location parameter for transformed prior is Inf",
-             "\n ", 
-             "Perhaps you intend to log transform the prior", 
-             " but location parameter for some priors is '0'",
-             "\n ", 
-             "To circumvent this problem, set fxls = 'log' for which parameters",
-             "\n ", 
-             "location parameter is moved away from '0' by addding 0.00001"
-             )
-      }
-      
-      if(any(is.infinite(log_sd))) {
-        stop("scale parameter for transformed prior is Inf",
-             "\n ", 
-             "Perhaps you intend to log transform the prior", 
-             " but location parameter for some priors is '0'",
-             "\n ", 
-             "To circumvent this problem, set fxls = 'log' for which parameters",
-             "\n ", 
-             "location parameter is moved away from '0' by addding 0.00001"
-        )
-      }
-      
-      # log_mu <- log(loc_parm / sqrt(sca_parm^2 / loc_parm^2 + 1))
-      # log_sd <- sqrt(log(sca_parm^2 / loc_parm^2 + 1))
-      
-      for (collect_name_parameteri in collect_name_parameter) {
-        if (grepl("_location", collect_name_parameteri)) {
-          assign(collect_name_parameteri, log_mu)
-          if (change_default_data_pll_args) {
-            stanvars_data[[collect_name_parameteri]] <-
-              brms::stanvar(
-                eval(parse(text = collect_name_parameteri)),
-                name = collect_name_parameteri,
-                block = "data",
-                pll_args = ept(set_data_pll_args)
-              )
-          } else {
-            stanvars_data[[collect_name_parameteri]] <-
-              brms::stanvar(eval(parse(text = collect_name_parameteri)),
-                            name = collect_name_parameteri, block = "data")
-          }
-        } # if (grepl("_location", collect_name_parameteri)) {
-        
-        if (grepl("_scale", collect_name_parameteri)) {
-          assign(collect_name_parameteri, log_sd)
-          if (change_default_data_pll_args) {
-            stanvars_data[[collect_name_parameteri]] <-
-              brms::stanvar(
-                eval(parse(text = collect_name_parameteri)),
-                name = collect_name_parameteri,
-                block = "data",
-                pll_args = ept(set_data_pll_args)
-              )
-          } else {
-            stanvars_data[[collect_name_parameteri]] <-
-              brms::stanvar(eval(parse(text = collect_name_parameteri)),
-                            name = collect_name_parameteri, block = "data")
-          }
-        } # if (grepl("_scale", collect_name_parameteri)) {
-      } # for (collect_name_parameteri in collect_name_parameter) {
-      
-    } # if(fxls) {
-
-   
-   
-    
-    
-    ########################
-    
-    if (dist == "uniform" ) {
-      if (all(is.na(lowerbound) |
-              lowerbound == "NA"))
-        lowerbound <- name_lb
-      assign(name_lb, evaluated_parameter_lower)
-      
-      if (change_default_data_pll_args) {
-        stanvars_data[[name_lb]] <- brms::stanvar(
-          eval(parse(text = name_lb)),
-          name = name_lb,
-          block = "data",
-          pll_args = ept(set_data_pll_args)
-        )
-      } else {
-        stanvars_data[[name_lb]] <- 
-          brms::stanvar(eval(parse(text = name_lb)),
-                        name = name_lb, block = "data")
-      }
-      
-      
-      if (all(is.na(upperbound) |
-              upperbound == "NA"))
-        upperbound <- name_ub
-      assign(name_ub, evaluated_parameter_upper)
-      
-      if (change_default_data_pll_args) {
-        stanvars_data[[name_ub]] <- brms::stanvar(
-          eval(parse(text = name_ub)),
-          name = name_ub,
-          block = "data",
-          pll_args = ept(set_data_pll_args)
-        )
-      } else {
-        stanvars_data[[name_ub]] <- 
-          brms::stanvar(eval(parse(text = name_ub)),
-                        name = name_ub, block = "data")
-      }
-      
-      
-      if ((identical(evaluated_parameter_lower, evaluated_parameter_upper))) {
-        stop(
-          "lower and upper parameters for uniform distribution are identical",
-          "\n This could be because of same values used for lower and upper",
-          "\n", 
-          " parameters with addrange set as '0",
-          "\n Either change the lower and upper parameter values or set",
-          "\n", 
-          " addrange other than zero"
-        )
-      }
-      
-      for (i in 1:length(evaluated_parameter_lower)) {
-        if (evaluated_parameter_lower[i] >= evaluated_parameter_upper[i]) {
-          stop(
-            "lower parameter value at position '",
-            i,
-            "' ",
-            evaluated_parameter_lower[i],
-            "should be less than the specified upper parameter value ",
-            evaluated_parameter_lower[i]
-          )
-        }
-      }
-    }
-    
-    
-    
-    # name_parameter
-    if (dist != "student_nu") {
-      if (nrep_of_parms != 1) {
-        prior_str_arg_out_c <- c()
-        for (i in 1:nrep_of_parms) {
-          if (!any(is.na(lowerbound)) | !any(is.na(upperbound))) {
-            tt <- paste0(collect_name_parameter, collapse = ", ")
-          } else {
-            tt <- paste0(collect_name_parameter, "[", i, "]", collapse = ", ")
-          }
-          prior_str_arg_out_c <- c(prior_str_arg_out_c, tt)
-        }
-        prior_str_arg_out <- prior_str_arg_out_c
-        prior_str_arg_out <- paste0(dist, "(", prior_str_arg_out, ")")
-      } else {
-        prior_str_arg_out <-
-          paste0(dist,
-                 "(",
-                 paste(collect_name_parameter, collapse = ", "),
-                 ")")
-      }
-    }
-    
-    
-    if (dist == "student_nu") {
-      collect_name_parameter_copy <- collect_name_parameter
-      collect_name_parameter <-
-        c(gsub("_shape", "", collect_name_parameter[1]),
-          collect_name_parameter[3:4])
-      if (nrep_of_parms != 1) {
-        prior_str_arg_out_c <- c()
-        for (i in 1:nrep_of_parms) {
-          if (!any(is.na(lowerbound)) | !any(is.na(upperbound))) {
-            tt <- paste0(collect_name_parameter, collapse = ", ")
-          } else {
-            tt <- paste0(collect_name_parameter, "[", i, "]", collapse = ", ")
-          }
-          prior_str_arg_out_c <- c(prior_str_arg_out_c, tt)
-        }
-        prior_str_arg_out <- prior_str_arg_out_c
-        prior_str_arg_out <-
-          paste0("student_t", "(", prior_str_arg_out, ")")
-      } else {
-        prior_str_arg_out <-
-          paste0("student_t",
-                 "(",
-                 paste(collect_name_parameter, collapse = ", "),
-                 ")")
-      }
-    }
-    
-    
-    if (dist == "student_nu") {
-      student_nu_left <-
-        gsub("_shape", "", collect_name_parameter_copy[1])
-      student_nu_right1 <- collect_name_parameter_copy[1]
-      student_nu_right2 <- collect_name_parameter_copy[2]
-      stanvars_data[[paste0(student_nu_left, "_", "", "_", "pblock")]] <-
-        brms::stanvar(
-          scode = paste0(
-            "vector<lower=1>[",
-            nrep_of_parms ,
-            "] ",
-            student_nu_left,
-            ";"
-          ),
-          block = "parameter",
-          position = "end"
-        ) # , pll_args = paste0("vector"," ", hptau_nu)
-      
-      t_or_lp <- 'target'
-      dist_student_nu <- "gamma"
-      if (nrep_of_parms != 1) {
-        for (i in 1:nrep_of_parms) {
-          if (normalize) {
-            dist_student_1 <-
-              "lpdf"
-            dist_student_2 <- "lccdf"
-            svarblock <- 'model' # 'tparameters'
-            define_studentdisttype_1 <-
-              paste0(dist_student_nu, "_", dist_student_1)
-            define_studentdisttype_2 <-
-              paste0(dist_student_nu, "_", dist_student_2)
-            define_studentscode_1 <-
-              paste0(
-                t_or_lp,
-                " += ",
-                define_studentdisttype_1,
-                "(",
-                paste0(student_nu_left, "[", i, "]"),
-                " | ",
-                paste0(student_nu_right1, "[", i, "]") ,
-                ", ",
-                paste0(student_nu_right2, "[", i, "]") ,
-                ")"
-              )
-            define_studentscode_2 <-
-              paste0(
-                nrep_of_parms,
-                " * ",
-                define_studentdisttype_2,
-                "(",
-                1,
-                " | ",
-                paste0(student_nu_right1, "[", i, "]") ,
-                ", ",
-                paste0(student_nu_right2, "[", i, "]") ,
-                ")"
-              )
-            define_studentscode <-
-              paste0(define_studentscode_1,
-                     "\n    - ",
-                     define_studentscode_2,
-                     ";")
-          } else {
-            dist_student_1 <- "lupdf"
-            svarblock <- 'model'
-            define_studentdisttype_1 <-
-              paste0(dist_student_nu, "_", dist_student_1)
-            define_studentscode_1 <-
-              paste0(
-                t_or_lp,
-                " += ",
-                define_studentdisttype_1,
-                "(",
-                paste0(student_nu_left, "[", i, "]"),
-                " | ",
-                paste0(student_nu_right1, "[", i, "]")  ,
-                ", ",
-                paste0(student_nu_right2, "[", i, "]") ,
-                ")"
-              )
-            define_studentscode <- paste0(define_studentscode_1, ";")
-          }
-          stanvars_data[[paste0(student_nu_left, "_", i, "_", "mblock")]] <-
-            brms::stanvar(scode = define_studentscode,
-                          block = svarblock,
-                          position = "end")
-          
-        }
-      }
-      
-      
-      if (nrep_of_parms == 1) {
-        if (normalize) {
-          dist_student_1 <-
-            "lpdf"
-          dist_student_2 <- "lccdf"
-          svarblock <- 'model' # 'tparameters'
-          define_studentdisttype_1 <-
-            paste0(dist_student_nu, "_", dist_student_1)
-          define_studentdisttype_2 <-
-            paste0(dist_student_nu, "_", dist_student_2)
-          define_studentscode_1 <-
-            paste0(
-              t_or_lp,
-              " += ",
-              define_studentdisttype_1,
-              "(",
-              student_nu_left,
-              " | ",
-              student_nu_right1,
-              ", ",
-              student_nu_right2,
-              ")"
-            )
-          define_studentscode_2 <-
-            paste0(
-              nrep_of_parms,
-              " * ",
-              define_studentdisttype_2,
-              "(",
-              1,
-              " | ",
-              student_nu_right1,
-              ", ",
-              student_nu_right2,
-              ")"
-            )
-          define_studentscode <-
-            paste0(define_studentscode_1,
-                   "\n    - ",
-                   define_studentscode_2,
-                   ";")
-        } else {
-          dist_student_1 <- "lupdf"
-          svarblock <- 'model'
-          define_studentdisttype_1 <-
-            paste0(dist_student_nu, "_", dist_student_1)
-          define_studentscode_1 <-
-            paste0(
-              t_or_lp,
-              " += ",
-              define_studentdisttype_1,
-              "(",
-              student_nu_left,
-              " | ",
-              student_nu_right1,
-              ", ",
-              student_nu_right2,
-              ")"
-            )
-          define_studentscode <- paste0(define_studentscode_1, ";")
-        }
-        stanvars_data[[paste0(student_nu_left, "_", "", "_", "mblock")]] <-
-          brms::stanvar(scode = define_studentscode,
-                        block = svarblock,
-                        position = "end")
-        
-      }
-    }
-    
-    
-    
-    
-    
-    
-    if (!is.null(stanvars_data[[name_lb]])) {
-      if (nrep_of_parms == 1) {
-        lowerbound <- name_lb
-      } else {
-        if (any(is.na(lowerbound))) {
-          lowerbound <- paste0(name_lb, "[", 1:nrep_of_parms, "]")
-        } else {
-          lowerbound <- name_lb
-        }
-      }
-    }
-    
-    if (!is.null(stanvars_data[[name_ub]])) {
-      if (nrep_of_parms == 1) {
-        upperbound <- name_ub
-      } else {
-        if (any(is.na(upperbound))) {
-          upperbound <- paste0(name_ub, "[", 1:nrep_of_parms, "]")
-        } else {
-          upperbound <- name_ub
-        }
-      }
-    }
-    
-    
-    
-    
-    if (ept(sethp)) {
-      original_scale <-
-        paste0(prefix, add_cla_to_name, sep_indicator, "scale", resp_)
-      tauid <- 'tau'
-      hptau <-
-        paste0(prefix, add_cla_to_name, sep_indicator, tauid, resp_)
-      prior_str_arg_out <-
-        gsub(original_scale, hptau, prior_str_arg_out, fixed = T)
-      
-      if (dist == "student_t") {
-        original_df <-
-          paste0(prefix, add_cla_to_name, sep_indicator, "df", resp_)
-        original_df_val <-
-          ept(ept(
-            paste0(prefix, add_cla_to_name, sep_indicator, "df", resp_)
-          ))
-        hptau_df <-
-          paste0(
-            prefix,
-            add_cla_to_name,
-            sep_indicator,
-            paste0(tauid, sep_indicator, 'df'),
-            resp_
-          )
-        if (length(original_df_val) < nrep_of_parms)
-          original_df_val <- rep(original_df_val, nrep_of_parms)
-        assign(hptau_df, original_df_val)
-      } else {
-        hptau_df <-
-          paste0(
-            prefix,
-            add_cla_to_name,
-            sep_indicator,
-            paste0(tauid, sep_indicator, 'df'),
-            resp_
-          )
-        assign(hptau_df, rep(3, nrep_of_parms))
-      }
-      
-      if (sethp_dist == "student_nu") {
-        hptau_nu <-
-          paste0(
-            prefix,
-            add_cla_to_name,
-            sep_indicator,
-            paste0(tauid, sep_indicator, 'nu'),
-            resp_
-          )
-        hptau_nu_shape <-
-          paste0(
-            prefix,
-            add_cla_to_name,
-            sep_indicator,
-            paste0(tauid, sep_indicator, 'nu_shape'),
-            resp_
-          )
-        hptau_nu_scale <-
-          paste0(
-            prefix,
-            add_cla_to_name,
-            sep_indicator,
-            paste0(tauid, sep_indicator, 'nu_scale'),
-            resp_
-          )
-        assign(hptau_nu_shape, rep(2, nrep_of_parms))
-        assign(hptau_nu_scale, rep(0.1, nrep_of_parms))
-      }
-      
-      hptau_scale    <-
-        paste0(
-          prefix,
-          add_cla_to_name,
-          sep_indicator,
-          paste0(tauid, sep_indicator, 'scale'),
-          resp_
-        )
-      hptau_location <-
-        paste0(
-          prefix,
-          add_cla_to_name,
-          sep_indicator,
-          paste0(tauid, sep_indicator, 'location'),
-          resp_
-        )
-      
-      if (sethp_dist == "exponential") {
-        hptau_rate    <-
-          paste0(
-            prefix,
-            add_cla_to_name,
-            sep_indicator,
-            paste0(tauid, sep_indicator, 'rate'),
-            resp_
-          )
-      }
-      
-      
-      t_or_lp <- 'target'
-      if (sethp_dist == "normal" |
-          sethp_dist == "cauchy" |
-          sethp_dist == "student_t" |
-          sethp_dist == "student_nu" |
-          sethp_dist == "exponential") {
-        if (sethp_dist == "normal") {
-          if (normalize) {
-            dist_1 <-
-              "lpdf"
-            dist_2 <- "lccdf"
-            svarblock <- 'model' # 'tparameters'
-            define_disttype_1 <- paste0(sethp_dist, "_", dist_1)
-            define_disttype_2 <- paste0(sethp_dist, "_", dist_2)
-            define_scode_1 <-
-              paste0(
-                t_or_lp,
-                " += ",
-                define_disttype_1,
-                "(",
-                hptau,
-                " | ",
-                hptau_location,
-                ", ",
-                hptau_scale,
-                ")"
-              )
-            define_scode_2 <-
-              paste0(
-                nrep_of_parms,
-                " * ",
-                define_disttype_2,
-                "(",
-                0,
-                " | ",
-                hptau_location,
-                ", ",
-                hptau_scale,
-                ")"
-              )
-            define_scode <-
-              paste0(define_scode_1, "\n    - ", define_scode_2, ";")
-          } else {
-            dist_1 <- "lupdf"
-            svarblock <- 'model'
-            define_disttype_1 <- paste0(sethp_dist, "_", dist_1)
-            define_scode_1 <-
-              paste0(
-                t_or_lp,
-                " += ",
-                define_disttype_1,
-                "(",
-                hptau,
-                " | ",
-                hptau_location,
-                ", ",
-                hptau_scale,
-                ")"
-              )
-            define_scode <- paste0(define_scode_1, ";")
-          }
-          stanvars_data[[paste0(tauid, "_", "mblock")]] <-
-            brms::stanvar(scode = define_scode,
-                          block = svarblock,
-                          position = "end")
-        }
-        if (sethp_dist == "cauchy") {
-          if (normalize) {
-            dist_1 <-
-              "lpdf"
-            dist_2 <- "lccdf"
-            svarblock <- 'model' # 'tparameters'
-            define_disttype_1 <- paste0(sethp_dist, "_", dist_1)
-            define_disttype_2 <- paste0(sethp_dist, "_", dist_2)
-            define_scode_1 <-
-              paste0(
-                t_or_lp,
-                " += ",
-                define_disttype_1,
-                "(",
-                hptau,
-                " | ",
-                hptau_location,
-                ", ",
-                hptau_scale,
-                ")"
-              )
-            define_scode_2 <-
-              paste0(
-                nrep_of_parms,
-                " * ",
-                define_disttype_2,
-                "(",
-                0,
-                " | ",
-                hptau_location,
-                ", ",
-                hptau_scale,
-                ")"
-              )
-            define_scode <-
-              paste0(define_scode_1, "\n    - ", define_scode_2, ";")
-          } else {
-            dist_1 <- "lupdf"
-            svarblock <- 'model'
-            define_disttype_1 <- paste0(sethp_dist, "_", dist_1)
-            define_scode_1 <-
-              paste0(
-                t_or_lp,
-                " += ",
-                define_disttype_1,
-                "(",
-                hptau,
-                " | ",
-                hptau_location,
-                ", ",
-                hptau_scale,
-                ")"
-              )
-            define_scode <- paste0(define_scode_1, ";")
-          }
-          stanvars_data[[paste0(tauid, "_", "mblock")]] <-
-            brms::stanvar(scode = define_scode,
-                          block = svarblock,
-                          position = "end")
-        }
-        if (sethp_dist == "student_t") {
-          if (normalize) {
-            dist_1 <-
-              "lpdf"
-            dist_2 <- "lccdf"
-            svarblock <- 'model' # 'tparameters'
-            define_disttype_1 <- paste0(sethp_dist, "_", dist_1)
-            define_disttype_2 <- paste0(sethp_dist, "_", dist_2)
-            define_scode_1 <-
-              paste0(
-                t_or_lp,
-                " += ",
-                define_disttype_1,
-                "(",
-                hptau,
-                " | ",
-                hptau_df,
-                ", ",
-                hptau_location,
-                ", ",
-                hptau_scale,
-                ")"
-              )
-            define_scode_2 <-
-              paste0(
-                nrep_of_parms,
-                " * ",
-                define_disttype_2,
-                "(",
-                0,
-                " | ",
-                hptau_df,
-                ", ",
-                hptau_location,
-                ", ",
-                hptau_scale,
-                ")"
-              )
-            define_scode <-
-              paste0(define_scode_1, "\n    - ", define_scode_2, ";")
-          } else {
-            dist_1 <- "lupdf"
-            svarblock <- 'model'
-            define_disttype_1 <- paste0(sethp_dist, "_", dist_1)
-            define_scode_1 <-
-              paste0(
-                t_or_lp,
-                " += ",
-                define_disttype_1,
-                "(",
-                hptau,
-                " | ",
-                hptau_df,
-                ", ",
-                hptau_location,
-                ", ",
-                hptau_scale,
-                ")"
-              )
-            define_scode <- paste0(define_scode_1, ";")
-          }
-          stanvars_data[[paste0(tauid, "_", "mblock")]] <-
-            brms::stanvar(scode = define_scode,
-                          block = svarblock,
-                          position = "end")
-        }
-        if (sethp_dist == "student_nu") {
-          sethp_dist_student_t <- "student_t"
-          if (normalize) {
-            dist_1 <-
-              "lpdf"
-            dist_2 <- "lccdf"
-            svarblock <- 'model' # 'tparameters'
-            define_disttype_1 <-
-              paste0(sethp_dist_student_t, "_", dist_1)
-            define_disttype_2 <-
-              paste0(sethp_dist_student_t, "_", dist_2)
-            define_scode_1 <-
-              paste0(
-                t_or_lp,
-                " += ",
-                define_disttype_1,
-                "(",
-                hptau,
-                " | ",
-                hptau_nu,
-                ", ",
-                hptau_location,
-                ", ",
-                hptau_scale,
-                ")"
-              )
-            define_scode_2 <-
-              paste0(
-                nrep_of_parms,
-                " * ",
-                define_disttype_2,
-                "(",
-                1,
-                " | ",
-                hptau_nu,
-                ", ",
-                hptau_location,
-                ", ",
-                hptau_scale,
-                ")"
-              )
-            define_scode <-
-              paste0(define_scode_1, "\n    - ", define_scode_2, ";")
-          } else {
-            dist_1 <- "lupdf"
-            svarblock <- 'model'
-            define_disttype_1 <-
-              paste0(sethp_dist_student_t, "_", dist_1)
-            define_scode_1 <-
-              paste0(
-                t_or_lp,
-                " += ",
-                define_disttype_1,
-                "(",
-                hptau,
-                " | ",
-                hptau_nu,
-                ", ",
-                hptau_location,
-                ", ",
-                hptau_scale,
-                ")"
-              )
-            define_scode <- paste0(define_scode_1, ";")
-          }
-          stanvars_data[[paste0(tauid, "_", "mblock")]] <-
-            brms::stanvar(scode = define_scode,
-                          block = svarblock,
-                          position = "end")
-          
-          # nu gamma
-          sethp_dist_student_nu <- "gamma"
-          if (normalize) {
-            dist_student_1 <-
-              "lpdf"
-            dist_student_2 <- "lccdf"
-            svarblock <- 'model' # 'tparameters'
-            define_studentdisttype_1 <-
-              paste0(sethp_dist_student_nu, "_", dist_student_1)
-            define_studentdisttype_2 <-
-              paste0(sethp_dist_student_nu, "_", dist_student_2)
-            define_studentscode_1 <-
-              paste0(
-                t_or_lp,
-                " += ",
-                define_studentdisttype_1,
-                "(",
-                hptau_nu,
-                " | ",
-                hptau_nu_shape,
-                ", ",
-                hptau_nu_scale,
-                ")"
-              )
-            define_studentscode_2 <-
-              paste0(
-                nrep_of_parms,
-                " * ",
-                define_studentdisttype_2,
-                "(",
-                1,
-                " | ",
-                hptau_nu_shape,
-                ", ",
-                hptau_nu_scale,
-                ")"
-              )
-            define_studentscode <-
-              paste0(define_studentscode_1,
-                     "\n    - ",
-                     define_studentscode_2,
-                     ";")
-          } else {
-            dist_student_1 <- "lupdf"
-            svarblock <- 'model'
-            define_studentdisttype_1 <-
-              paste0(sethp_dist_student_nu, "_", dist_student_1)
-            define_studentscode_1 <-
-              paste0(
-                t_or_lp,
-                " += ",
-                define_studentdisttype_1,
-                "(",
-                hptau_nu,
-                " | ",
-                hptau_nu_shape,
-                ", ",
-                hptau_nu_scale,
-                ")"
-              )
-            define_studentscode <- paste0(define_studentscode_1, ";")
-          }
-          stanvars_data[[paste0(tauid, "_", "nu", "_", "mblock")]] <-
-            brms::stanvar(scode = define_studentscode,
-                          block = svarblock,
-                          position = "end")
-        }
-        
-        if (sethp_dist == "exponential") {
-          if (normalize) {
-            dist_1 <-
-              "lpdf"
-            dist_2 <- "lccdf"
-            svarblock <- 'model' # 'tparameters'
-            define_disttype_1 <- paste0(sethp_dist, "_", dist_1)
-            define_disttype_2 <- paste0(sethp_dist, "_", dist_2)
-            define_scode_1 <-
-              paste0(t_or_lp,
-                     " += ",
-                     define_disttype_1,
-                     "(",
-                     hptau,
-                     " | ",
-                     hptau_rate,
-                     ")")
-            define_scode_2 <-
-              paste0(nrep_of_parms,
-                     " * ",
-                     define_disttype_2,
-                     "(",
-                     0,
-                     " | ",
-                     hptau_rate,
-                     ")")
-            define_scode <-
-              paste0(define_scode_1, "\n    - ", define_scode_2, ";")
-          } else {
-            dist_1 <- "lupdf"
-            svarblock <- 'model'
-            define_disttype_1 <- paste0(sethp_dist, "_", dist_1)
-            define_scode_1 <-
-              paste0(t_or_lp,
-                     " += ",
-                     define_disttype_1,
-                     "(",
-                     hptau,
-                     " | ",
-                     hptau_rate,
-                     ")")
-            define_scode <- paste0(define_scode_1, ";")
-          }
-          stanvars_data[[paste0(tauid, "_", "mblock")]] <-
-            brms::stanvar(scode = define_scode,
-                          block = svarblock,
-                          position = "end")
-        }
-      } else {
-        sethp_dist <- 'normal'
-        if (normalize) {
-          dist_1 <-
-            "lpdf"
-          dist_2 <- "lccdf"
-          svarblock <- 'model' # 'tparameters'
-          define_disttype_1 <- paste0(sethp_dist, "_", dist_1)
-          define_disttype_2 <- paste0(sethp_dist, "_", dist_2)
-          define_scode_1 <-
-            paste0(
-              t_or_lp,
-              " += ",
-              define_disttype_1,
-              "(",
-              hptau,
-              " | ",
-              hptau_location,
-              ", ",
-              hptau_scale,
-              ")"
-            )
-          define_scode_2 <-
-            paste0(
-              nrep_of_parms,
-              " * ",
-              define_disttype_2,
-              "(",
-              0,
-              " | ",
-              hptau_location,
-              ", ",
-              hptau_scale,
-              ")"
-            )
-          define_scode <-
-            paste0(define_scode_1, "\n    - ", define_scode_2, ";")
-        } else {
-          dist_1 <- "lupdf"
-          svarblock <- 'model'
-          define_disttype_1 <- paste0(sethp_dist, "_", dist_1)
-          define_scode_1 <-
-            paste0(
-              t_or_lp,
-              " += ",
-              define_disttype_1,
-              "(",
-              hptau,
-              " | ",
-              hptau_location,
-              ", ",
-              hptau_scale,
-              ")"
-            )
-          define_scode <- paste0(define_scode_1, ";")
-        }
-        stanvars_data[[paste0(tauid, "_", "mblock")]] <-
-          brms::stanvar(scode = define_scode,
-                        block = svarblock,
-                        position = "end")
-      }
-      
-      stanvars_data[[paste0(tauid, "_", "pblock")]] <-
-        brms::stanvar(
-          scode = paste0("vector<lower=0>[", nrep_of_parms , "] ", hptau, ";"),
-          block = "parameter",
-          position = "end"
-        ) 
-      
-      
-      if (sethp_dist == "student_nu") {
-        stanvars_data[[paste0(tauid, "_", "nu", "_", "pblock")]] <-
-          brms::stanvar(
-            scode = paste0("vector<lower=1>[", 
-                           nrep_of_parms , "] ", hptau_nu, ";"),
-            block = "parameter",
-            position = "end"
-          ) 
-      }
-      
-      # add data stanvars
-      if (sethp_dist == "normal" |
-          sethp_dist == "cauchy" |
-          sethp_dist == "student_nu" |
-          sethp_dist == "student_t") {
-        if (sethp_dist == "student_t") {
-          if (change_default_data_pll_args) {
-            stanvars_data[[hptau_df]] <- brms::stanvar(
-              ept(hptau_df),
-              name = hptau_df,
-              block = "data",
-              pll_args = ept(set_data_pll_args)
-            )
-          } else {
-            stanvars_data[[hptau_df]] <- 
-              brms::stanvar(ept(hptau_df),
-                            name = hptau_df, 
-                            block = "data")
-          }
-        }
-        
-        
-        if (sethp_dist == "student_nu") {
-          if (change_default_data_pll_args) {
-            stanvars_data[[hptau_nu_shape]] <- brms::stanvar(
-              ept(hptau_nu_shape),
-              name = hptau_nu_shape,
-              block = "data",
-              pll_args = ept(set_data_pll_args)
-            )
-            
-            stanvars_data[[hptau_nu_scale]] <-
-              brms::stanvar(
-                ept(hptau_nu_scale),
-                name = hptau_nu_scale,
-                block = "data",
-                pll_args = ept(set_data_pll_args)
-              )
-          } else {
-            stanvars_data[[hptau_nu_shape]] <- 
-              brms::stanvar(ept(hptau_nu_shape),
-                            name = hptau_nu_shape,
-                            block = "data")
-            
-            stanvars_data[[hptau_nu_scale]] <-
-              brms::stanvar(ept(hptau_nu_scale),
-                            name = hptau_nu_scale,
-                            block = "data")
-          }
-        }
-        
-        
-        if (change_default_data_pll_args) {
-          stanvars_data[[hptau_location]] <- brms::stanvar(
-            rep(0, nrep_of_parms),
-            name = hptau_location,
-            block = "data",
-            pll_args = ept(set_data_pll_args)
-          )
-        } else {
-          stanvars_data[[hptau_location]] <- 
-            brms::stanvar(rep(0, nrep_of_parms),
-                          name = hptau_location,
-                          block = "data")
-        }
-        
-        if (change_default_data_pll_args) {
-          stanvars_data[[hptau_scale]]    <-
-            brms::stanvar(
-              eval(parse(text = original_scale)),
-              name = hptau_scale,
-              block = "data",
-              pll_args = ept(set_data_pll_args)
-            )
-        } else {
-          stanvars_data[[hptau_scale]]    <-
-            brms::stanvar(eval(parse(text = original_scale)),
-                          name = hptau_scale, block = "data")
-        }
-      }
-      
-      
-      if (sethp_dist == "exponential") {
-        if (change_default_data_pll_args) {
-          stanvars_data[[hptau_rate]] <- brms::stanvar(
-            1 / ept(original_scale),
-            name = hptau_rate,
-            block = "data",
-            pll_args = ept(set_data_pll_args)
-          )
-        } else {
-          stanvars_data[[hptau_rate]] <- 
-            brms::stanvar(1 / ept(original_scale),
-                          name = hptau_rate,
-                          block = "data")
-        }
-      }
-      stanvars_data[[original_scale]] <- NULL
-    }
-    
-    
-  } # end if(dist != 'flat') 
-  
-
-  if(dist == 'flat') {
-    prior_str_arg_out <- ""
-    lowerbound <- NA
-    upperbound <- NA
-    stanvars_data <- NULL
-    allowed_init_options_beta <- NULL
-    allowed_init_options_sd <- NULL
-    allowed_init_options_rate <- NULL
-    allowed_init_options_shape <- NULL
-    allowed_init_options_scale <- NULL
-  }
-  
-  
-  # initials
-  if (initsi != "random") {
-    # parm <- nlpar
-    if(sigma_dpar == 'sigma')  {
-      parm <- sigma_dpar
-    } else {
-      parm <- nlpar
-    }
-    stanvars_datazz <- stanvars_data
-    pstrarg <- prior_str_arg_out
-    
-    init_internal_args_names <- c(
-      'parm',
-      'class',
-      'dpar',
-      'sigma_dpar',
-      'resp_',
-      'dist',
-      'lowerbound',
-      'upperbound',
-      'allowed_init_options_beta',
-      'allowed_init_options_sd',
-      'allowed_init_options_rate',
-      'allowed_init_options_shape',
-      'allowed_init_options_scale',
-      'stanvars_datazz',
-      'pstrarg',
-      'initsi',
-      'init_arguments',
-      'init_data',
-      'init_data_internal',
-      'init_args_internal',
-      'prior_data',
-      'prior_data_internal',
-      'prior_internal_args',
-      'splitmvar_w2',
-      'seed'
-    )
-    
-    
-    init_internal_args <- mget(init_internal_args_names)
-    init_argument <- gsub("_prior_", "_init_", prior_argument)
-    initial_out <-
-      prepare_initials(init_argument = init_argument, init_internal_args)
+  if(is.null(ept('dpar_function'))) {
+    dpar_function <- "mu"
   } else {
-    initial_out <- NULL
+    dpar_function <- ept('dpar_function')
   }
   
-  # stanvars_datax <<- stanvars_data
-  # 
-  # stanvars_data %>% names() %>% print()
+  # The brms exp the sigma, but bsitar appropriately exp scale the log outcome
+  # Therefore, to avoid double exponentiation, apply log fun to _d0 function
+  convert_d0_to_log <- FALSE
+  if(dpar_function == "sigma") {
+    if(family_link_sigma == "log") {
+      convert_d0_to_log <- FALSE # TRUE
+    }
+  }
   
-  return(
+  # SbasisN = nknots-1 -> for nsp nsk and rcs
+  # intercept issue - SbasisN remains same intercept T/F for splines2
+  # For smat == 'rcs', intercept need additional column
+
+  if (grepl("d", fixedsi, fixed = T)) {
+    dparm_set_fixed_or_random <- TRUE
+  } else if (grepl("d", randomsi, fixed = T)) {
+    dparm_set_fixed_or_random <- TRUE
+  } else {
+    dparm_set_fixed_or_random <- FALSE
+  }
+  
+  # For QR decom, 'dparm_part_of_SplQc <- TRUE'  struggles
+  # This because of perfect singularity between first term and last terms
+  # So, keep it FALSE 
+  
+  dparm_part_of_SplQc <- FALSE
+  fast_nsk_int        <- as.integer(fast_nsk)
+  fast_nsk            <- FALSE
+  add_fast <- ""
+  if(fast_nsk_int != 0) {
+    add_fast <- paste0("_", "fast", "_", fast_nsk_int)
+  }
+  
+  # 22.07.2025
+  # now knots are added within the main functions, and not via getknots()
+  add_separte_getknots_fun <- FALSE
+  
+  include_fun_c <- c(spfncname
+                     # , 'getx'  NOW NOT USING getx
+                     # , 'getknots'
+                     # , "X"
+                     , 'd0'
+                     , 'd1' 
+                     # , 'd2'
+                     )
+  
+  if(add_separte_getknots_fun) {
+    include_fun_c <- c('getknots', include_fun_c)
+  }
+  
+  backend <- eval(brms_arguments$backend)
+
+  vector_X_name <- "Xp"
+  
+  if (nys == 1)
+    resp_ <- ""
+  if (nys > 1)
+    resp_ <- paste0("_", y)
+  
+  XR_inv_name <- 'XR_inv'
+  XR_inv_name_resp <- paste0(XR_inv_name, resp_)
+  
+  b_sx_name <- 'b_sx'
+  b_sx_name_resp <- paste0('b', resp_, "_", 'sx')
+  
+  
+  iysxi <- 's'
+  setp <- paste0(iysxi, '')
+  setnlp <- paste0('nlp', resp_, '_', iysxi)
+  setnlp_vector <- paste0('b', resp_)
+  
+  
+  if (resp_ == "") {
+    szx_name <- paste0('s', 1:(SbasisN))
+    szx_name_resp <- paste0('b', "_", 's', 1:(SbasisN))
+  } else {
+    szx_name <- paste0('s', 1:(SbasisN))
+    szx_name_resp <- paste0('b', resp_, "_", szx_name)
+  }
+  
+  
+  b_s_name <- szx_name_resp
+  
+  # This in generated quantity block for QR
+  szxbq_vector <- paste0('v', resp_, "_", 's', 'x')
+  
+ 
+  ######################################################################
+  # funsi to transform and itransform
+  ######################################################################
+  # Search for 'funsi to transform and transform' for changes to new approach
+  # funsi to transform and itransform
+  
+  # Include xoffset in xfuntransformsi
+  # And, Make inverse ixfuntransformsi of xfuntransformsi
+  bodyoffun               <- deparse(body(xfuntransformsi))
+  addtobodyoffun          <- paste0("-", xoffset)
+  bodyoffun2              <- paste0(bodyoffun, addtobodyoffun)
+  body(xfuntransformsi)   <- str2lang(bodyoffun2)
+  
+  ixfuntransformsi        <- list()
+  ixfuntransformsi        <- inverse_transform(base::body(xfuntransformsi))
+  
+  
+  # Include sigmaxoffset in sigmaxfuntransformsi
+  # And, Make inverse sigmaixfuntransformsi of sigmaxfuntransformsi
+  if(!is.na(sigmaxsi) &  sigmaxsi != "NA") {
+    bodyoffun                  <- deparse(body(sigmaxfuntransformsi))
+    addtobodyoffun             <- paste0("-", sigmaxoffset)
+    bodyoffun2                 <- paste0(bodyoffun, addtobodyoffun)
+    body(sigmaxfuntransformsi) <- str2lang(bodyoffun2)
+    
+    sigmaixfuntransformsi      <- list()
+    sigmaixfuntransformsi      <- 
+      inverse_transform(base::body(sigmaxfuntransformsi))
+  } else {
+    sigmaxfuntransformsi       <- NULL
+    sigmaixfuntransformsi      <- NULL
+  }
+  
+ 
+  # Make inverse iyfuntransformsi of yfuntransformsi
+  iyfuntransformsi        <- list()
+  iyfuntransformsi        <- inverse_transform(base::body(yfuntransformsi))
+  
+  # sigma
+  sigmaiyfuntransformsi   <- list()
+  sigmaiyfuntransformsi   <- inverse_transform(base::body(sigmayfuntransformsi))
+  
+  ######################################################################
+  # funsi to transform and itransform
+  set_x_y_scale_factror <- function(xfunsi = NULL,
+                                    yfunsi = NULL,
+                                    xfuntransformsi = NULL,
+                                    yfuntransformsi = NULL,
+                                    ixfuntransformsi = NULL,
+                                    iyfuntransformsi = NULL,
+                                    tranformations = "identity") {
+    
+    scale_set_comb  <- tranformations
+    scale_set_comb1 <- paste(scale_set_comb, scale_set_comb, sep = "_")
+    scale_set_comb2 <- with(subset(expand.grid(scale_set_comb, scale_set_comb),
+                                   Var1 != Var2), paste0(Var1, '_', Var2))
+    scale_set_comb  <- c(scale_set_comb1, scale_set_comb2)
+    
+    ######################################################################
+    # funsi to transform and itransform
+    
+    xscale_set      <- strsplit(gsub_space(deparse(body(xfuntransformsi))), 
+                                "\\(")[[1]][1]
+    yscale_set      <- strsplit(gsub_space(deparse(body(yfuntransformsi))),
+                                "\\(")[[1]][1]
+ 
+    
+    if(xscale_set == "")      xscale_set      <- "identity"
+    if(yscale_set == "")      yscale_set      <- "identity"
+
+    # sqrt is same as ^0.5
+    if(grepl("\\^0.5$", xscale_set)) {
+      xscale_set      <- "sqrt"
+    }
+    if(grepl("\\^0.5$", yscale_set)) {
+      yscale_set      <- "sqrt"
+    }
+   
+    # new - the 'x' comes from the transformed function
+    if(grepl("^x", xscale_set)) {
+      xscale_set      <- "identity"
+    }
+    if(grepl("^x", yscale_set)) {
+      yscale_set      <- "identity"
+    }
+   
+    
+    # For some reason, even sqrt(x) is treated as (x) for d1 and d2
+    # Note here ixfuntransformsi will be converted from ixfuntransformsi again
+    
+    xfuntransformsi_set_out_xscaled <- xfuntransformsi
+    xfuntransformsi_set_out_xscaled_deparsed <- 
+      gsub_space(paste(deparse(xfuntransformsi_set_out_xscaled), collapse = ""))
+    
+    if(grepl("sqrt\\(", xfuntransformsi_set_out_xscaled_deparsed)) {
+      xfuntransformsi_set_out_xscaled <- 
+        gsub("sqrt", "",
+             xfuntransformsi_set_out_xscaled_deparsed, fixed = T)
+    } else if(grepl("\\^0.5$", xfuntransformsi_set_out_xscaled_deparsed)) {
+      xfuntransformsi_set_out_xscaled <- 
+        gsub("^0.5", "",
+             xfuntransformsi_set_out_xscaled_deparsed, fixed = T)
+    } else if(grepl("\\^.5$", xfuntransformsi_set_out_xscaled_deparsed)) {
+      xfuntransformsi_set_out_xscaled <- 
+        gsub("^.5", "",
+             xfuntransformsi_set_out_xscaled_deparsed, fixed = T)
+    } else {
+      xfuntransformsi_set_out_xscaled <- 
+        xfuntransformsi_set_out_xscaled_deparsed
+    }
+    
+    xfuntransformsi_set_out_xscaled <- 
+      str2lang(xfuntransformsi_set_out_xscaled) %>% eval()
+    
+    
+    ixfuntransformsi_set_out_xscaled <- 
+      inverse_transform(body(xfuntransformsi_set_out_xscaled))
+    
+    ixfuntransformsi_set_out_xscaled <- 
+      check_and_rename_funs_args_to_x(ixfuntransformsi_set_out_xscaled, 
+                                      checkname = 'Xm')
+    
+    set_out_xscaled <- deparse(body(ixfuntransformsi_set_out_xscaled))
+    
+    
+    if(xscale_set == "identity") {
+      xscale_factor_str_d1 <- paste0("rep_vector(1, N)", ";")
+      xscale_factor_str_d2 <- paste0("rep_vector(1, N)", ";")
+    } else if(xscale_set != "identity") {
+      xscale_factor_str_d1 <- paste0(set_out_xscaled, ";")
+      xscale_factor_str_d2 <- paste0(set_out_xscaled, ";")
+    }
+    
+    if (xscale_set == "identity" & yscale_set == "identity") {
+      # xscale_factor_str_d1 <- "rep_vector(1, N);"
+      # xscale_factor_str_d2 <- "rep_vector(1, N);"
+      yscale_factor_str_d1 <- "rep_vector(1, N);"
+      yscale_factor_str_d2 <- "rep_vector(1, N);"
+    } else if (xscale_set == "log" & yscale_set == "log") {
+      # xscale_factor_str_d1 <- "exp(Xm + xoffset);"
+      # xscale_factor_str_d2 <- "exp(Xm + xoffset);"
+      yscale_factor_str_d1 <- "(pred_d0);"
+      yscale_factor_str_d2 <- "(pred_d0);"
+    } else if (xscale_set == "sqrt" & yscale_set == "sqrt") {
+      # xscale_factor_str_d1 <- "(Xm + xoffset);"
+      # xscale_factor_str_d2 <- "(Xm + xoffset);"
+      yscale_factor_str_d1 <- "(sqrt(pred_d0));"
+      yscale_factor_str_d2 <- "(sqrt(pred_d0));"
+    } else if (xscale_set == "log" & yscale_set == "identity") {
+      # xscale_factor_str_d1 <- "exp(Xm + xoffset);"
+      # xscale_factor_str_d2 <- "exp(Xm + xoffset);"
+      yscale_factor_str_d1 <- "rep_vector(1, N);"
+      yscale_factor_str_d2 <- "rep_vector(1, N);"
+    } else if (xscale_set == "sqrt" & yscale_set == "identity") {
+      # xscale_factor_str_d1 <- "(Xm + xoffset);"
+      # xscale_factor_str_d2 <- "(Xm + xoffset);"
+      yscale_factor_str_d1 <- "rep_vector(0.5, N);"
+      yscale_factor_str_d2 <- "rep_vector(0.5, N);"
+    } else if (xscale_set == "identity" & yscale_set == "log") {
+      # xscale_factor_str_d1 <- "rep_vector(1, N);"
+      # xscale_factor_str_d2 <- "rep_vector(1, N);"
+      yscale_factor_str_d1 <- "(pred_d0);"
+      yscale_factor_str_d2 <- "(pred_d0);"
+    } else if (xscale_set == "sqrt" & yscale_set == "log") {
+      # xscale_factor_str_d1 <- "(Xm + xoffset);"
+      # xscale_factor_str_d2 <- "(Xm + xoffset);"
+      yscale_factor_str_d1 <- "(rep_vector(0.5, N) .* (pred_d0));"
+      yscale_factor_str_d2 <- "(rep_vector(0.5, N) .* (pred_d0));"
+    } else if (xscale_set == "identity" & yscale_set == "sqrt") {
+      # xscale_factor_str_d1 <- "rep_vector(1, N);"
+      # xscale_factor_str_d2 <- "rep_vector(1, N);"
+      yscale_factor_str_d1 <- "(rep_vector(2.0, N) .* sqrt(pred_d0));"
+      yscale_factor_str_d2 <- "(rep_vector(2.0, N) .* sqrt(pred_d0));"
+    } else if (xscale_set == "log" & yscale_set == "sqrt") {
+      # xscale_factor_str_d1 <- "exp(Xm + xoffset);"
+      # xscale_factor_str_d2 <- "exp(Xm + xoffset);"
+      yscale_factor_str_d1 <- "(rep_vector(2.0, N) .* sqrt(pred_d0));"
+      yscale_factor_str_d2 <- "(rep_vector(2.0, N) .* sqrt(pred_d0));"
+      ######################################################################
+      # funsi to transform and itransform
+      # belwo else is added when no log or sqrt
+      # Note that in this case d1 and d2 will be wrong, flag it in code
+      # only pred0 will be adjusted for 
+      # althogh xscale_factor_str_d1, override it for now
+    } else {
+      xscale_factor_str_d1 <- "rep_vector(1, N);"
+      xscale_factor_str_d2 <- "rep_vector(1, N);"
+      yscale_factor_str_d1 <- "rep_vector(1, N);"
+      yscale_factor_str_d2 <- "rep_vector(1, N);"
+    }
+  
+    
     list(
-      prior_str_arg = prior_str_arg_out,
-      lowerbound = lowerbound,
-      upperbound = upperbound,
-      stanvars_data = stanvars_data,
-      initial_out = initial_out
+      xscale_factor_str_d1 = xscale_factor_str_d1,
+      xscale_factor_str_d2 = xscale_factor_str_d2,
+      yscale_factor_str_d1 = yscale_factor_str_d1,
+      yscale_factor_str_d2 = yscale_factor_str_d2
     )
-  )
+    
+  } # end set_x_y_scale_factror
+  
+  
+  ######################################################################
+  
+  # Add QR
+  if (!is.null(decomp)) {
+    if (decomp == 'QR') {
+      decomp_code_qr <- "
+      int QK = cols(Spl);
+      matrix[N, QK] forgsub_QR_Xmat = Spl;
+      forgsub_QR_center
+      matrix[N, QK] XQ;
+      matrix[QK, QK] XR;
+      matrix[QK, QK] XR_inv;
+      XQ = qr_thin_Q(Qc) * forgsub_QR_scale;
+      XR = qr_thin_R(Qc) / forgsub_QR_scale;
+      XR_inv = inverse(XR);
+      "
+      decomp_code_qr <- gsub('forgsub_QR_Xmat', QR_Xmat, 
+                             decomp_code_qr, fixed = T)
+      
+      # When using within-chain parrallel, N is reduce sum based, not total N
+      if(is.null(QR_scale)) {
+        QR_scale_str   <- sqrt(length(data[[x]])-1)
+        QR_scale_str   <- round(QR_scale_str, 2)
+        QR_scale_str   <- deparse(QR_scale_str)
+      } else {
+        if(is.numeric(QR_scale)) {
+          QR_scale_str <- QR_scale
+          QR_scale_str   <- deparse(QR_scale_str)
+        } else if(is.character(QR_scale)) {
+          # QR_scale_str <- QR_scale
+          # QR_scale_str <- gsub("N","length(data[[x]])",QR_scale_str,fixed = T)
+          # QR_scale_str <- ept(QR_scale_str)
+          # QR_scale_str   <- round(QR_scale_str, 2)
+          # QR_scale_str   <- deparse(QR_scale_str)
+          QR_scale_str  <- QR_scale
+        } else {
+          stop("'QR_scale' must be a numeric or string such as sqrt(N-1)")
+        }
+      }
+      
+      decomp_code_qr <- gsub('forgsub_QR_scale', QR_scale_str, 
+                             decomp_code_qr, fixed = T)
+      
+      if(QR_center) {
+        QR_center_str <- "for(i in 1:QK) Qc[, i] = Qc[, i] - mean(Qc[, i]);"
+        decomp_code_qr <- gsub('forgsub_QR_center', QR_center_str, 
+                               decomp_code_qr, fixed = T)
+      } else {
+        decomp_code_qr <- gsub('forgsub_QR_center', "", 
+                               decomp_code_qr, fixed = T)
+      }
+      decomp_code_qr <- gsub("XR_inv", XR_inv_name, decomp_code_qr, fixed = T)
+    } # if (decomp == 'QR') {
+  } # if (!is.null(decomp)) {
+  
+
+  ######################################################################
+  
+  add_context_getknots_fun <-
+    "/* Knots
+ * xoffset and Knots already transformed:
+ * Returns:
+ * Knots
+ */"
+  
+  ##########
+  
+  ######################################################################
+  # funsi to transform and itransform
+  create_internal_function <-
+    function(y,
+             function_str,
+             fname,
+             fnameout,
+             spl_str,
+             splout,
+             xfunsi,
+             yfunsi,
+             # setxoffset,
+             gsub_out_unscaled,
+             body,
+             vectorA,
+             decomp,
+             fixedsi,
+             xfuntransformsi = NULL,
+             yfuntransformsi = NULL,
+             ixfuntransformsi = NULL,
+             iyfuntransformsi = NULL,
+             sigmaxfunsi = NULL,
+             sigmayfunsi = NULL,
+             sigmaxfuntransformsi = NULL,
+             sigmayfuntransformsi = NULL,
+             sigmaixfuntransformsi = NULL,
+             sigmaiyfuntransformsi = NULL
+             ) {
+      split1 <- strsplit(function_str, gsub("\\[", "\\\\[", spl_str))[[1]][-1]
+      split2 <- strsplit(split1, "return")[[1]][-2]
+      out <- gsub(split2, body, function_str, fixed = T)
+      out <- gsub(spl_str, splout, out, fixed = T)
+      out <- gsub(fname, fnameout, out, fixed = T)
+      
+      if (grepl("d0", fnameout)) {
+        out <- out
+      } else if (grepl("d1", fnameout) | grepl("d2", fnameout)) {
+        out <- gsub("return(A+", "return(0+", out, fixed = T)
+      }
+      
+      if (grepl("c", fixedsi, fixed = T)) {
+        if (grepl("d0", fnameout)) {
+          out <- gsub("]));", "]));", out, fixed = T)
+          out <-
+            gsub(
+              "end of spline function",
+              paste0("end of spline function", "_", y, "d", 0),
+              out,
+              fixed = T
+            )
+        } else if (grepl("d1", fnameout)) {
+          out <- gsub("]));", "]).*exp(c));", out, fixed = T)
+          out <-
+            gsub(
+              "end of spline function",
+              paste0("end of spline function", "_", y, "d", 1),
+              out,
+              fixed = T
+            )
+        } else if (grepl("d2", fnameout)) {
+          out <- gsub("]));", "]).*exp(c)^2);", out, fixed = T)
+          out <-
+            gsub(
+              "end of spline function",
+              paste0("end of spline function", "_", y, "d", 2),
+              out,
+              fixed = T
+            )
+        } else {
+          out <- out
+        }
+      }
+      
+      ####
+      if (grepl("d0", fnameout)) {
+        pattern <- "return\\(\\s*(.*?)\\s*\\);"
+        result <- regmatches(out, regexec(pattern, out))
+        out_unscaled <-
+          paste0("vector[N] out_unscaled=", result[[1]][2], ";")
+        
+        
+        if (!is.null(gsub_out_unscaled)) {
+          if (length(gsub_out_unscaled) != 2)
+            stop('Length of gsub_out_unscaled should be 2')
+          out_unscaled <-
+            gsub(gsub_out_unscaled[1],
+                 gsub_out_unscaled[2],
+                 out_unscaled,
+                 fixed = T)
+        }
+        
+     
+        iyfuntransformsi_set_out_yscaled <- 
+        check_and_rename_funs_args_to_x(iyfuntransformsi, 
+                                        checkname = 'out_unscaled')
+        
+        set_out_yscaled <- deparse(body(iyfuntransformsi_set_out_yscaled))
+
+        out_scaled <- paste0("    vector[N] out_scaled=", set_out_yscaled,";")
+        
+
+        ###############################################################
+        
+        out <- gsub(result[[1]][2], "out_scaled", out, fixed = T)
+        out_return <- paste0(out_unscaled, "\n", out_scaled)
+        
+        ######################################################################
+        
+        out_return <- paste0(vectorA,
+                             "\n    ",
+                             out_return)
+        
+        out_return_p <- paste0(out_return, "\n", "    return")
+        out <- gsub("return", out_return_p, out, fixed = T)
+        
+      } else if (grepl("d1", fnameout) | grepl("d2", fnameout)) {
+        pattern <- "return\\(\\s*(.*?)\\s*\\);"
+        result <- regmatches(out, regexec(pattern, out))
+        ######################################################################
+        # funsi to transform and itransform
+        if(dpar_function == "mu") {
+          set_x_y_scale <- set_x_y_scale_factror(
+            xfunsi                = xfunsi,
+            yfunsi                = yfunsi,
+            xfuntransformsi       = xfuntransformsi,
+            yfuntransformsi       = yfuntransformsi,
+            ixfuntransformsi      = ixfuntransformsi,
+            iyfuntransformsi      = iyfuntransformsi,
+            tranformations        = c("identity", "log", "sqrt"))
+        }
+        if(dpar_function == "sigma") {
+          set_x_y_scale <- set_x_y_scale_factror(
+            xfunsi                = sigmaxfunsi,
+            yfunsi                = sigmayfunsi,
+            xfuntransformsi       = sigmaxfuntransformsi,
+            yfuntransformsi       = sigmayfuntransformsi,
+            ixfuntransformsi      = sigmaixfuntransformsi,
+            iyfuntransformsi      = sigmaiyfuntransformsi,
+            tranformations        = c("identity", "log", "sqrt"))
+        }
+        
+        if (grepl("d1", fnameout)) {
+          xscale_factor <- set_x_y_scale[['xscale_factor_str_d1']]
+          yscale_factor <- set_x_y_scale[['yscale_factor_str_d1']]
+        } else if (grepl("d2", fnameout)) {
+          xscale_factor <- set_x_y_scale[['xscale_factor_str_d2']]
+          yscale_factor <- set_x_y_scale[['yscale_factor_str_d2']]
+        }
+        
+        xscale_factor <- gsub(";", "", xscale_factor)
+        yscale_factor <- gsub(";", "", yscale_factor)
+        out_unscaled <-
+          paste0("vector[N] out_unscaled=", result[[1]][2], ";")
+        out_scaled <- paste0(
+          "    vector[N] out_scaled=",
+          "(",
+          "(",
+          yscale_factor,
+          ")",
+          " .* ",
+          "(",
+          'out_unscaled',
+          ")",
+          ")",
+          " ./ ",
+          "(",
+          xscale_factor,
+          ")",
+          ";"
+        )
+        out <- gsub(result[[1]][2], "out_scaled", out, fixed = T)
+        out_return <- paste0(out_unscaled, "\n", out_scaled)
+        addpdo <- paste0("vector[N] pred_d0=", spl_fun_ford, ";")
+       
+        ######################################################################
+        out_return <- paste0(addpdo,
+                             "\n    ",
+                             out_return)
+        
+        out_return_p <- paste0(out_return, "\n", "    return")
+        
+        # add QR
+        if (!is.null(decomp)) {
+          if (decomp == 'QR') {
+            if (grepl("d1", fnameout)) {
+              out_return_p <- gsub(
+                vectorA,
+                paste0(vectorA, "\n", "XQ[,1] = rep_vector(1, N);"),
+                out_return_p,
+                fixed = T
+              )
+              out_return_p <-gsub(vectorA, "", out_return_p, fixed = T)
+            }
+            if (grepl("d2", fnameout)) {
+              out_return_p <- gsub(
+                vectorA,
+                paste0(vectorA, "\n", "XQ[,1] = rep_vector(0, N);"),
+                out_return_p,
+                fixed = T
+              )
+              out_return_p <- gsub(vectorA, "", out_return_p, fixed = T)
+            }
+          }
+        }
+        out <- gsub("return", out_return_p, out, fixed = T)
+      }
+      return(out)
+    }
+  
+  ######################################################################
+  # funsi to transform and itransform
+  create_internal_function_nonsitar <-
+    function(y,
+             function_str,
+             fname,
+             fnameout,
+             returnmu,
+             xfunsi,
+             yfunsi,
+             # setxoffset,
+             gsub_out_unscaled = NULL,
+             spl_fun_ford,
+             body,
+             decomp,
+             fixedsi,
+             xfuntransformsi = NULL,
+             yfuntransformsi = NULL,
+             ixfuntransformsi = NULL,
+             iyfuntransformsi = NULL,
+             sigmaxfunsi = NULL,
+             sigmayfunsi = NULL,
+             sigmaxfuntransformsi = NULL,
+             sigmayfuntransformsi = NULL,
+             sigmaixfuntransformsi = NULL,
+             sigmaiyfuntransformsi = NULL
+             ) {
+      out <- function_str
+      for_out <- gsub(fname, fnameout, out)
+      
+      ####
+      if (grepl("d0", fnameout)) {
+        out_unscaled <- paste0("vector[N] out_unscaled=", body, ";")
+        
+        if (!is.null(gsub_out_unscaled)) {
+          if (length(gsub_out_unscaled) != 2)
+            stop('Length of gsub_out_unscaled should be 2')
+          out_unscaled <-
+            gsub(gsub_out_unscaled[1],
+                 gsub_out_unscaled[2],
+                 out_unscaled,
+                 fixed = T)
+        }
+        
+       
+        iyfuntransformsi_set_out_yscaled <- 
+          check_and_rename_funs_args_to_x(iyfuntransformsi, 
+                                          checkname = 'out_unscaled')
+        
+        set_out_yscaled <- deparse(body(iyfuntransformsi_set_out_yscaled))
+        
+        out_scaled <- paste0("    vector[N] out_scaled=", set_out_yscaled,";")
+        
+        ###############################################################
+        
+        out_return <- paste0(out_unscaled, "\n", out_scaled)
+       
+        ######################################################################
+        
+        out_return_p <- paste0(out_return, "\n", "    return")
+        out_scaled_with_parentehsis <-
+          paste0("(", 'out_scaled', ")")
+        out <- paste(out_return_p, out_scaled_with_parentehsis, ";")
+        out <- paste0(gsub("return.*", "", for_out),
+                      out,
+                      "\n}")
+        
+      } else if (grepl("d1", fnameout) | grepl("d2", fnameout)) {
+        ######################################################################
+        # funsi to transform and itransform
+        if(dpar_function == "mu") {
+          set_x_y_scale <- set_x_y_scale_factror(
+            xfunsi                = xfunsi,
+            yfunsi                = yfunsi,
+            xfuntransformsi       = xfuntransformsi,
+            yfuntransformsi       = yfuntransformsi,
+            ixfuntransformsi      = ixfuntransformsi,
+            iyfuntransformsi      = iyfuntransformsi,
+            tranformations        = c("identity", "log", "sqrt"))
+        }
+        if(dpar_function == "sigma") {
+          set_x_y_scale <- set_x_y_scale_factror(
+            xfunsi                = sigmaxfunsi,
+            yfunsi                = sigmayfunsi,
+            xfuntransformsi       = sigmaxfuntransformsi,
+            yfuntransformsi       = sigmayfuntransformsi,
+            ixfuntransformsi      = sigmaixfuntransformsi,
+            iyfuntransformsi      = sigmaiyfuntransformsi,
+            tranformations        = c("identity", "log", "sqrt"))
+        }
+        
+        if (grepl("d1", fnameout)) {
+          xscale_factor <- set_x_y_scale[['xscale_factor_str_d1']]
+          yscale_factor <- set_x_y_scale[['yscale_factor_str_d1']]
+        } else if (grepl("d2", fnameout)) {
+          xscale_factor <- set_x_y_scale[['xscale_factor_str_d2']]
+          yscale_factor <- set_x_y_scale[['yscale_factor_str_d2']]
+        }
+        
+        xscale_factor <- gsub(";", "", xscale_factor)
+        yscale_factor <- gsub(";", "", yscale_factor)
+        out_unscaled <- paste0("vector[N] out_unscaled=", body, ";")
+        out_scaled <-
+          paste0(
+            "    vector[N] out_scaled=",
+            "(",
+            "(",
+            yscale_factor,
+            ")",
+            " .* ",
+            "(",
+            'out_unscaled',
+            ")",
+            ")",
+            " ./ ",
+            "(",
+            xscale_factor,
+            ")",
+            ";"
+          )
+        addpdo <- paste0("vector[N] pred_d0=", spl_fun_ford, ";")
+        out_return <- paste0(out_unscaled, "\n", out_scaled)
+      
+        ######################################################################
+        out_return <- paste0(addpdo,
+                             "\n    ",
+                             out_return)
+        
+        
+        out_return_p <- paste0(out_return, "\n", "    return")
+        out_scaled_with_parentehsis <-
+          paste0("(", 'out_scaled', ")")
+        out <- paste(out_return_p, out_scaled_with_parentehsis, ";")
+        out <- paste0(gsub("return.*", "", for_out),
+                      out,
+                      "\n}")
+      }
+      return(out)
+    }
+  
+  ##########
+  # covers all sitar models
+  # if(grepl("^sitar", select_model)) {
+  #   select_model <- 'sitar'
+  # }
+  
+  if (select_model == 'sitar' | select_model == 'rcs') {
+    abcnames <-
+      paste0(strsplit(gsub("\\+", " ", fixedsi), " ")[[1]], sep = ",")
+    
+    snames <- c()
+    for (i in 1:(SbasisN)) {
+      if (i < (SbasisN)) {
+        name1 <- paste0("s", i, sep = ",")
+      }
+      else {
+        name1 <- paste0("s", i, sep = "")
+      }
+      snames[i] <- name1
+    }
+    
+    
+    # add smat_sfirst
+    if(smat_sfirst) {
+      smat_sfirst_vector_c <- c()
+      for (i in 1:(SbasisN)) {
+        sfirst_vectori <- paste0("sfirst_vector[", i, "]", " = ", 
+                                 paste0("s", i, sep = ""), "[", 1, "]", ";")
+        smat_sfirst_vector_c <- c(smat_sfirst_vector_c, sfirst_vectori)
+      }
+      smat_sfirst_vector_c2  <- paste(smat_sfirst_vector_c, collapse = "\n") 
+      smat_sfirst_vector_str <- paste0("vector[", 'SbasisN', "]", 
+                                       " ", "sfirst_vector;")
+      smat_sfirst_vector_str <- paste0(smat_sfirst_vector_str, "\n", 
+                                       smat_sfirst_vector_c2)
+    }
+    
+    # For _d1 (and even for _d0), the full matrix is used for predictions
+    if(smat_sfirst | !smat_sfirst) {
+      smat_sfull_matrix_c <- c()
+      for (i in 1:(SbasisN)) {
+        sfull_matrixi <- paste0("sfull_matrix[, ", i, "]", " = ", 
+                                 paste0("s", i, sep = ""), "", ";")
+        smat_sfull_matrix_c <- c(smat_sfull_matrix_c, sfull_matrixi)
+      }
+      smat_sfull_matrix_c2  <- paste(smat_sfull_matrix_c, collapse = "\n") 
+      smat_sfull_matrix_c_str <- paste0("matrix[", "N", ", ", 'SbasisN', "]", 
+                                       " ", "sfull_matrix;")
+      smat_sfull_matrix_str <- paste0(smat_sfull_matrix_c_str, "\n", 
+                                       smat_sfull_matrix_c2)
+    }
+    
+    
+    
+    # For some reasons, 'sitar' (Tim Cole) allows random only 'd' parameter
+    # In fact for df > 1, it forces 'd' to be random parameter only
+    if (match_sitar_d_form) {
+      if (!grepl("d", fixedsi, fixed = T) &
+          grepl("d", randomsi, fixed = T)) {
+        abcnames <- c(abcnames, "d,")
+      }
+    }
+    
+    
+    if (select_model == 'sitar' | select_model == 'rcs') {
+      if (any(grepl("s", abcnames)))
+        abcnames <- abcnames[-length(abcnames)]
+      if (match_sitar_d_form)
+        abcnames <- gsub('s', 'd', abcnames, fixed = T)
+    }
+    
+    fullabcsnames <- c(abcnames, snames)
+    fullabcsnames_v <-
+      paste("vector", fullabcsnames, collapse = " ")
+    
+    if (select_model == 'sitar') {
+      fullabcsnames_for_mat <- abcnames
+      fullabcsnames_for_mat <-
+        gsub('.{1}$', '', fullabcsnames_for_mat)
+      fullabcsnames_v_for_mat <-
+        paste("vector", fullabcsnames_for_mat, collapse = ", ")
+    }
+    
+    if (select_model == 'rcs') {
+      fullabcsnames_for_mat <- 'a'
+      fullabcsnames_v_for_mat <-
+        paste("vector", fullabcsnames_for_mat, collapse = " ")
+    }
+
+    if (grepl("b", fixedsi, fixed = T) &
+        grepl("c", fixedsi, fixed = T)) {
+      defineEx <- paste0("(Xm-b).*exp(c)")
+    }
+    if (grepl("b", fixedsi, fixed = T) &
+        !grepl("c", fixedsi, fixed = T)) {
+      defineEx <- paste0("(Xm-b)")
+    }
+    if (!grepl("b", fixedsi, fixed = T) &
+        grepl("c", fixedsi, fixed = T)) {
+      defineEx <- paste0("(Xm).*exp(c)")
+    }
+    if (!grepl("b", fixedsi, fixed = T) &
+        !grepl("c", fixedsi, fixed = T)) {
+      defineEx <- paste0("(Xm)")
+    }
+    
+    
+   
+    ######################################################################
+    
+    # 22.07.2025
+    if(!add_separte_getknots_fun) {
+      knots_stan_str <- paste0("[",paste(knots, collapse = ","),"]'")
+      add_knotinfo_str <- paste0( "\n  vector[nknots] knots=",
+                                  knots_stan_str,  ";")
+      add_knotinfo_str <- paste0(add_knotinfo_str, "\n")
+    } else {
+      add_knotinfo_str <-       paste0(
+        "\n  vector[nknots] knots=",
+        paste0(getknotsname, "(", '', ")"),
+        ";")
+      add_knotinfo_str <- paste0(add_knotinfo_str, "\n")
+    }
+    
+    
+    # 22.07.2025
+    add_knotinfo <- paste0(
+      "\n  int N=num_elements(",
+      vector_X_name,
+      ");",
+      paste0(
+        "\n  vector[N] Xm=",
+        paste0("",
+               "", vector_X_name, ""),
+        ";"
+      ),
+      paste0("\n  vector[N] X=", defineEx, ";"),
+      paste0("\n  int nknots=", eval(parse(text = nknots)), ";"),
+      
+      paste0("\n  int SbasisN=", SbasisN, ";"),
+      
+      # paste0(
+      #   "\n  vector[nknots] knots=",
+      #   paste0(getknotsname, "(", '', ")"),
+      #   ";"
+      # )
+      add_knotinfo_str
+    )
+    
+    # what_to_print <- "print(size(Xp));print(min(Xp));print(max(Xp));"
+    # add_knotinfo <- paste0(add_knotinfo, "\n", what_to_print)
+    
+    knots_split <- 
+      "vector[nknots-2] iknotsx;
+      vector[2]         bknotsx;
+      iknotsx  = segment(knots, 2, nknots-2);
+      bknotsx = append_row(head(knots, 1), tail(knots, 1));
+    "
+    
+    if(fast_nsk) {
+      add_knotinfo_without_addingknots_split <- add_knotinfo
+    }
+    
+    add_knotinfo <- paste0(add_knotinfo, knots_split)
+    
+    # add QR
+    if (select_model == 'sitar') {
+      if (is.null(decomp)) {
+        if( match_sitar_a_form) vectorA <- "\n  vector[N] A=a-(s1*min(knots));"
+        if(!match_sitar_a_form) vectorA <- "\n  vector[N] A=a;"
+      } else if (!is.null(decomp)) {
+        if (decomp == 'QR') {
+          # A=a-(s1*min(knots));"
+          if( match_sitar_a_form) vectorA <- "\n  vector[N] A=a+(s1);"
+          if(!match_sitar_a_form) vectorA <- "\n  vector[N] A=a;"
+        } # if (decomp == 'QR') {
+      } # if (!is.null(decomp)) {
+    } # if (select_model == 'sitar') {
+    
+    
+    if (select_model == 'sitar') { 
+      if(smat == 'nsk' | smat == 'nsp') {
+        if(smat_intercept) {
+        #  vectorA <- "\n  vector[N] A=a.*Spl[,1];"
+        } # if(smat_intercept) {
+      } # if(smat == 'nsk'smat == 'nsp') {
+    }
+    
+    if (select_model == 'rcs') {
+      vectorA <- "\n  vector[N] A=a;"
+    }
+   
+    if(parm_link_log) {
+      vectorA <- "\n  vector[N] A=exp(a);"
+    }
+   
+    if(!dparm_set_fixed_or_random) {
+      if(smat_intercept == 0) {
+        intercept_str <- "int intercept = 0;"
+        matrix_cols_str <- "matrix[N, SbasisN] Spl;\n"
+      } else if(smat_intercept == 1) {
+        intercept_str <- "int intercept = 1;"
+        # intercept issue
+        if(smat == 'rcs') {
+          matrix_cols_str <- "matrix[N, SbasisN+1] Spl;\n"
+        } else {
+          matrix_cols_str <- "matrix[N, SbasisN] Spl;\n"
+        }
+        # matrix_cols_str <- "matrix[N, SbasisN+1] Spl;\n"
+      }
+    } else if(dparm_set_fixed_or_random) {
+      if(dparm_part_of_SplQc) {
+        if(smat_intercept == 0) {
+          intercept_str <- "int intercept = 0;"
+          matrix_cols_str <- "matrix[N, SbasisN+1] Spl;\n"
+        } else if(smat_intercept == 1) {
+          intercept_str <- "int intercept = 1;"
+          # intercept issue
+          if(smat == 'rcs') {
+            matrix_cols_str <- "matrix[N, SbasisN+1+1] Spl;\n"
+          } else {
+            matrix_cols_str <- "matrix[N, SbasisN+1] Spl;\n"
+          }
+          # matrix_cols_str <- "matrix[N, SbasisN+1+1] Spl;\n"
+        }
+      } # if(dparm_part_of_SplQc) {
+      if(!dparm_part_of_SplQc) {
+        if(smat_intercept == 0) {
+          intercept_str <- "int intercept = 0;"
+          matrix_cols_str <- "matrix[N, SbasisN] Spl;\n"
+        } else if(smat_intercept == 1) {
+          intercept_str <- "int intercept = 1;"
+          # intercept issue
+          if(smat == 'rcs') {
+            matrix_cols_str <- "matrix[N, SbasisN+1] Spl;\n"
+          } else {
+            matrix_cols_str <- "matrix[N, SbasisN] Spl;\n"
+          }
+          # matrix_cols_str <- "matrix[N, SbasisN+1] Spl;\n"
+        }
+      }
+    } # if(!dparm_set_fixed_or_random) { else if(dparm_set_fixed_or_random) {
+   
+    
+    
+    if(smat_preH) {
+      bknots   <- c(knots[1], knots[length(knots)])
+      iknots   <- knots[2:(length(knots)-1)]
+      allknots <- c(rep(bknots[1], 4), iknots, rep(bknots[2], 4))
+      precomputedH_R <- GS_getH(allknots, smat_normalize)
+      
+      precomputedH_R_str <- "GS_getH(allknots, smat_normalize)"
+      
+      
+      precomputedH_c <- list()
+      for (i in 1:nrow(precomputedH_R)) {
+        getrowx <- precomputedH_R[i, ]
+        getrowx <- deparse(getrowx)
+        getrowx <- gsub("c(", "[", getrowx, fixed = T)
+        getrowx <- gsub(")", "]", getrowx, fixed = T)
+        precomputedH_c[[i]] <- getrowx
+      }
+      precomputedH_c <- paste(unlist(precomputedH_c), collapse = ",")
+      precomputedH_Stan <- paste0("[", precomputedH_c, "];")
+    }
+    
+
+    
+    if(smat_preH) {
+      setMatpreH_for_functions_R <- "
+      bknots   = c(knots[1], knots[length(knots)])
+      iknots   = knots[2:(length(knots)-1)]
+      allknots = c(rep(bknots[1], 4), iknots, rep(bknots[2], 4))
+      MatpreH  = GS_getH(allknots, smat_normalize)"
+    } else {
+      setMatpreH_for_functions_R = "MatpreH <- matrix(1, 1)" 
+    }
+    
+    setMatpreH         <- NULL
+    SplinefunxStan_str <- 
+      "X, iknotsx, bknotsx, degree, intercept, derivs, centerval, normalize, preH"
+    
+    
+    intercept_str_plus_str <- 
+    paste0("int derivs = ", 0, ";",
+           "\n",
+           "int degree = ", smat_degree,  ";",
+           "\n",
+           "real centerval = ", smat_centerval,  ";",
+           "\n",
+           "int normalize = ", smat_normalize,  ";",
+           "\n",
+           "int preH = ", smat_preH,  ";",
+           "\n",
+           "int sfirst = ", smat_sfirst,  ";",
+           "\n",
+           "int sparse = ", smat_sparse,  ";",
+           "\n",
+           matrix_cols_str
+           )
+    
+    
+    # do this for intercept_str_plus_str_d0, _d1, _d2 
+    intercept_str_plus_str <- paste0(intercept_str_plus_str, setMatpreH)
+    
+    
+    # "\nspl = ", -> "Spl = ", 
+    
+    
+    if (!dparm_set_fixed_or_random) {
+      fun_body_str <- paste0("Spl = ", 
+                             SplinefunxStan, 
+                             "(", 
+                             SplinefunxStan_str,
+                             ")",
+                             ";")
+    } else if (dparm_set_fixed_or_random) {
+      if(!dparm_part_of_SplQc) {
+        fun_body_str <- paste0("Spl = ", 
+                               SplinefunxStan, 
+                               "(", 
+                               SplinefunxStan_str,
+                               ")",
+                               ";")
+      } # if(!dparm_part_of_SplQc) {
+      fun_body_str <- paste0("\n", fun_body_str)
+    } # if (!dparm_set_fixed_or_random) { else if (dparm_set_fixed_or_random) {
+    
+    
+    # dparm_set_fixed_or_random <- FALSE
+    if(dparm_set_fixed_or_random) {
+      if(dparm_part_of_SplQc) {
+        if(ept(d_adjustedsi)) {
+          dpredictor_str <- "X"
+        } else {
+          dpredictor_str <- "Xm"
+        }
+        fun_body_str <- paste0("Spl = ", 
+                               "append_col(",
+                               SplinefunxStan, 
+                               "(", 
+                               SplinefunxStan_str, 
+                               ")",
+                               ",dpredictor)",
+                               ";")
+        dpredictor_str <- paste0("vector[N] dpredictor = ", dpredictor_str, ";")
+        fun_body_str <- paste0(dpredictor_str, "\n", fun_body_str)
+      } # if(dparm_part_of_SplQc) {
+    } # if(dparm_set_fixed_or_random) {
+    
+    
+    
+    # cat(fun_body_str)
+    # stop()
+    
+    
+    
+    fun_body <- fun_body_str
+    fun_body <- paste0("\n", intercept_str, "\n", 
+                       intercept_str_plus_str, "\n", fun_body)
+    
+   
+    
+    
+    # intercept issue
+    # name4 <- c()
+    # for (i in 1:(SbasisN)) {
+    #   name1 <- paste0("", "s", i, sep = "")
+    #   if (i < (SbasisN)) {
+    #     name2 <- paste0(' .* Spl[,', i, "] +")
+    #     # intercept issue - SbasisN remains same intercept T/F for splines2
+    #     # intercept issue
+    #     if(smat == 'nsk' | smat == 'nsp') {
+    #       if(smat_intercept) {
+    #         name2  <- paste0(' .* Spl[,', i, "+intercept] +")
+    #       } 
+    #     } 
+    #   }
+    #   else {
+    #     name2 <- paste0(' .* Spl[,', i, "]")
+    #   }
+    #   name3 <- paste0(name1, name2, sep = "")
+    #   name4[i] <- name3
+    # }
+    
+    
+    
+    
+    # intercept issue
+    # intercept issue - double check paste0(' .* Spl[,', i, "+intercept] +")
+    name4 <- c()
+    for (i in 1:(SbasisN)) {
+      name1 <- paste0("", "s", i, sep = "")
+      if (i < (SbasisN)) {
+        name2 <- paste0(' .* Spl[,', i, "] +")
+        # intercept issue
+        # if(smat == 'nsk' | smat == 'nsp') {
+        #   if(smat_intercept) {
+        #     name2  <- paste0(' .* Spl[,', i, "+intercept] +")
+        #   } 
+        # } 
+        name2 <- paste0(' .* Spl[,', i, "] +")
+      }
+      else {
+        name2 <- paste0(' .* Spl[,', i, "]")
+      }
+      name3 <- paste0(name1, name2, sep = "")
+      name4[i] <- name3
+    }
+    
+    
+    
+    name50   <- paste("", name4, collapse = " ")
+    
+    nameadja <- "A"
+    
+   
+    
+    ###########
+    # For some reasons, 'sitar' (Tim Cole) allows random only 'd' parameter
+    # In fact for df > 1, it forces 'd' to be random parameter only
+    
+    # dparm_set_fixed_or_random <- FALSE
+    # if (match_sitar_d_form) {
+    #   if (grepl("d", randomsi, fixed = T)) {
+    #     # if( ept(d_adjustedsi)) nameadja <- "A+(d . * X)"
+    #     # # if( ept(d_adjustedsi)) nameadja <- "A+(d . * Spl[,1])"
+    #     # if(!ept(d_adjustedsi)) nameadja <- "A+(d . * Xm)"
+    #     # dparm_set_fixed_or_random <- TRUE
+    #     if( ept(d_adjustedsi)) nameadja_dparm <- "(d .* X)"
+    #     if(!ept(d_adjustedsi)) nameadja_dparm <- "(d .* Xm)"
+    #     nameadja <- paste0("A+", nameadja_dparm)
+    #   }
+    # }
+    # 
+    # if (!match_sitar_d_form) {
+    #   if (grepl("d", fixedsi, fixed = T)) {
+    #     # if( ept(d_adjustedsi)) nameadja <- "A+(d . * X)"
+    #     # # if( ept(d_adjustedsi)) nameadja <- "A+(d . * Spl[,1])"
+    #     # if(!ept(d_adjustedsi)) nameadja <- "A+(d . * Xm)"
+    #     # dparm_set_fixed_or_random <- TRUE
+    #     if( ept(d_adjustedsi)) nameadja_dparm <- "(d .* X)"
+    #     if(!ept(d_adjustedsi)) nameadja_dparm <- "(d .* Xm)"
+    #     nameadja <- paste0("A+", nameadja_dparm)
+    #   }
+    # }
+    
+    
+    
+    if(dparm_set_fixed_or_random) {
+      if(!dparm_part_of_SplQc) {
+        if( ept(d_adjustedsi)) nameadja_dparm <- "(d .* X)"
+        if(!ept(d_adjustedsi)) nameadja_dparm <- "(d .* Xm)"
+        nameadja <- paste0("A+", nameadja_dparm)
+      }
+    }
+    
+    
+    if(dparm_set_fixed_or_random) {
+      if(dparm_part_of_SplQc) {
+        nameadja_dparm <- paste0("(", "d .* ", "Spl[,", SbasisN+1, "]", ")")
+        nameadja <- paste0("A+", nameadja_dparm)
+      }
+    }
+    
+    # cat(nameadja)
+    # stop()
+    
+    
+    # if (!is.null(decomp)) {
+    #   if (decomp == 'QR') {
+    #     nameadja <- gsub("X", paste0("XQ[,", SbasisN+1, "]"), 
+    #                      nameadja, fixed = T)
+    #   }
+    # }
+    
+    
+    
+    # This belwo to replace linear term for derivatives
+    if(dparm_set_fixed_or_random) {
+      if(!dparm_part_of_SplQc) {
+        gsubby_nameadja_dparm    <- nameadja_dparm
+        gsubit_nameadja_dparm_d1 <- "(d * 1.0)"
+        gsubit_nameadja_dparm_d2 <- "(d * 0.0)"
+      }
+    }
+    
+
+    name5 <- paste(" (", name50, ");\n")
+    
+    if (grepl("c", fixedsi, fixed = T)) {
+      name51 <- paste(" (", name50, ") .* exp(c) ;\n")
+      name52 <- paste(" (", name50, ") .* exp(c)^2 ;\n")
+    }
+    if (!grepl("c", fixedsi, fixed = T)) {
+      name51 <- paste(" (", name50, ") ;\n")
+      name52 <- paste(" (", name50, ") ;\n")
+    }
+    
+    returnmu <-
+      paste0("return(",   paste0(nameadja, "+",
+                                 gsub(";", "", name5))     , ");")
+    
+    
+    
+    # need spaces otherwise rstan 2.21 throws error: variable s1. not found
+    returnmu <- gsub("\\s", "", returnmu)
+    returnmu <- gsub("\\." , " \\." , returnmu, fixed = FALSE)
+    returnmu <- gsub("\\*" , "\\* " , returnmu, fixed = FALSE)
+    
+    
+    if(smat_moi) {
+      for (i in 1:(SbasisN)) {
+        name1.org <- paste0("s", i, sep = "")
+        name1.org_exact <- paste0("\\b", name1.org, "\\b")
+        # name1.abs <- paste0("log1p_exp(", name1.org, ")")
+        name1.abs <- paste0("abs(", name1.org, ")")
+        returnmu <- gsub(name1.org_exact, name1.abs, returnmu, fixed = F)
+      }
+    }
+    
+   
+    
+   
+    ######################################################################
+    
+    # add QR
+    if (!is.null(decomp)) {
+      if (decomp == 'QR') {
+        returnmu <- gsub('Spl', 'XQ', returnmu, fixed = T)
+        decomp_code_qr_vectorA <- paste0(decomp_code_qr, vectorA)
+        returnmu <- gsub('Spl', 'XQ', returnmu, fixed = T)
+      }
+    } else if (is.null(decomp)) {
+      decomp_code_qr_vectorA <- NULL
+    }
+    
+
+    
+    if (is.null(decomp)) {
+      fun_body <- paste0(fun_body, "\n", vectorA)
+    }
+    
+    
+    endof_fun <-
+      paste0("\n    ", returnmu, "\n  } // end of spline function", sep = " ")
+    
+    
+    
+    
+    start_fun <-
+      paste0(
+        "\nvector ",
+        spfncname,
+        "(vector ",
+        vector_X_name,
+        ", ",
+        fullabcsnames_v,
+        ") {" ,
+        collapse = " "
+      )
+    
+    
+    
+    
+    ######################################################################
+    # Remove empty lines from code strings
+    # remove_spaces_and_tabs <- function(x) {
+    #   if(!is.null(x)) {
+    #     x <- gsub("^ *|(?<= ) | *$", "", x, perl = TRUE)
+    #     # '\\L\\1' converts first letter beyoind .* to lower
+    #     # x <- gsub("(\\..*?[A-Z]|^[A-Z])", '\\L\\1', x, perl=T)
+    #     x <- gsub("(\\..*?[A-Z]|^[A-Z])", '\\1', x, perl=T)
+    #     x <- x[x != ""]
+    #     x <- gsub("\\s*\n\\s*","\n",x) 
+    #     xx <- x
+    #   } else {
+    #     xx <- x
+    #   }
+    #   return(xx)
+    # }
+    
+    
+    ######################################################################
+    
+    rcsfun <- paste(start_fun,
+                    add_knotinfo,
+                    fun_body,
+                    endof_fun)
+    
+    
+    if(fast_nsk) {
+      fast_nsk_body <- "
+      vector[SbasisN+1] yknots;
+      vector[SbasisN+1] spl_coeffs;
+      array[N] int x_pos_knots;"
+      
+      nknotsxxi_c <- c()
+      for(nknotsxxi in 1:(SbasisN+1)) {
+        if(nknotsxxi == 1) {
+          addxx <- "yknots[1] = 0;"
+        } else {
+          addxx <- paste0("  yknots[", nknotsxxi, "] = ", "s", 
+                          nknotsxxi-1, "[1];" )
+        }
+        nknotsxxi_c <- c(nknotsxxi_c, addxx)
+      }
+      nknotsxxi_c <- paste(nknotsxxi_c, collapse = "\n")
+      
+      
+      
+      add_to_nknotsxxi_c <- "
+      //     vector[SbasisN+1] xknots = knots;
+      vector[SbasisN+1] xknots = (knots - mean(b) )  ;
+      vector[N] btemp =  rep_vector(0.0, N);
+      vector[N] ctemp =  rep_vector(0.0, N);
+      //  vector[N] X2 = Xm - b;
+      spl_coeffs = spline_getcoeffs( knots, yknots ) ;
+      x_pos_knots = spline_findpos( knots, X, b, exp(ctemp) ) ;
+      vector[N] add_spl = spline_eval(knots, yknots, spl_coeffs, X, x_pos_knots);
+      vector[N] A=a;"
+      
+      endof_fun_fast_nsk <- "
+      return(A+add_spl);
+      } // end of spline function"
+      
+      fast_nsk_body <- paste(fast_nsk_body, nknotsxxi_c, add_to_nknotsxxi_c)
+      
+      fast_nsk_rcsfun <-
+        paste(start_fun,
+              add_knotinfo_without_addingknots_split,
+              fast_nsk_body,
+              endof_fun_fast_nsk)
+    } # if(fast_nsk) {
+    
+    
+    
+    ######################################################################
+    # funsi to transform and itransform
+    # add this block because setxoffset was replaced with decomp_code_qr_vectorA
+    if (!is.null(decomp)) {
+      if (decomp == 'QR') {
+        rcsfun <-
+          paste(start_fun,
+                add_knotinfo,
+                fun_body,
+                "\n",
+                decomp_code_qr_vectorA,
+                endof_fun)
+      }
+    }
+    ######################################################################
+    
+    
+    # cat(rcsfun)
+    # stop()
+    
+    
+    rcsfun_raw <- rcsfun
+
+    spfncname_multadd <- paste0(spfncname, "X")
+    
+    start_fun_multadd <-
+      paste0(
+        "\nvector ",
+        spfncname_multadd,
+        "(matrix ",
+        vector_X_name,
+        ", ",
+        fullabcsnames_v,
+        ") {" ,
+        "\n",
+        "  int N=num_elements(",
+        vector_X_name,
+        "[,1]);",
+        "\n",
+        "  vector[N] Xm=(",
+        vector_X_name,
+        "[,1]);",
+        # getX
+        # "\n",
+        # insert_getX_name,
+        collapse = " "
+      )
+    
+    
+    # 22.07.2025
+    add_knotinfo_multadd <- paste0(
+      "\n  int mcolsmat=cols(",
+      vector_X_name,
+      ");",
+      # paste0(
+      #   "\n  vector[mcolsmat+1] knots=",
+      #   paste0(getknotsname, "(", '', ")"),
+      #   ";"
+      # )
+      add_knotinfo_str
+    )
+    
+    returnmu_multadd <- returnmu
+    returnmu_multadd <- gsub("XQ",  vector_X_name, returnmu_multadd, fixed = T)
+    returnmu_multadd <- gsub("Spl", vector_X_name, returnmu_multadd, fixed = T)
+    
+    start_fun_multadd <-
+      gsub(",)" , ")" , start_fun_multadd, fixed = TRUE)
+    endof_fun <- paste0("\n    ",
+                        returnmu_multadd,
+                        ";",
+                        "\n  } // end of spline mat function",
+                        sep = " ")
+    
+    endof_fun <- gsub(";;", ";", endof_fun, fixed = T)
+    
+    
+    start_fun_multadd <- paste0(start_fun_multadd, "\n",
+                                paste0("int intercept = ", smat_intercept, ";",
+                                       "\n",
+                                       "int derivs = ", 0, ";",
+                                       "\n",
+                                       "int degree = ", smat_degree,  ";",
+                                       "\n",
+                                       "real centerval = ", smat_centerval, ";",
+                                       "\n",
+                                       "int normalize = ", smat_normalize,  ";"
+                                ))
+    
+    
+    # paste0(spfncname, "X")
+    
+    # vectorAx <- "\n  vector[N] A=a.*Spl[,1];"
+    vectorAx <- gsub("Spl", vector_X_name, vectorA, fixed = T)
+
+    if (grepl('s1', vectorA)) {
+      rcsfunmultadd <-
+        paste(start_fun_multadd,
+              add_knotinfo_multadd,
+              vectorAx,
+              endof_fun)
+    } else {
+      rcsfunmultadd <- paste(start_fun_multadd, vectorAx, endof_fun)
+    }
+    
+    
+   
+    
+    add_rcsfunmat <- TRUE
+    add_rcsfunmatqr <- TRUE
+    add_rcsfunmatqrinv <- TRUE
+    
+    
+    funmats <- paste0('', '')
+    
+    if (add_rcsfunmat) {
+      rcsfunmat_name <- paste0(spfncname, 'smat', '')
+      start_funmat <-
+        paste0(
+          "\nmatrix ",
+          rcsfunmat_name,
+          "(vector ",
+          vector_X_name,
+          ", ",
+          fullabcsnames_v_for_mat,
+          ") {" ,
+          collapse = " "
+        )
+      
+     
+      ######################################################################
+      rcsfunmat <-
+        paste(start_funmat,
+              add_knotinfo,
+              fun_body,
+              "\n",
+              vectorA)
+      
+      
+      rcsfunmat <- gsub(vectorA, "", rcsfunmat, fixed = T)
+      rcsfunmat <- paste0(rcsfunmat, "\n", 'return Spl;')
+      rcsfunmat <- paste0(rcsfunmat, '\n}')
+      funmats <- paste0(funmats, "\n", rcsfunmat)
+    }
+    
+    if (add_rcsfunmatqr) {
+      rcsfunmatgr_name <- paste0(spfncname, 'QRsmat', '')
+      
+      start_funmat <-
+        paste0(
+          "\nmatrix ",
+          rcsfunmatgr_name,
+          "(vector ",
+          vector_X_name,
+          ", ",
+          fullabcsnames_v_for_mat,
+          ") {" ,
+          collapse = " "
+        )
+    
+      ######################################################################
+      
+      # add QR
+      # rcsfunmatqr <- paste(start_funmat, add_knotinfo, fun_body)
+      fun_bodyqr <- paste0(fun_body, "\n", decomp_code_qr_vectorA)
+      rcsfunmatqr <- paste(start_funmat, add_knotinfo, fun_bodyqr)
+      
+      rcsfunmatqr <- gsub(vectorA, "", rcsfunmatqr, fixed = T)
+      
+      szx <- paste0('s', 1:(SbasisN))
+      cnt <- 0
+      cn_c <- c()
+      for (vi in szx) {
+        cnt <- cnt + 1
+        tmx <-
+          paste0(
+            paste0('s', 'x', '[,', cnt, "]", " = "),
+            XR_inv_name_resp,
+            '[',
+            cnt,
+            ",",
+            cnt,
+            "] * ",
+            vi,
+            ";"
+          )
+        cn_c <- c(cn_c, tmx)
+      }
+      rcsfunmatqr <- paste0(rcsfunmatqr, "\n", 'return XQ;')
+      rcsfunmatqr <- paste0(rcsfunmatqr, '\n}')
+      funmats <- paste0(funmats, "\n", rcsfunmatqr)
+    } # if(add_rcsfunmatqr) {
+    
+    
+    
+    if (add_rcsfunmatqrinv) {
+      rcsfunmatgrinv_name <- paste0(spfncname, 'QRsmat', 'inv')
+      
+      start_funmat <-
+        paste0(
+          "\nmatrix ",
+          rcsfunmatgrinv_name,
+          "(vector ",
+          vector_X_name,
+          ", ",
+          fullabcsnames_v_for_mat,
+          ") {" ,
+          collapse = " "
+        )
+    
+      ######################################################################
+      
+      
+      # add QR
+      # rcsfunmatgrinv <- paste(start_funmat, add_knotinfo, fun_body)
+      fun_bodyqrinv <- paste0(fun_body, "\n", decomp_code_qr_vectorA)
+      rcsfunmatgrinv <- paste(start_funmat, add_knotinfo, fun_bodyqrinv)
+      
+      
+      rcsfunmatgrinv <- gsub(vectorA, "", rcsfunmatgrinv, fixed = T)
+      
+      szx <- paste0('b_s', 1:(SbasisN))
+      cnt <- 0
+      cn_c <- c()
+      for (vi in szx) {
+        cnt <- cnt + 1
+        tmx <-
+          paste0(
+            paste0('b_s', 'q', '[,', cnt, "]", " = "),
+            XR_inv_name_resp,
+            '_mat',
+            '[',
+            cnt,
+            ",",
+            cnt,
+            "] * ",
+            vi,
+            ";"
+          )
+        cn_c <- c(cn_c, tmx)
+      }
+      rcsfunmatgrinv <-
+        paste0(rcsfunmatgrinv, "\n", 'return ', XR_inv_name, ';')
+      rcsfunmatgrinv <- paste0(rcsfunmatgrinv, '\n}')
+      funmats <- paste0(funmats, "\n", rcsfunmatgrinv)
+    } # if(add_rcsfunmatqrinv) {
+    
+    
+    
+    
+    funmats_genquant <- ""
+    if (add_rcsfunmatqrinv_genquant) {
+      rcsfunmatgrinv_name <- paste0(spfncname, 'QRsmat', 'inv')
+      
+      setnqq <- SbasisN
+      start_funmat <-
+        paste0(
+          "\nmatrix ",
+          rcsfunmatgrinv_name,
+          "(vector ",
+          vector_X_name,
+          ", ",
+          fullabcsnames_v_for_mat,
+          ") {" ,
+          collapse = " "
+        )
+      
+      rcsfunmatqrinv_genquant <- paste(start_funmat, '')
+      rcsfunmatqrinv_genquant <-
+        gsub(vectorA, "", rcsfunmatqrinv_genquant, fixed = T)
+      
+      szx <- paste0(setnlp, 1:(SbasisN))
+      szxbq <- b_sx_name_resp
+      
+      szx_vector <- paste0(setnlp_vector, 1:(SbasisN))
+      
+      
+      # setnqq <- 4
+      tems <- paste0('placeholder', '_', b_sx_name_resp)
+      # b_s_name <- paste0('b_s', '')
+      b_s_dims1 <- '[1]'
+      svector_ <-
+        paste(paste0(b_s_name,  b_s_dims1), collapse = ", ")
+      svector_ <-
+        paste0('vector[',
+               setnqq,
+               ']',
+               " ",
+               tems,
+               ' = ',
+               '[ ',
+               svector_,
+               ' ]' ,
+               "'" ,
+               ";")
+      
+      tems2 <-  paste0('temp_', b_sx_name_resp)
+      
+      tems3 <- paste0('vector[', setnqq, ']', " ", tems2, ' = ')
+      qs_vector <-
+        paste0(tems3, XR_inv_name_resp , ' * ', tems, ";")
+      
+      cn_c <- c()
+      cn_c2 <- c()
+      cnt <- 0
+      for (vi in szx) {
+        cnt <- cnt + 1
+        tmx <-
+          paste0(
+            'vector[N] ',
+            paste0(szxbq_vector, cnt, " = "),
+            XR_inv_name_resp,
+            '[',
+            cnt,
+            ",",
+            cnt,
+            "] * ",
+            vi,
+            ";"
+          )
+        cn_c <- c(cn_c, tmx)
+      }
+      cnt <- 0
+      for (vi in szx_vector) {
+        cnt <- cnt + 1
+        # '[', cnt, ',', cnt, "]"
+        tmx2 <-
+          paste0(paste0(szxbq, '[', cnt, ']', '', " = "),
+                 tems2,
+                 '[',
+                 cnt,
+                 "]",
+                 ";")
+        
+        cn_c2 <- c(cn_c2, tmx2)
+      }
+      
+      # if no covariate. then only add re-scaled s betas
+      if (add_b_Qr_genquan_s_coef) {
+        cn_c <- paste(cn_c, collapse = "\n")
+        cn_c2 <- paste(cn_c2, collapse = "\n")
+        cn_c <- paste0(cn_c2, "\n", cn_c)
+        addcn_c2 <-
+          paste0('vector[', "", setnqq, ']', " ", szxbq, ';')
+        addcn_c2 <- paste0(addcn_c2, "\n", svector_)
+        addcn_c2 <- paste0(addcn_c2, "\n", qs_vector)
+        addcn_c2 <- paste0(addcn_c2, "\n", cn_c)
+      } else if (!add_b_Qr_genquan_s_coef) {
+        cn_c <- paste(cn_c, collapse = "\n")
+        addcn_c2 <- cn_c
+      }
+      replacematrixby <-
+        paste0('matrix[', setnqq, ", ", setnqq, ']', XR_inv_name_resp , ' =')
+      rcsfunmatqrinv_genquant <-
+        gsub('matrix',
+             replacematrixby,
+             rcsfunmatqrinv_genquant,
+             fixed = T)
+      rcsfunmatqrinv_genquant <-
+        gsub('{', ';', rcsfunmatqrinv_genquant, fixed = T)
+      rcsfunmatqrinv_genquant <-
+        paste0(rcsfunmatqrinv_genquant, '\n', addcn_c2)
+    } # if(add_rcsfunmatqrinv_genquant) {
+    
+   
+    if (funmats == "") {
+      add_funmats <- FALSE
+    } else {
+      add_funmats <- TRUE
+    }
+    
+    
+    # 22.07.2025
+    if(!add_rcsfunmatqrinv_genquant) {
+      add_funmats <- FALSE
+    }
+    
+    
+    # 29.05.2025 - now not needed, matrix wthin sitarfun
+
+    if(add_fast == "") {
+      getpreHname <- "GS_getH_pre"
+      if(smat_preH) {
+        dummy_getpreH_fun_raw <- paste0(
+          "matrix ",
+          'GS_getH_stan',
+          "(vector nrows, int ncols) {\n" ,
+          # "H = [1,3];\n",
+          # "return(H);",
+          "return([[1,2],[2,3]]);",
+          "\n}  "
+          ,
+          paste0("// end of ", 'GS_getH_stan'),
+          collapse = " ")
+        
+        getpreH_fun_raw <-
+          paste0(
+            "matrix ",
+            getpreHname,
+            "(int nrows, int ncols) {\n" ,
+            # "() {" ,
+            "\n",
+            paste0("return ", precomputedH_Stan, ""),
+            "\n",
+            "}",
+            paste0("// end of ", getpreHname),
+            collapse = " ")
+        
+        
+        dummy_getpreH_fun_raw <- ""
+        
+        getpreH_fun_raw <- paste0(getpreH_fun_raw, "\n",
+                                  dummy_getpreH_fun_raw)
+      } else {
+        # dummy
+        getpreH_fun_raw <-
+          paste0(
+            "matrix ",
+            getpreHname,
+            "(int nrows, int ncols) {\n" ,
+            # "() {\n" ,
+            # "H = [1,3];\n",
+            # "return(H);",
+            "return([[1,2],[2,3]]);",
+            "\n}  "
+            ,
+            paste0("// end of ", getpreHname),
+            collapse = " ")
+      }
+      
+      
+      
+      # For multivariate model, this approach won't work,
+      # TODO...
+      if(ii > 1) {
+        getpreH_fun_raw <- NULL
+      }
+      
+      # need to add dummy functions
+      # print(getpreH_fun_raw)
+      # print(smat_preH)
+    } else if(add_fast != "") {
+      # 29.05.2025 - now not needed, matrix wthin sitarfun
+      getpreH_fun_raw <- NULL
+    }
+    
+   
+    if(smat == 'rcs') {
+      getpreH_fun_raw  <- NULL
+    }
+    
+    if(smat == 'bsp' |  smat == 'msp' |  smat == 'isp') {
+      getpreH_fun_raw  <- NULL
+    }
+    
+    
+    # New
+    # Now NULL for all?
+    getpreH_fun_raw  <- NULL
+    
+    
+    
+    
+    
+    
+    
+    
+    # 22.07.2025
+    if(!add_separte_getknots_fun) {
+      knots_stan_str <- paste0("[",paste(knots, collapse = ","),"]'")
+    } else {
+      knots_stan_str <- NULL
+    }
+    
+    if(!add_separte_getknots_fun) {
+      getknots_fun_raw <- NULL
+    } else {
+      getknots_fun_raw <-
+        paste0(
+          "vector ",
+          getknotsname,
+          "() {" ,
+          paste0("\n  int nknots=", eval(parse(text = nknots)), ";"),
+          paste0(
+            "\n  vector[nknots] knots=",
+            "[",
+            paste(knots, collapse = ","),
+            "]';"
+          ),
+          "\n  ",
+          "return(knots);",
+          "\n}  "
+          ,
+          paste0("// end of ", getknotsname),
+          collapse = " "
+        )
+    }
+    
+    
+    
+    
+    
+    
+   
+    ######################################################################
+    
+    # see here - replaced 'getknots_fun with 'getx_knots_fun'
+    
+    # 22.07.2025
+    if(add_separte_getknots_fun) {
+      getx_knots_fun <- paste0(add_context_getknots_fun, "\n", getknots_fun_raw)
+    } else {
+      getx_knots_fun <- ""
+    }
+    
+    
+    
+    if(!is.null(getpreH_fun_raw)) {
+      getx_knots_fun <- paste0(getx_knots_fun,
+                               "\n",
+                               getpreH_fun_raw)
+    }
+    
+    
+    
+    intercept_str_plus_str_d0 <- 
+      paste0("int derivs = ", 0, ";",
+             "\n",
+             "int degree = ", smat_degree,  ";",
+             "\n",
+             "real centerval = ", smat_centerval,  ";",
+             "\n",
+             "int normalize = ", smat_normalize,  ";",
+             "\n",
+             "int preH = ", smat_preH,  ";",
+             "\n",
+             matrix_cols_str)
+    
+    # do this for intercept_str_plus_str_d1 and intercept_str_plus_str_d2 also
+     intercept_str_plus_str_d0 <- paste0(intercept_str_plus_str_d0, setMatpreH)
+   
+    # Create function d0
+    fnameout <- paste0(spfncname, "_", "d0")
+    spl_str    <- intercept_str # "Spl[,1]=X;"
+    splout <- paste0(spl_str, "\n", intercept_str_plus_str_d0)
+
+    spl_fun_ford <- paste0(fnameout,
+                           "(vector ",
+                           vector_X_name,
+                           ", ",
+                           fullabcsnames_v,
+                           ")")
+    spl_fun_ford <- gsub("vector", "", spl_fun_ford, fixed = T)
+    
+    if ((backend == "rstan" &
+         utils::packageVersion("rstan") >= "2.26.1") |
+        backend == "mock" |
+        backend == "cmdstanr") {
+      body <- paste0(fun_body_str, "\n")
+      fun_body <- paste0("\n", intercept_str, "\n", 
+                         intercept_str_plus_str, "\n", fun_body)
+    }
+    
+    if ((backend == "rstan" &
+         utils::packageVersion("rstan") < "2.26.1") | # &
+        backend == "mock" &
+        backend != "cmdstanr") {
+      body <- paste0(fun_body_str, "\n")
+      fun_body <- paste0("\n", intercept_str, "\n", 
+                         intercept_str_plus_str, "\n", fun_body)
+    }
+    
+    
+    # add QR
+    if (!is.null(decomp)) {
+      body_d0 <- paste0(body, "\n", decomp_code_qr)
+    } else {
+      body_d0 <- body
+    }
+    
+    
+    ######################################################################
+    # funsi to transform and itransform
+    spl_d0 <- create_internal_function(
+      y = y,
+      function_str = rcsfun,
+      fname = spfncname,
+      fnameout = fnameout,
+      spl_str = spl_str,
+      splout = splout,
+      xfunsi = xfunsi,
+      yfunsi = yfunsi,
+      # setxoffset = setxoffset,
+      gsub_out_unscaled = NULL,
+      # gsub_out_unscaled = c('QR', 'Spl')
+      # body = body,
+      body = body_d0,
+      vectorA = vectorA,
+      decomp = decomp,
+      fixedsi = fixedsi,
+      xfuntransformsi       = xfuntransformsi,
+      yfuntransformsi       = yfuntransformsi,
+      ixfuntransformsi      = ixfuntransformsi,
+      iyfuntransformsi      = iyfuntransformsi,
+      sigmaxfunsi           = sigmaxfunsi,
+      sigmayfunsi           = sigmayfunsi,
+      sigmaxfuntransformsi  = sigmaxfuntransformsi,
+      sigmayfuntransformsi  = sigmayfuntransformsi,
+      sigmaixfuntransformsi = sigmaixfuntransformsi,
+      sigmaiyfuntransformsi = sigmaiyfuntransformsi
+    )
+    
+    
+    intercept_str_plus_str_d1 <- 
+      paste0("int derivs = ", 1, ";",
+             "\n",
+             "int degree = ", smat_degree,  ";",
+             "\n",
+             "real centerval = ", smat_centerval,  ";",
+             "\n",
+             "int normalize = ", smat_normalize,  ";",
+             "\n",
+             "int preH = ", smat_preH,  ";",
+             "\n",
+             matrix_cols_str
+      )
+    
+    intercept_str_plus_str_d1 <- paste0(intercept_str_plus_str_d1, setMatpreH)
+    
+    
+    if(convert_d0_to_log) {
+      spl_d0 <- gsub("return(out_scaled)", "return(log(out_scaled))",
+                     spl_d0, fixed = TRUE)
+    }
+    # cat(spl_d0)
+    #stop()
+    
+    
+    # Create function d1
+    fnameout <- paste0(spfncname, "_", "d1")
+    spl_str    <- intercept_str # "Spl[,1]=X;"
+    # splout <- "Spl[,1]=rep_vector(1, N);"
+    splout <- paste0(spl_str, "\n", intercept_str_plus_str_d1)
+    
+    if ((backend == "rstan" &
+         utils::packageVersion("rstan") >= "2.26.1") |
+        backend == "mock" |
+        backend == "cmdstanr") {
+      body <- paste0(fun_body_str, "\n")
+    }
+    
+    # if ((backend == "rstan" &
+    #      utils::packageVersion("rstan") < "2.26.1") | # &
+    #     backend == "mock" &
+    #     backend != "cmdstanr") {
+    #   body <- paste0(fun_body_str, "\n")
+    #    }
+    
+    
+    # add QR
+    if (!is.null(decomp)) {
+      decomp_code_qr_d1 <- paste0(decomp_code_qr, 
+                                  "XQ[,1]=rep_vector(1, N);", "\n")
+      body_d1 <- paste0(body, "\n", decomp_code_qr_d1)
+    } else {
+      body_d1 <- body
+    }
+    
+    ######################################################################
+    # funsi to transform and itransform
+    spl_d1 <- create_internal_function(
+      y = y,
+      function_str = rcsfun,
+      fname = spfncname,
+      fnameout = fnameout,
+      spl_str = spl_str,
+      splout = splout,
+      xfunsi = xfunsi,
+      yfunsi = yfunsi,
+      # setxoffset = setxoffset,
+      gsub_out_unscaled = NULL,
+      # gsub_out_unscaled = c('QR', 'Spl')
+      # body = body,
+      body = body_d1,
+      vectorA = vectorA,
+      decomp = decomp,
+      fixedsi = fixedsi,
+      xfuntransformsi       = xfuntransformsi,
+      yfuntransformsi       = yfuntransformsi,
+      ixfuntransformsi      = ixfuntransformsi,
+      iyfuntransformsi      = iyfuntransformsi,
+      sigmaxfunsi           = sigmaxfunsi,
+      sigmayfunsi           = sigmayfunsi,
+      sigmaxfuntransformsi  = sigmaxfuntransformsi,
+      sigmayfuntransformsi  = sigmayfuntransformsi,
+      sigmaixfuntransformsi = sigmaixfuntransformsi,
+      sigmaiyfuntransformsi = sigmaiyfuntransformsi
+    )
+    
+    
+    
+    
+    
+    intercept_str_plus_str_d2 <- 
+      paste0("int derivs = ", 2, ";",
+             "\n",
+             "int degree = ", smat_degree,  ";",
+             "\n",
+             "real centerval = ", smat_centerval,  ";",
+             "\n",
+             "int normalize = ", smat_normalize,  ";",
+             "\n",
+             "int preH = ", smat_preH,  ";",
+             "\n",
+             matrix_cols_str
+      )
+    
+    intercept_str_plus_str_d2 <- paste0(intercept_str_plus_str_d2, setMatpreH)
+    
+    
+    
+    # Create function d2
+    fnameout <- paste0(spfncname, "_", "d2")
+    spl_str <- intercept_str # "Spl[,1]=X;"
+    # splout <- "Spl[,1]=rep_vector(0, N);"
+    splout <- paste0(spl_str, "\n", intercept_str_plus_str_d2)
+    
+    
+    if ((backend == "rstan" &
+         utils::packageVersion("rstan") >= "2.26.1") |
+        backend == "mock" |
+        backend == "cmdstanr") {
+      body <- paste0(fun_body_str, "\n")
+    }
+    
+    # if ((backend == "rstan" &
+    #      utils::packageVersion("rstan") < "2.26.1") | # &
+    #     backend == "mock" &
+    #     backend != "cmdstanr") {
+    #   body <- paste0(fun_body_str, "\n")
+    # }
+    
+    
+    # add QR
+    if (!is.null(decomp)) {
+      body_d2 <- paste0(body, "\n", decomp_code_qr)
+    } else {
+      body_d2 <- body
+    }
+    
+    ######################################################################
+    # funsi to transform and itransform
+    spl_d2 <- create_internal_function(
+      y = y,
+      function_str = rcsfun,
+      fname = spfncname,
+      fnameout = fnameout,
+      spl_str = spl_str,
+      splout = splout,
+      xfunsi = xfunsi,
+      yfunsi = yfunsi,
+      # setxoffset = setxoffset,
+      gsub_out_unscaled = NULL,
+      # gsub_out_unscaled = c('QR', 'Spl')
+      # body = body,
+      body = body_d2,
+      vectorA = vectorA,
+      decomp = decomp,
+      fixedsi = fixedsi,
+      xfuntransformsi       = xfuntransformsi,
+      yfuntransformsi       = yfuntransformsi,
+      ixfuntransformsi      = ixfuntransformsi,
+      iyfuntransformsi      = iyfuntransformsi,
+      sigmaxfunsi           = sigmaxfunsi,
+      sigmayfunsi           = sigmayfunsi,
+      sigmaxfuntransformsi  = sigmaxfuntransformsi,
+      sigmayfuntransformsi  = sigmayfuntransformsi,
+      sigmaixfuntransformsi = sigmaixfuntransformsi,
+      sigmaiyfuntransformsi = sigmaiyfuntransformsi
+    )
+    
+    
+    
+    if(dparm_set_fixed_or_random) {
+      if(!dparm_part_of_SplQc) {
+        spl_d1 <- gsub(gsubby_nameadja_dparm, gsubit_nameadja_dparm_d1, 
+                       spl_d1, fixed = T)
+        spl_d2 <- gsub(gsubby_nameadja_dparm, gsubit_nameadja_dparm_d2, 
+                       spl_d2, fixed = T)
+      }
+    }
+    
+
+    
+    if(parm_link_log) {
+      spl_d0 <- gsub("-b)",  "+exp(b))", spl_d0, fixed = T)
+      spl_d0 <- gsub("(c)", "(-c)",    spl_d0, fixed = T)
+      spl_d1 <- gsub("-b)",  "+exp(b))", spl_d1, fixed = T)
+      spl_d1 <- gsub("(c)", "(-c)",    spl_d1, fixed = T)
+      spl_d2 <- gsub("-b)",  "+exp(b))", spl_d2, fixed = T)
+      spl_d2 <- gsub("(c)", "(-c)",    spl_d2, fixed = T)
+      rcsfun_raw <- gsub("-b)", "+exp(b))", rcsfun_raw, fixed = T)
+      rcsfun_raw <- gsub("(c)", "(-c)",     rcsfun_raw, fixed = T)
+      rcsfun     <- gsub("-b)", "+exp(b))", rcsfun,     fixed = T)
+      rcsfun     <- gsub("(c)", "(-c)",     rcsfun,     fixed = T)
+    }
+    
+    # cat(rcsfun)
+    # stop()
+    
+    # rcsfunmultadd <- NULL
+    
+    include_fun_names <- c(spfncname)
+    
+    if('d0' %in% include_fun_c)  {
+      include_fun_names <- c(include_fun_names, paste0(spfncname, "_d0"))
+      spl_d0 <- spl_d0
+    } else {
+      spl_d0 <- NULL
+    }
+    
+    if('d1' %in% include_fun_c)  {
+      include_fun_names <- c(include_fun_names, paste0(spfncname, "_d1"))
+      spl_d1 <- spl_d1
+    } else {
+      spl_d1 <- NULL
+    }
+    
+    if('d2' %in% include_fun_c) {
+      include_fun_names <- c(include_fun_names, paste0(spfncname, "_d2"))
+      spl_d2 <- spl_d2
+    } else {
+      spl_d2 <- NULL
+    }
+ 
+    ######################################################################
+    
+    # // Tuple version for both basis and derivative (dense)
+    # tuple(matrix, matrix) GS_bs_stan_tuple(
+    
+    # rcsfun
+    # add smat_sfirst
+    # add smat_sparse
+    # edit rcsfun here before merging with other functions
+    edit_rcsfun_for_smat_sfirst <- function(rcsfun_raw, 
+                                            decomp,
+                                            smat_sfirst,
+                                            smat_sparse) {
+      
+      
+      smat_sfirst <- as.logical(smat_sfirst)
+      smat_sparse <- as.logical(smat_sparse)
+
+      if(is.null(decomp) & !smat_sfirst & !smat_sparse) {
+        return(rcsfun_raw)
+      }
+      
+      # add QR
+      # For rcsfun (also see if to do for rcsfun_d0), don;t compute unnecessary
+      if (!is.null(decomp)) {
+        if (decomp == 'QR') {
+          rcsfun_raw <- replace_string_part(x = rcsfun_raw, 
+                                            start = 
+                                              paste0("matrix[QK, QK] XR", ""), 
+                                            end = ";", 
+                                            replace = "",
+                                            extract = FALSE,
+                                            cat_str = FALSE)
+          rcsfun_raw <- replace_string_part(x = rcsfun_raw, 
+                                            start = paste0("XR = qr_", ""), 
+                                            end = ";",
+                                            replace = "",
+                                            extract = FALSE,
+                                            cat_str = FALSE)
+          rcsfun_raw <- replace_string_part(x = rcsfun_raw, 
+                                            start = paste0("XR_inv = ", ""), 
+                                            end = ";",
+                                            replace = "",
+                                            extract = FALSE,
+                                            cat_str = FALSE)
+          rcsfun_raw <- remove_spaces_and_tabs(rcsfun_raw)
+        }
+      }
+      
+      
+      if(!is.null(decomp) & !smat_sfirst & !smat_sparse) {
+        return(rcsfun_raw)
+      }
+      
+      
+      rcsfun_raw_return_str <- replace_string_part(x = rcsfun_raw, 
+                                        start = "return(", 
+                                        end = ";",
+                                        replace = "",
+                                        extract = TRUE,
+                                        cat_str = FALSE)
+      
+      if (!is.null(decomp)) {
+        if (decomp == 'QR') {
+          if(dparm_set_fixed_or_random) {
+            if(dparm_part_of_SplQc) {
+              Aplusname     <- "A + (d .* XQ[:, cols(XQ)])"
+              matname_subst <- 'XQ[:, 1:(cols(XQ)-1)]'
+            }
+            if(!dparm_part_of_SplQc) {
+              Aplusname     <- paste0("A+", nameadja_dparm)
+              matname_subst <- 'XQ'
+            }
+          } else if(!dparm_set_fixed_or_random) {
+            Aplusname     <- "A"
+            matname_subst <- 'XQ'
+          }
+        }
+      } else if (is.null(decomp)) {
+        if(dparm_set_fixed_or_random) {
+          if(dparm_part_of_SplQc) {
+            Aplusname     <- "A + (d .* Spl[:, cols(Spl)])"
+            matname_subst <- 'Spl[:, 1:(cols(Spl)-1)]'
+          }
+          if(!dparm_part_of_SplQc) {
+            Aplusname     <- paste0("A+", nameadja_dparm)
+            matname_subst <- 'Spl'
+          }
+        } else if(!dparm_set_fixed_or_random) {
+          Aplusname     <- "A"
+          matname_subst <- 'Spl'
+        }
+      }
+      
+      
+      
+      
+      
+      # For sparse checks 
+      if(smat_check_sparsity) {
+        if(smat_sfirst & smat_sparse) {
+          sparsity_percentage_str <- 
+            "int num_non_zero_elements = size(wX); 
+          int total_elements = rows(gsubforX) * cols(gsubforX);
+          real sparsity_percentage;
+          if (total_elements > 0) {
+            sparsity_percentage = 100.0 * (1.0 - 
+            (num_non_zero_elements * 1.0) / (total_elements * 1.0));
+          } else {
+            sparsity_percentage = 0.0; 
+          }
+          print(\"sparsity_percentage is: \", sparsity_percentage);
+          "
+          sparsity_percentage_str <- gsub("gsubforX", 
+                                          matname_subst, 
+                                          sparsity_percentage_str, fixed = T)
+        }
+      } # if(smat_check_sparsity) {
+      
+      
+      # add sfirst
+      # add sparse
+      if(smat_sfirst & !smat_sparse) {
+        smat_sfirst_vector_str_return <- paste0("return", 
+                                                "(",
+                                                Aplusname, " + ", 
+                                                matname_subst,
+                                                " * ",
+                                                'sfirst_vector',
+                                                ");")
+       
+        smat_sfirst_vector_str_return <- paste0(smat_sfirst_vector_str, "\n",
+                                                smat_sfirst_vector_str_return)
+      } else if(smat_sfirst & smat_sparse) {
+        csr_matrix_return <- paste0("csr_matrix_times_vector(",
+                                    "rows(", matname_subst, ")", ",",
+                                    "cols(", matname_subst, ")", ",",
+                                    "wX", ",",
+                                    "vX", ",",
+                                    "uX", ",",
+                                    'sfirst_vector',
+                                    ")"
+        )
+        # csr_matrix_times_vector(rows(X), cols(X), wX, vX, uX, b);
+        csr_matrix_str <-
+          "vector[rows(csr_extract_w(gsubforX))] wX = csr_extract_w(gsubforX);
+          array[size(csr_extract_v(gsubforX))] int vX = csr_extract_v(gsubforX);
+          array[size(csr_extract_u(gsubforX))] int uX = csr_extract_u(gsubforX);"
+        
+        csr_matrix_str <- gsub("gsubforX", matname_subst, 
+                               csr_matrix_str, fixed = T)
+        
+        if(smat_check_sparsity) {
+          csr_matrix_str <- paste0(csr_matrix_str, "\n", 
+                                   sparsity_percentage_str)
+        } # if(smat_check_sparsity) {
+        
+        
+        smat_sfirst_vector_str_return <- paste0("return", 
+                                                "(",
+                                                Aplusname, " + ", 
+                                                csr_matrix_return,
+                                                ");")
+        
+        smat_sfirst_vector_str <- paste0(smat_sfirst_vector_str, "\n",
+                                         csr_matrix_str)
+        
+        smat_sfirst_vector_str_return <- paste0(smat_sfirst_vector_str, "\n",
+                                                smat_sfirst_vector_str_return)
+      }
+      rcsfun_raw <- replace_string_part(x = rcsfun_raw, 
+                                        start = "return(",  
+                                        end = ";",
+                                        replace = smat_sfirst_vector_str_return,
+                                        extract = FALSE,
+                                        cat_str = FALSE)
+      
+      return(rcsfun_raw)
+    } # edit_rcsfun_for_smat_sfirst
+    
+    
+    rcsfun <- edit_rcsfun_for_smat_sfirst(rcsfun, 
+                                          decomp,
+                                          smat_sfirst,
+                                          smat_sparse)
+    
+   # cat(rcsfun)
+   # stop
+    
+    ######################################################################
+    
+    # spl_d1
+    # add smat_sfirst
+    # add smat_sparse
+    # edit rcsfun here before merging with other functions
+    edit_spl_d1_for_smat_sfirst <- function(rcsfun_raw, 
+                                            decomp,
+                                            smat_sfirst,
+                                            smat_sparse,
+                                            matrix_cols_str,
+                                            SplinefunxStan_str) {
+      
+      if(is.null(decomp)) {
+        return(rcsfun_raw)
+      }
+      
+      # add QR
+      # For rcsfun (also see if to do for rcsfun_d0), don;t compute unnecessary
+      if (!is.null(decomp)) {
+        if (decomp == 'QR') {
+          rcsfun_raw <- gsub("Spl", "SplQRd0", rcsfun_raw, fixed = T)
+          rcsfun_raw <- gsub(SplinefunxStan_str, 
+                             gsub("derivs", "0", SplinefunxStan_str, fixed = T), 
+                             rcsfun_raw, fixed = T)
+          
+
+          
+          if(!dparm_set_fixed_or_random) {
+            QR_d1_sub_str <- paste0("SplQRd1 = ", SplinefunxStan,"(",
+                                    SplinefunxStan_str, ")", ";", "\n" )
+          }
+          
+          # should be 1.0, N for _d1 and 0.0, N for d_2
+          if(dparm_set_fixed_or_random) {
+            if(dparm_part_of_SplQc) {
+              QR_d1_dpredictor_str <- "rep_vector(1.0, N)"
+              QR_d1_sub_str <- paste0("SplQRd1 = ", 
+                                      "append_col(",
+                                      SplinefunxStan, 
+                                      "(", 
+                                      SplinefunxStan_str, 
+                                      ")",
+                                      ",", dpredictor_str, ")",
+                                      ";")
+              QR_d1_sub_str <- gsub(dpredictor_str, QR_d1_dpredictor_str, 
+                                    QR_d1_sub_str, fixed = T)
+            }
+            if(!dparm_part_of_SplQc) {
+              QR_d1_sub_str <- paste0("SplQRd1 = ", SplinefunxStan,"(",
+                                      SplinefunxStan_str, ")", ";", "\n" )
+            }
+          } # if(dparm_set_fixed_or_random) {
+          
+          
+          matrix_cols_str_QR_d0    <- gsub("Spl", "SplQRd0", 
+                                           matrix_cols_str, fixed = T)
+          matrix_cols_str_QR_d1    <- gsub("Spl", "SplQRd1", 
+                                           matrix_cols_str, fixed = T)
+          matrix_cols_str_QR_d0_d1 <- paste0(matrix_cols_str_QR_d0, "\n", 
+                                            matrix_cols_str_QR_d1)
+
+          matrix_cols_str_QR_d0_d1 <- paste0(matrix_cols_str_QR_d0_d1, "\n", 
+                                             QR_d1_sub_str)
+          
+          rcsfun_raw               <- gsub(matrix_cols_str_QR_d0, 
+                                           matrix_cols_str_QR_d0_d1, 
+                                           rcsfun_raw, fixed = T)
+        }
+      }
+      
+      
+      
+      if(dparm_set_fixed_or_random) {
+        if(dparm_part_of_SplQc) {
+          QR_get_dq_str <- "
+          matrix[N, SbasisN] sfull_betas;
+          matrix[N, cols(XQ)] sfull_betas_temp;
+          matrix[N, cols(XQ)] sfull_matrix_temp;
+          sfull_matrix_temp[:, cols(XQ)] = d;
+          sfull_betas_temp = sfull_matrix_temp * transpose(XR_inv);
+          sfull_betas = sfull_betas_temp[:, 1:(cols(XQ)-1)];
+          vector[N] QRdbeta = sfull_betas_temp[:, cols(XQ)];"
+        } else if(!dparm_part_of_SplQc) {
+          QR_get_dq_str <- "matrix[N, SbasisN] sfull_betas;
+        vector[N] QRdbeta = d;
+        sfull_betas = sfull_matrix * transpose(XR_inv);"
+        }
+      } else if(!dparm_set_fixed_or_random) {
+        QR_get_dq_str <- "matrix[N, SbasisN] sfull_betas;
+        sfull_betas = sfull_matrix * transpose(XR_inv);"
+      }
+      
+
+      
+        
+        
+        QR_get_dq_str <- paste0(smat_sfull_matrix_str, "\n", QR_get_dq_str)
+       
+        rcsfun_raw <- gsub("XR_inv = inverse(XR);",
+                           paste0("XR_inv = inverse(XR);", "\n", QR_get_dq_str),
+                           rcsfun_raw, fixed = T)
+      
+       find_ond_retunx <- replace_string_part(x = rcsfun_raw, 
+                                             start = "out_unscaled=", 
+                                             end = ";",
+                                              replace = "",
+                                             extract = TRUE,
+                                             cat_str = FALSE)
+       set_new_retunx <- find_ond_retunx
+       for (i in 1:(SbasisN)) {
+         set_new_retunx <- gsub(paste0("s", i), 
+                                paste0("sfull_betas[,", i,"]"), 
+                                set_new_retunx, fixed = T )
+       }
+       set_new_retunx <- gsub("XQ", 'SplQRd1', set_new_retunx, fixed = T)
+       
+       set_new_retunx <- gsub("(d", '(QRdbeta', set_new_retunx, fixed = T)
+       
+       rcsfun_raw   <- gsub(find_ond_retunx, set_new_retunx, 
+                            rcsfun_raw, fixed = T)
+    
+      return(rcsfun_raw)
+    } # edit_spl_d1_for_smat_sfirst
+    
+    
+    spl_d1 <- edit_spl_d1_for_smat_sfirst(spl_d1, 
+                                          decomp,
+                                          smat_sfirst,
+                                          smat_sparse,
+                                          matrix_cols_str,
+                                          SplinefunxStan_str)
+    
+    # cat(spl_d1)
+    # stop()
+    
+    ######################################################################
+    
+    
+    
+
+    if('getknots' %in% include_fun_c)  {
+      include_fun_names <- c(include_fun_names, getknotsname)
+      getknotsname <- getknotsname
+    } else {
+      getknotsname <- NULL
+    }
+    
+    if('X' %in% include_fun_c)  {
+      include_fun_names <- c(include_fun_names, paste0(spfncname, "X"))
+      rcsfunmultadd <- rcsfunmultadd
+    } else {
+      rcsfunmultadd <- NULL
+    }
+    
+    
+    
+
+    
+    if (utils::packageVersion('rstan') < "2.26") {
+      rcsfun <- paste(getx_knots_fun, rcsfun)
+    }
+    
+    if (utils::packageVersion('rstan') > "2.26" & is.null(decomp)) {
+      rcsfun <- paste0(getx_knots_fun,
+                       rcsfun,
+                       rcsfunmultadd,
+                       spl_d0,
+                       spl_d1,
+                       spl_d2,
+                       sep = "\n")
+    }
+    
+    if (utils::packageVersion('rstan') > "2.26" & !is.null(decomp)) {
+      if (decomp == 'QR') {
+        if (add_funmats) {
+          rcsfun <- paste0(
+            getx_knots_fun,
+            funmats,
+            rcsfun,
+            rcsfunmultadd,
+            spl_d0,
+            spl_d1,
+            spl_d2,
+            sep = "\n"
+          )
+        } else if (!add_funmats) {
+          rcsfun <- paste0(getx_knots_fun,
+                           rcsfun,
+                           rcsfunmultadd,
+                           spl_d0,
+                           spl_d1,
+                           spl_d2,
+                           sep = "\n")
+        }
+      }
+    }
+    
+    
+  } # if(select_model == 'sitar') {
+  
+  
+  
+  
+  
+  if (grepl("^pb", select_model) |
+      grepl("^logistic", select_model)) {
+    abcnames <- paste0(strsplit(gsub("\\+", " ",
+                                     fixedsi), " ")[[1]], sep = ",")
+    fullabcsnames <- abcnames
+    fullabcsnames_v <-
+      paste("vector", fullabcsnames, collapse = " ")
+    defineEx <- paste0("(Xm)")
+    
+   
+    ######################################################################
+    
+    
+    # a - asymtote
+    # b - size at theta
+    # c - s0
+    # d - s1
+    # e - time (theta)
+    
+    if (select_model == 'pb1') {
+      funstring <- "a-2.0*(a-b)./(exp(c.*(Xm-e))+exp(d.*(Xm-e)))"
+      if (utils::packageVersion('rstan') < "2.26")
+        funstring <-
+          gsub(".*", " .* ", funstring, fixed = T)
+      returnmu    <- paste0("return ", "(",  funstring, ")")
+      returnmu_d0 <- funstring
+      returnmu_d1 <- "rep_vector(2.0,N).*(a-b).*(c.*exp(c.*(Xm-e))+
+      d.*exp(d.*(Xm-e)))./(exp(c.*(Xm-e))+exp(d.*(Xm-e)))^2.0"
+      
+      returnmu_d2 <- "-rep_vector(4.0,N).*(a-b).*(c.*exp(c.*(Xm-e))+
+      d.*exp(d.*(Xm-e)))^2.0./(exp(c.*(Xm-e))+exp(d.*(Xm-e)))^3.0+
+      rep_vector(2.0,N).*(a-b).*(c^2.0.*exp(c.*(Xm-e))+
+      d^2.0.*exp(d.*(Xm-e)))./(exp(c.*(Xm-e))+exp(d.*(Xm-e)))^2.0"
+      
+      returnmu_d3 <- "rep_vector(12.0,N).*(a-b).*(c.*exp(c.*(Xm-e))+
+      d.*exp(d.*(Xm-e)))^3.0./(exp(c.*(Xm-e))+
+      exp(d.*(Xm-e)))^4.0-rep_vector(12.0,N).*(a-b).*(c.*exp(c.*(Xm-e))+
+      d.*exp(d.*(Xm-e))).*(c^2.0.*exp(c.*(Xm-e))+
+      d^2.0.*exp(d.*(Xm-e)))./(exp(c.*(Xm-e))+
+      exp(d.*(Xm-e)))^3.0+rep_vector(2.0,N).*(a-b).*(c^3.0.*exp(c.*(Xm-e))+
+      d^3.0.*exp(d.*(Xm-e)))./(exp(c.*(Xm-e))+exp(d.*(Xm-e)))^2.0"
+      
+      returnmu_d1 <- paste0(returnmu_d1, ";")
+      returnmu_d2 <- paste0(returnmu_d2, ";")
+      returnmu_d3 <- paste0(returnmu_d3, ";")
+    } # if(select_model == 'pb') {
+    
+    # a - asymtote
+    # b - size at theta
+    # c - s0
+    # d - s1
+    # e - time (theta)
+    # f - gamma
+    
+    if (select_model == 'pb2') {
+      funstring <- "a-((a-b)./(((0.5*exp((f.*c).*(Xm-e)))+
+      (0.5*exp((f.*d).*(Xm-e))))^(1.0./f)))"
+      if (utils::packageVersion('rstan') < "2.26")
+        funstring <-
+          gsub(".*", " .* ", funstring, fixed = T)
+      returnmu    <- paste0("return ", "(",  funstring, ")")
+      returnmu_d0 <- funstring
+      returnmu_d1 <-
+        "(a-b).*(rep_vector(0.5,N).*f.*c.*exp(f.*c.*(Xm-e))+
+      rep_vector(0.5,N).*f.*d.*exp(f.*d.*(Xm-e)))./
+      ((rep_vector(0.5,N).*exp(f.*c.*(Xm-e))+
+      rep_vector(0.5,N).*exp(f.*d.*(Xm-e)))^
+      (rep_vector(1.0,N)./f).*f.*(rep_vector(0.5,N).*exp(f.*c.*(Xm-e))+
+      rep_vector(0.5,N).*exp(f.*d.*(Xm-e))))"
+      
+      returnmu_d2 <-
+        "-(a-b).*(rep_vector(0.5,N).*f.*c.*exp(f.*c.*(Xm-e))+
+      rep_vector(0.5,N).*f.*d.*exp(f.*d.*(Xm-e)))^2.0./
+      ((rep_vector(0.5,N).*exp(f.*c.*(Xm-e))+
+      rep_vector(0.5,N).*exp(f.*d.*(Xm-e)))^
+      (rep_vector(1.0,N)./f).*f^2.0.*(rep_vector(0.5,N).*exp(f.*c.*(Xm-e))+
+      rep_vector(0.5,N).*exp(f.*d.*(Xm-e)))^2.0)+
+      (a-b).*(rep_vector(0.5,N).*f^2.0.*c^2.0.*exp(f.*c.*(Xm-e))+
+      rep_vector(0.5,N).*f^2.0.*d^2.0.*exp(f.*d.*(Xm-e)))./
+      ((rep_vector(0.5,N).*exp(f.*c.*(Xm-e))+
+      rep_vector(0.5,N).*exp(f.*d.*(Xm-e)))^
+      (rep_vector(1.0,N)./f).*f.*(rep_vector(0.5,N).*exp(f.*c.*(Xm-e))+
+      rep_vector(0.5,N).*exp(f.*d.*(Xm-e))))-
+      (a-b).*(rep_vector(0.5,N).*f.*c.*exp(f.*c.*(Xm-e))+
+      rep_vector(0.5,N).*f.*d.*exp(f.*d.*(Xm-e)))^2.0./
+      ((rep_vector(0.5,N).*exp(f.*c.*(Xm-e))+
+      rep_vector(0.5,N).*exp(f.*d.*(Xm-e)))^
+      (rep_vector(1.0,N)./f).*f.*(rep_vector(0.5,N).*exp(f.*c.*(Xm-e))+
+      rep_vector(0.5,N).*exp(f.*d.*(Xm-e)))^2.0)"
+      
+      returnmu_d3 <-
+        "(a-b).*(rep_vector(0.5,N).*f.*c.*exp(f.*c.*(Xm-e))+
+      rep_vector(0.5,N).*f.*d.*exp(f.*d.*(Xm-e)))^
+      3.0./((rep_vector(0.5,N).*exp(f.*c.*(Xm-e))+
+      rep_vector(0.5,N).*exp(f.*d.*(Xm-e)))^
+      (rep_vector(1.0,N)./f).*f^3.0.*(rep_vector(0.5,N).*exp(f.*c.*(Xm-e))+
+      rep_vector(0.5,N).*exp(f.*d.*(Xm-e)))^3.0)-
+      rep_vector(3.0,N).*(a-b).*(rep_vector(0.5,N).*f.*c.*exp(f.*c.*(Xm-e))+
+      rep_vector(0.5,N).*f.*d.*exp(f.*d.*(Xm-e))).*(rep_vector(0.5,N).*f^
+      2.0.*c^2.0.*exp(f.*c.*(Xm-e))+
+      rep_vector(0.5,N).*f^2.0.*d^2.0.*exp(f.*d.*(Xm-e)))./
+      ((rep_vector(0.5,N).*exp(f.*c.*(Xm-e))+
+      rep_vector(0.5,N).*exp(f.*d.*(Xm-e)))^
+      (rep_vector(1.0,N)./f).*f^2.0.*(rep_vector(0.5,N).*exp(f.*c.*(Xm-e))+
+      rep_vector(0.5,N).*exp(f.*d.*(Xm-e)))^2.0)+
+      rep_vector(3.0,N).*(a-b).*(rep_vector(0.5,N).*f.*c.*exp(f.*c.*(Xm-e))+
+      rep_vector(0.5,N).*f.*d.*exp(f.*d.*(Xm-e)))^3.0./
+      ((rep_vector(0.5,N).*exp(f.*c.*(Xm-e))+
+      rep_vector(0.5,N).*exp(f.*d.*(Xm-e)))^(rep_vector(1.0,N)./f).*f^
+      2.0.*(rep_vector(0.5,N).*exp(f.*c.*(Xm-e))+
+      rep_vector(0.5,N).*exp(f.*d.*(Xm-e)))^3.0)+
+      (a-b).*(rep_vector(0.5,N).*f^3.0.*c^
+      3.0.*exp(f.*c.*(Xm-e))+
+      rep_vector(0.5,N).*f^3.0.*d^3.0.*exp(f.*d.*(Xm-e)))./
+      ((rep_vector(0.5,N).*exp(f.*c.*(Xm-e))+
+      rep_vector(0.5,N).*exp(f.*d.*(Xm-e)))^
+      (rep_vector(1.0,N)./f).*f.*(rep_vector(0.5,N).*exp(f.*c.*(Xm-e))+
+      rep_vector(0.5,N).*exp(f.*d.*(Xm-e))))-
+      rep_vector(3.0,N).*(a-b).*(rep_vector(0.5,N).*f^
+      2.0.*c^2.0.*exp(f.*c.*(Xm-e))+
+      rep_vector(0.5,N).*f^2.0.*d^
+      2.0.*exp(f.*d.*(Xm-e))).*(rep_vector(0.5,N).*f.*c.*exp(f.*c.*(Xm-e))+
+      rep_vector(0.5,N).*f.*d.*exp(f.*d.*(Xm-e)))./
+      ((rep_vector(0.5,N).*exp(f.*c.*(Xm-e))+
+      rep_vector(0.5,N).*exp(f.*d.*(Xm-e)))^
+      (rep_vector(1.0,N)./f).*f.*(rep_vector(0.5,N).*exp(f.*c.*(Xm-e))+
+      rep_vector(0.5,N).*exp(f.*d.*(Xm-e)))^2.0)+
+      rep_vector(2.0,N).*(a-b).*(rep_vector(0.5,N).*f.*c.*exp(f.*c.*(Xm-e))+
+      rep_vector(0.5,N).*f.*d.*exp(f.*d.*(Xm-e)))^3.0./
+      ((rep_vector(0.5,N).*exp(f.*c.*(Xm-e))+
+      rep_vector(0.5,N).*exp(f.*d.*(Xm-e)))^
+      (rep_vector(1.0,N)./f).*f.*(rep_vector(0.5,N).*exp(f.*c.*(Xm-e))+
+      rep_vector(0.5,N).*exp(f.*d.*(Xm-e)))^3.0)"
+      
+      returnmu_d1 <- paste0(returnmu_d1, ";")
+      returnmu_d2 <- paste0(returnmu_d2, ";")
+      returnmu_d3 <- paste0(returnmu_d1, ";")
+    } # if(select_model == 'pb2') {
+    
+    
+    # a - asymtote
+    # b - size at theta
+    # c - s0
+    # d - s1
+    # e - time (theta)
+    # f - gamma
+    
+    if (select_model == 'pb3') {
+      funstring <- "a-((4.0*(a-b))./((exp(f.*(Xm-e))+
+      exp(c.*(Xm-e))).*(1.0+exp(d.*(Xm-e)))))"
+      if (utils::packageVersion('rstan') < "2.26")
+        funstring <- gsub(".*", " .* ",
+                          funstring,
+                          fixed = T)
+      returnmu    <- paste0("return ", "(",  funstring, ")")
+      returnmu_d0 <- funstring
+      returnmu_d1 <-
+        "rep_vector(4.0,N).*(a-b).*(f.*exp(f.*(Xm-e))+
+      c.*exp(c.*(Xm-e)))./((exp(f.*(Xm-e))+exp(c.*(Xm-e)))^
+      2.0.*(rep_vector(1.0,N)+exp(d.*(Xm-e))))+
+      rep_vector(4.0,N).*(a-b).*d.*exp(d.*(Xm-e))./
+      ((exp(f.*(Xm-e))+exp(c.*(Xm-e))).*(rep_vector(1.0,N)+
+      exp(d.*(Xm-e)))^2.0)"
+      
+      returnmu_d2 <-
+        "-rep_vector(8.0,N).*(a-b).*(f.*exp(f.*(Xm-e))+
+      c.*exp(c.*(Xm-e)))^2.0./((exp(f.*(Xm-e))+exp(c.*(Xm-e)))^
+      3.0.*(rep_vector(1.0,N)+exp(d.*(Xm-e))))-
+      rep_vector(8.0,N).*(a-b).*(f.*exp(f.*(Xm-e))+
+      c.*exp(c.*(Xm-e))).*d.*exp(d.*(Xm-e))./((exp(f.*(Xm-e))+
+      exp(c.*(Xm-e)))^2.0.*(rep_vector(1.0,N)+exp(d.*(Xm-e)))^2.0)+
+      rep_vector(4.0,N).*(a-b).*(f^2.0.*exp(f.*(Xm-e))+c^2.0.*exp(c.*(Xm-e)))./
+      ((exp(f.*(Xm-e))+exp(c.*(Xm-e)))^2.0.*(rep_vector(1.0,N)+
+      exp(d.*(Xm-e))))-rep_vector(8.0,N).*(a-b).*d^
+      2.0.*exp(d.*(Xm-e))^2.0./((exp(f.*(Xm-e))+
+      exp(c.*(Xm-e))).*(rep_vector(1.0,N)+exp(d.*(Xm-e)))^3.0)+
+      rep_vector(4.0,N).*(a-b).*d^2.0.*exp(d.*(Xm-e))./((exp(f.*(Xm-e))+
+      exp(c.*(Xm-e))).*(rep_vector(1.0,N)+exp(d.*(Xm-e)))^2.0)"
+      
+      returnmu_d3 <-
+        "rep_vector(24.0,N).*(a-b).*(f.*exp(f.*(Xm-e))+
+      c.*exp(c.*(Xm-e)))^3.0./((exp(f.*(Xm-e))+exp(c.*(Xm-e)))^
+      4.0.*(rep_vector(1.0,N)+exp(d.*(Xm-e))))+
+      rep_vector(24.0,N).*(a-b).*(f.*exp(f.*(Xm-e))+c.*exp(c.*(Xm-e)))^
+      2.0.*d.*exp(d.*(Xm-e))./((exp(f.*(Xm-e))+exp(c.*(Xm-e)))^
+      3.0.*(rep_vector(1.0,N)+exp(d.*(Xm-e)))^2.0)-
+      rep_vector(24.0,N).*(a-b).*(f.*exp(f.*(Xm-e))+
+      c.*exp(c.*(Xm-e))).*(f^2.0.*exp(f.*(Xm-e))+c^2.0.*exp(c.*(Xm-e)))./
+      ((exp(f.*(Xm-e))+exp(c.*(Xm-e)))^
+      3.0.*(rep_vector(1.0,N)+exp(d.*(Xm-e))))+
+      rep_vector(24.0,N).*(a-b).*(f.*exp(f.*(Xm-e))+
+      c.*exp(c.*(Xm-e))).*d^2.0.*exp(d.*(Xm-e))^
+      2.0./((exp(f.*(Xm-e))+exp(c.*(Xm-e)))^
+      2.0.*(rep_vector(1.0,N)+exp(d.*(Xm-e)))^3.0)-
+      rep_vector(12.0,N).*(a-b).*(f^
+      2.0.*exp(f.*(Xm-e))+c^2.0.*exp(c.*(Xm-e))).*d.*exp(d.*(Xm-e))./
+      ((exp(f.*(Xm-e))+exp(c.*(Xm-e)))^
+      2.0.*(rep_vector(1.0,N)+exp(d.*(Xm-e)))^2.0)-
+      rep_vector(12.0,N).*(a-b).*(f.*exp(f.*(Xm-e))+
+      c.*exp(c.*(Xm-e))).*d^2.0.*exp(d.*(Xm-e))./((exp(f.*(Xm-e))+
+      exp(c.*(Xm-e)))^2.0.*(rep_vector(1.0,N)+exp(d.*(Xm-e)))^2.0)+
+      rep_vector(4.0,N).*(a-b).*(f^3.0.*exp(f.*(Xm-e))+c^
+      3.0.*exp(c.*(Xm-e)))./((exp(f.*(Xm-e))+exp(c.*(Xm-e)))^
+      2.0.*(rep_vector(1.0,N)+exp(d.*(Xm-e))))+
+      rep_vector(24.0,N).*(a-b).*d^3.0.*exp(d.*(Xm-e))^3.0./
+      ((exp(f.*(Xm-e))+exp(c.*(Xm-e))).*(rep_vector(1.0,N)+
+      exp(d.*(Xm-e)))^4.0)-rep_vector(24.0,N).*(a-b).*d^3.0.*exp(d.*(Xm-e))^
+      2.0./((exp(f.*(Xm-e))+
+      exp(c.*(Xm-e))).*(rep_vector(1.0,N)+exp(d.*(Xm-e)))^3.0)+
+      rep_vector(4.0,N).*(a-b).*d^3.0.*exp(d.*(Xm-e))./
+      ((exp(f.*(Xm-e))+exp(c.*(Xm-e))).*(rep_vector(1.0,N)+exp(d.*(Xm-e)))^2.0)"
+      
+      returnmu_d1 <- paste0(returnmu_d1, ";")
+      returnmu_d2 <- paste0(returnmu_d2, ";")
+      returnmu_d3 <- paste0(returnmu_d3, ";")
+    } # if(select_model == 'pb3') {
+    
+    
+    
+    # a - asymptote
+    # b - rate constant
+    # c - time at midpoint
+    
+    if (select_model == 'logistic1') {
+      funstring <- "a./(1+exp(-b.*(Xm-c)))"
+      if (utils::packageVersion('rstan') < "2.26")
+        funstring <-
+          gsub(".*", " .* ", funstring, fixed = T)
+      returnmu    <- paste0("return ", "(",  funstring, ")")
+      returnmu_d0 <- funstring
+      returnmu_d1 <-
+        "a.*b.*exp(-b.*(Xm - c))./(1 + exp(-b.*(Xm - c)))^2.0"
+      
+      returnmu_d2 <-
+        "rep_vector(2.0,N).*a.*b^2.0.*exp(-b.*(Xm - c))^2.0./
+        (1 + exp(-b.*(Xm - c)))^3.0 -
+        a.*b^2.0.*exp(-b.*(Xm - c))./
+        (1 + exp(-b.*(Xm - c)))^2.0"
+      
+      returnmu_d3 <-
+        "rep_vector(6.0,N).*a.*b^3.0.*exp(-b.*(Xm - c))^3.0./
+        (1 + exp(-b.*(Xm - c)))^4.0 -
+        rep_vector(6.0,N).*a.*b^3.0.*exp(-b.*(Xm - c))^2.0./
+        (1 + exp(-b.*(Xm - c)))^3.0 +
+        a.*b^3.0.*exp(-b.*(Xm - c))./
+        (1 + exp(-b.*(Xm - c)))^2.0"
+      
+      returnmu_d1 <- paste0(returnmu_d1, ";")
+      returnmu_d2 <- paste0(returnmu_d2, ";")
+      returnmu_d3 <- paste0(returnmu_d3, ";")
+    } # if(select_model == 'logistic1') {
+    
+    
+    
+    # a - asymtote
+    # b - size at theta
+    # c - s0
+    # d - theta1
+    # e - s1
+    # f - theta2
+    
+    # wolfram suggests -> (b/(1+exp(-c*(x-d)))) + ((a-b)/(1+exp(-e*(x-f))))
+    # maple  -> ((a-b)/(1+exp(-e*(x-f)))) + (b/(1+exp(-c*(x-d))))
+    
+    # wolfram suggests
+    # (a - b)/(exp(-e (x - f)) + 1) + b/(exp(-c (x - d)) + 1)
+    
+    if (select_model == 'logistic2') {
+      funstring <-
+        "((a-b)./(1+exp(-e.*(Xm-f)))) + (b./(1+exp(-c.*(Xm-d))))"
+      if (utils::packageVersion('rstan') < "2.26")
+        funstring <-
+          gsub(".*", " .* ", funstring, fixed = T)
+      returnmu    <- paste0("return ", "(",  funstring, ")")
+      returnmu_d0 <- funstring
+      returnmu_d1 <-
+        "(e .* (a - b) .* exp(e .*(f + Xm)))./(exp(e .*f) + 
+      exp(e .*Xm))^2.0 + (b .*c .* exp(c.* (d + Xm)))./(exp(c .*d) + 
+      exp(c.* Xm))^2.0"
+      
+      
+      returnmu_d2 <-
+        "(a - b) .* ((2.0 .* e^2.0 .* exp(-2.0 .* e .* (Xm - f))) ./
+      (exp(e .*(-(Xm - f))) + 1.0)^3.0- (e^2.0 .* exp(e .* (-(Xm - f))))./
+      (exp(e .* (-(Xm - f))) + 1.0)^2.0) + b .* ((2.0 .* c^2.0 .* 
+      exp(-2.0 .* c .* (Xm - d)))./(e^(-c .* (Xm - d)) + 1.0)^3.0 - 
+      (c^2.0 .* exp(-c .*(Xm - d)))./(exp(-c .* (Xm - d)) + 1.0)^2.0)"
+      
+      
+      returnmu_d3 <-
+        "(a - b) .* ((e^3.0 .* exp(e .*(-(Xm - f))))./
+      (exp(e .* (-(Xm - f))) + 1.0)^2.0 - (6.0 .* e^3.0 .* 
+      exp(-2.0 .* e .* (Xm - f)))./(exp(e .* (-(Xm - f))) + 1.0)^3.0 + 
+      (6.0 .* e^3.0 .* exp(-3.0 .* e .* (Xm - f)))./
+      (exp(e .* (-(Xm - f))) + 1.0)^4.0.0) + b .* 
+      ((c^3.0 .* exp(-c .* (Xm - d)))./(exp(-c .* (Xm - d)) + 1.0)^2.0 - 
+      (6.0 .* c^3.0 .* exp(-2.0 .* c .* (Xm - d)))./
+      (exp(-c .* (Xm - d)) + 1.0)^3.0 + (6.0 .* c^3.0 .* 
+      exp(-3.0 .* c (Xm - d)))./(exp(-c .* (Xm - d)) + 1.0)^4.0)"
+      
+      
+      returnmu_d1 <- paste0(returnmu_d1, ";")
+      returnmu_d2 <- paste0(returnmu_d2, ";")
+      returnmu_d3 <- paste0(returnmu_d3, ";")
+    } # if(select_model == 'logistic2') {
+    
+    
+    
+    # a - size at infancy
+    # b - rate at infancy
+    # c - time at infancy
+    # d - size at preadolescence
+    # e - rate at preadolescence
+    # f - time at preadolescence
+    # g - size at adolescence
+    # h - rate at adolescence
+    # i - time at adolescence
+    
+    if (select_model == 'logistic3') {
+      funstring <-
+        "(a ./ (1 + exp(-b .* (Xm - c)))) +
+        (d ./ (1 + exp(-e .* (Xm - f)))) +
+        (g ./ (1 + exp(-h .* (Xm - i))))"
+      if (utils::packageVersion('rstan') < "2.26")
+        funstring <-
+          gsub(".*", " .* ", funstring, fixed = T)
+      returnmu    <- paste0("return ", "(",  funstring, ")")
+      returnmu_d0 <- funstring
+      
+      
+      returnmu_d1 <-
+        "(a .* b .* exp(-b .* (Xm - c)))./(exp(-b .* (Xm - c)) + 1)^2.0 +
+        (d .* e .* exp(-e .* (Xm - f)))./(exp(-e .* (Xm - f)) + 1)^2.0 +
+        (g .* h .* exp(-h .* (Xm - i)))./(exp(-h .* (Xm - i)) + 1)^2.0"
+      
+      returnmu_d2 <-
+        "(a .* ((rep_vector(2.0,N) .* b^2.0 .*
+                  exp(-rep_vector(2.0,N) .* b .* (Xm - c))) ./
+                 (exp(-b .* (Xm - c)) + 1)^3.0 -
+                 (b^2.0 .* exp(-b .* (Xm - c))) ./
+                 (exp(-b .* (Xm - c)) + 1.0)^2.0)) +
+        (d .* ((rep_vector(2.0,N) .* e^2.0 .*
+                  exp(-rep_vector(2.0,N) .* e .* (Xm - f))) ./
+                 (exp(-e .* (Xm - f)) + 1)^3.0 -
+                 (e^2.0 .* exp(-e .* (Xm - f))) ./
+                 (exp(-e .* (Xm - f)) + 1.0)^2.0)) +
+        (g .* ((rep_vector(2.0,N) .* h^2.0 .*
+                  exp(-rep_vector(2.0,N) .* h .* (Xm - i))) ./
+                 (exp(-h .* (Xm - i)) + 1)^3.0 -
+                 (h^2.0 .* exp(-h .* (Xm - i))) ./
+                 (exp(-h .* (Xm - i)) + 1.0)^2.0)) "
+      
+      returnmu_d3 <- returnmu_d2
+      
+      returnmu_d1 <- paste0(returnmu_d1, ";")
+      returnmu_d2 <- paste0(returnmu_d2, ";")
+      returnmu_d3 <- paste0(returnmu_d3, ";")
+    } # if(select_model == 'logistic3') {
+    
+    
+  
+    ######################################################################
+    
+    insert_getX_name <- paste0("  vector[N] Xm = ", "Xp;")
+    
+    start_fun <-
+      paste0(
+        "\nvector ",
+        spfncname,
+        "(vector ",
+        vector_X_name,
+        ", ",
+        fullabcsnames_v,
+        ") {" ,
+        "\n",
+        "  int N = num_elements(Xp);",
+        "\n",
+        insert_getX_name,
+        collapse = " "
+      )
+    
+    start_fun <- gsub(",)" , ")" , start_fun, fixed = TRUE)
+    endof_fun <- paste0("\n    ", returnmu,
+                        ";", "\n  } // end of spline function", sep = " ")
+    
+    
+    rcsfun <- paste(start_fun, endof_fun)
+    rcsfun_raw <- rcsfun
+    
+    # Create function d0
+    fnameout <- paste0(spfncname, "_", "d0")
+    
+    spl_fun_ford <-
+      paste0(fnameout,
+             "(vector ",
+             vector_X_name,
+             ", ",
+             fullabcsnames_v,
+             ")")
+    spl_fun_ford <- gsub("vector", "", spl_fun_ford, fixed = T)
+    spl_fun_ford <- gsub("[[:space:]]", "", spl_fun_ford)
+    spl_fun_ford <- gsub(",)", ")", spl_fun_ford, fixed = T)
+    
+    
+    
+    
+    ######################################################################
+    # funsi to transform and itransform
+    spl_d0 <- create_internal_function_nonsitar(
+      y = y,
+      function_str = rcsfun,
+      fname = spfncname,
+      fnameout = fnameout,
+      returnmu = returnmu,
+      xfunsi = xfunsi,
+      yfunsi = yfunsi,
+      # setxoffset = setxoffset,
+      gsub_out_unscaled = NULL,
+      spl_fun_ford = spl_fun_ford,
+      body = returnmu_d0,
+      decomp = decomp,
+      fixedsi = fixedsi,
+      xfuntransformsi       = xfuntransformsi,
+      yfuntransformsi       = yfuntransformsi,
+      ixfuntransformsi      = ixfuntransformsi,
+      iyfuntransformsi      = iyfuntransformsi,
+      sigmaxfunsi           = sigmaxfunsi,
+      sigmayfunsi           = sigmayfunsi,
+      sigmaxfuntransformsi  = sigmaxfuntransformsi,
+      sigmayfuntransformsi  = sigmayfuntransformsi,
+      sigmaixfuntransformsi = sigmaixfuntransformsi,
+      sigmaiyfuntransformsi = sigmaiyfuntransformsi
+    )
+    
+    # Create function d1
+    fnameout <- paste0(spfncname, "_", "d1")
+    ######################################################################
+    # funsi to transform and itransform
+    spl_d1 <- create_internal_function_nonsitar(
+      y = y,
+      function_str = rcsfun,
+      fname = spfncname,
+      fnameout = fnameout,
+      returnmu = returnmu,
+      xfunsi = xfunsi,
+      yfunsi = yfunsi,
+      # setxoffset = setxoffset,
+      gsub_out_unscaled = NULL,
+      # gsub_out_unscaled = c('QR', 'Spl')
+      spl_fun_ford = spl_fun_ford,
+      body = returnmu_d1,
+      decomp = decomp,
+      fixedsi = fixedsi,
+      xfuntransformsi       = xfuntransformsi,
+      yfuntransformsi       = yfuntransformsi,
+      ixfuntransformsi      = ixfuntransformsi,
+      iyfuntransformsi      = iyfuntransformsi,
+      sigmaxfunsi           = sigmaxfunsi,
+      sigmayfunsi           = sigmayfunsi,
+      sigmaxfuntransformsi  = sigmaxfuntransformsi,
+      sigmayfuntransformsi  = sigmayfuntransformsi,
+      sigmaixfuntransformsi = sigmaixfuntransformsi,
+      sigmaiyfuntransformsi = sigmaiyfuntransformsi
+    )
+    
+    # Create function d2
+    fnameout <- paste0(spfncname, "_", "d2")
+    ######################################################################
+    # funsi to transform and itransform
+    spl_d2 <- create_internal_function_nonsitar(
+      y = y,
+      function_str = rcsfun,
+      fname = spfncname,
+      fnameout = fnameout,
+      returnmu = returnmu,
+      xfunsi = xfunsi,
+      yfunsi = yfunsi,
+      # setxoffset = setxoffset,
+      gsub_out_unscaled = NULL,
+      # gsub_out_unscaled = c('QR', 'Spl')
+      spl_fun_ford = spl_fun_ford,
+      body = returnmu_d2,
+      decomp = decomp,
+      fixedsi = fixedsi,
+      xfuntransformsi       = xfuntransformsi,
+      yfuntransformsi       = yfuntransformsi,
+      ixfuntransformsi      = ixfuntransformsi,
+      iyfuntransformsi      = iyfuntransformsi,
+      sigmaxfunsi           = sigmaxfunsi,
+      sigmayfunsi           = sigmayfunsi,
+      sigmaxfuntransformsi  = sigmaxfuntransformsi,
+      sigmayfuntransformsi  = sigmayfuntransformsi,
+      sigmaixfuntransformsi = sigmaixfuntransformsi,
+      sigmaiyfuntransformsi = sigmaiyfuntransformsi
+    )
+    
+    
+    # rcsfunmultadd <- NULL
+    
+    include_fun_names <- c(spfncname)
+    
+    if('d0' %in% include_fun_c)  {
+      include_fun_names <- c(include_fun_names, paste0(spfncname, "_d0"))
+      spl_d0 <- spl_d0
+    } else {
+      spl_d0 <- NULL
+    }
+    
+    if('d1' %in% include_fun_c)  {
+      include_fun_names <- c(include_fun_names, paste0(spfncname, "_d1"))
+      spl_d1 <- spl_d1
+    } else {
+      spl_d1 <- NULL
+    }
+    
+    if('d2' %in% include_fun_c) {
+      include_fun_names <- c(include_fun_names, paste0(spfncname, "_d2"))
+      spl_d2 <- spl_d2
+    } else {
+      spl_d2 <- NULL
+    }
+    
+  
+    ######################################################################
+    
+    if('getknots' %in% include_fun_c)  {
+      include_fun_names <- c(include_fun_names, getknotsname)
+      getknotsname <- getknotsname
+    } else {
+      getknotsname <- NULL
+    }
+    
+    
+    if('X' %in% include_fun_c)  {
+      include_fun_names <- c(include_fun_names, paste0(spfncname, "X"))
+      rcsfunmultadd <- rcsfunmultadd
+    } else {
+      rcsfunmultadd <- NULL
+    }
+    
+    
+    
+    if (utils::packageVersion('rstan') > "2.26" & is.null(decomp)) {
+      rcsfun <- paste0(# getx_fun, NOT USING getx
+                       rcsfun,
+                       rcsfunmultadd,
+                       spl_d0,
+                       spl_d1,
+                       spl_d2,
+                       sep = "\n")
+    }
+    
+    if (utils::packageVersion('rstan') > "2.26" & !is.null(decomp)) {
+      if (decomp == 'QR') {
+        if (add_funmats) {
+          rcsfun <- paste0(# getx_fun, NOT USING getx
+                           funmats,
+                           rcsfun,
+                           rcsfunmultadd,
+                           spl_d0,
+                           spl_d1,
+                           spl_d2,
+                           sep = "\n")
+        } else if (!add_funmats) {
+          rcsfun <- paste0(# getx_fun, NOT USING getx
+                           rcsfun,
+                           rcsfunmultadd,
+                           spl_d0,
+                           spl_d1,
+                           spl_d2,
+                           sep = "\n")
+        }
+      }
+    }
+    
+    
+    
+  } # if(select_model != 'sitar') { # pb models
+  
+  
+
+  
+  
+  
+  
+  
+  #################
+  extract_r_fun_from_scode <- function(xstaring, 
+                                       what = NULL, 
+                                       decomp, 
+                                       spfncname,...) {
+      if(is.null(xstaring)) {
+        return(xstaring)
+      }
+      getfunnamestr <- deparse(substitute(xstaring))
+      xstaring <- gsub("[[:space:]]" , "", xstaring)
+      xstaring <- gsub(";" , ";\n", xstaring)
+      xstaring <- gsub("\\{" , "{\n", xstaring)
+      xstaring <- gsub("}" , "}\n", xstaring)
+      xstaring <- gsub("vector[N]" , "", xstaring, fixed = T)
+      xstaring <- gsub("vector" , "", xstaring, fixed = T)
+      xstaring <- gsub("int" , "", xstaring, fixed = T)
+      if(!add_separte_getknots_fun) {
+        xstaring <- gsub("knots=[" , "knots=c(", xstaring, fixed = T)
+        xstaring <- gsub("]';" , ");", xstaring, fixed = T)
+      }
+      xstaring <- gsub("smat_normalize" , "normalize", xstaring, fixed = T)
+      xstaring <- gsub("ercept" , "intercept", xstaring, fixed = T)
+      xstaring <- gsub("[nknots-2]iknotsx;", "", xstaring, fixed = T)
+      xstaring <- gsub("[2]bknotsx;", "", xstaring, fixed = T)
+      xstaring <- gsub("Spl=matrix(0,N,SbasisN);" , "", xstaring, fixed = T)
+      xstaring <- gsub("Spl[,1]=rep(1.0,N);" , "", xstaring, fixed = T)
+      xstaring <- gsub("Spl[,1]=rep(0.0,N);" , "", xstaring, fixed = T)
+      xstaring <- 
+        gsub("segment(knots,2,nknots-2);", "knots[2:(length(knots)-1)];", 
+             xstaring, fixed = T)
+      xstaring <- 
+        gsub("append_row(head(knots,1),tail(knots,1));", "c(knots[1], 
+             knots[length(knots)]);", xstaring, fixed = T)
+      xstaring <- gsub(SplinefunxStan , SplinefunxR, xstaring, fixed = T)
+      xstaring <- gsub("matrix[N,nknots]Spl;" , "", xstaring, fixed = T)
+      xstaring <- gsub("Spl[,1]=rep(1.0,N);" , "", xstaring, fixed = T)
+      xstaring <- gsub("Spl[,1]=rep(0.0,N);" , "", xstaring, fixed = T)
+      xstaring <- remove_spaces_and_tabs(xstaring)
+      
+      xstaring <- gsub("real" , "", xstaring, fixed = T)
+      xstaring <- gsub(paste0("jp1;", "\n"), "", xstaring, fixed = T)
+      xstaring <- gsub("rep_vector" , "rep", xstaring, fixed = T)
+      xstaring <- gsub("rep_" , "rep", xstaring, fixed = T)
+      xstaring <-
+        gsub(
+          "Xx[ia,ja]=(X[ia]-knots[ja]>0?X[ia]-knots[ja]:0);" ,
+          "Xx[ia,ja]=ifelse(X[ia]-knots[ja]>0,X[ia]-knots[ja],0);",
+          xstaring,
+          fixed = T
+        )
+      xstaring <- gsub("num_elements" , "length", xstaring, fixed = T)
+      xstaring <-
+        gsub("matrix[N,SbasisN]Spl" ,
+             "Spl=matrix(0,N,SbasisN)",
+             xstaring,
+             fixed = T)
+      xstaring <-
+        gsub("matrix[SbasisN,N]rcs" ,
+             "rcs=matrix(0,SbasisN,N)",
+             xstaring,
+             fixed = T)
+      xstaring <-
+        gsub("matrix[N,SbasisN+1]Xx" ,
+             "Xx=matrix(0,N, SbasisN+1)",
+             xstaring,
+             fixed = T)
+      
+     
+      xstaring <-
+        gsub("for(iain1:N)" , "for(ia in 1:N)", xstaring, fixed = T)
+      xstaring <- gsub("for(jain1:(SbasisN+1))" ,
+                       "for(ja in 1:(SbasisN+1))",
+                       xstaring,
+                       fixed = T)
+      xstaring <- gsub(".*" , "*", xstaring, fixed = T)
+      xstaring <- gsub("./" , "/", xstaring, fixed = T)
+      funame__ <- strsplit(xstaring, "\\(")[[1]][1]
+      xstaring <- gsub(funame__ , paste0(funame__, "<-function"),
+                       xstaring, fixed = T)
+      xstaring <- sub("//[^//]+$", "", xstaring)
+      # To remove stanadlon ";
+      xstaring <-
+        gsub(paste0(";\n;\n", ""), ";\n", xstaring, fixed = T)
+      xstaring <- gsub("[nknots]knots" , "knots", xstaring, fixed = T)
+      
+      # Both getX and getKnots are not part of the code
+      # if (!is.null(what)) {
+      #   # NOW NOT USING getx
+      #   # if (what == 'getX') {
+      #   #   xstaring <- gsub(paste0("x;", "\n"), "", xstaring)
+      #   # }
+      #   if (what == 'getKnots') {
+      #     xstaring <- gsub("\\[", "c\\(", xstaring)
+      #     xstaring <- gsub("\\]'", "\\)", xstaring)
+      #   }
+      # }
+      
+      
+      if(dparm_set_fixed_or_random) {
+        if(dparm_part_of_SplQc) {
+          xstaring <- gsub("vector[N]dpredictor=Xm;" ,
+                           "dpredictor=Xm;",
+                           xstaring, fixed = T)
+          xstaring <- gsub("append_col" ,
+                           "cbind",
+                           xstaring, fixed = T)
+          xstaring <- gsub("rep_vector" ,
+                           "rep",
+                           xstaring, fixed = T)
+          xstaring <- gsub("transpose" ,
+                           "t",
+                           xstaring, fixed = T)
+          
+          xstaring <- gsub("[:" ,
+                           "[",
+                           xstaring, fixed = T)
+          
+          xstaring <- gsub("matrix[N,ncol(XQ)]sfull_betas_temp" ,
+                           "sfull_betas_temp=matrix(NA,N,ncol(XQ))",
+                           xstaring, fixed = T)
+          xstaring <- gsub("matrix[N,ncol(XQ)]sfull_matrix_temp" ,
+                           "sfull_matrix_temp=matrix(NA,N,ncol(XQ))",
+                           xstaring, fixed = T)
+          
+          xstaring <- gsub("sfull_betas_temp=sfull_matrix_temp*" ,
+                           "sfull_betas_temp=sfull_matrix_temp %*% ",
+                           xstaring, fixed = T)
+        } # if(dparm_part_of_SplQc) {
+      } # if(dparm_set_fixed_or_random) {
+      
+      
+      if(dparm_set_fixed_or_random) {
+        if(dparm_part_of_SplQc) {
+          if(smat_intercept == 0) {
+            xstaring <- gsub("matrix[N,SbasisN+1]Spl;" ,
+                             "",
+                             xstaring, fixed = T)
+            xstaring <- gsub("matrix[N,SbasisN+1]SplQRd0;" ,
+                             "",
+                             xstaring, fixed = T)
+            xstaring <- gsub("matrix[N,SbasisN+1]SplQRd1;" ,
+                             "",
+                             xstaring, fixed = T)
+          } else if(smat_intercept == 1) {
+            xstaring <- gsub("matrix[N,SbasisN+1+1]Spl;" ,
+                             "",
+                             xstaring, fixed = T)
+            xstaring <- gsub("matrix[N,SbasisN+1+1]SplQRd0;" ,
+                             "",
+                             xstaring, fixed = T)
+            xstaring <- gsub("matrix[N,SbasisN+1+1]SplQRd1;" ,
+                             "",
+                             xstaring, fixed = T)
+          }
+        } # if(dparm_part_of_SplQc) {
+      } # if(dparm_set_fixed_or_random) {
+      
+      
+      xstaring <- gsub("vector[N]QRdbeta=d" , "QRdbeta=d", xstaring, fixed = T)
+  
+      # add QR
+      # make QR chnages
+      if (!is.null(decomp)) {
+        if (decomp == 'QR') {
+          if(getfunnamestr == "rcsfun_raw" |
+             getfunnamestr == "spl_d0" |
+             getfunnamestr == "spl_d1" |
+             getfunnamestr == "spl_d2") {
+            
+            set_QR_decomp_R <- paste0("QR_decomp_R(", 
+                                      "X=",        QR_Xmat,     "," ,
+                                      "center=",   QR_center, "," ,
+                                      "complete=", QR_complete, "," ,
+                                      "flip=",     QR_flip,     "," ,
+                                      "scale=",    QR_scale, ")")
+            set_QR_Xmat <- "QRRinv"
+            set_QR_decomp_R <- paste0(set_QR_Xmat, "=", set_QR_decomp_R)
+            
+            getQmat    <- paste0(set_QR_Xmat, "[[", "'Q'", "]]")
+            getRmat    <- paste0(set_QR_Xmat, "[[", "'R'", "]]")
+            getRinvmat <- paste0(set_QR_Xmat, "[[", "'Rinv'", "]]")
+            
+            getQmat    <- paste0("XQ", "=", getQmat)
+            getRmat    <- paste0("XR", "=", getRmat)
+            getRinvmat <- paste0(XR_inv_name, "=", getRinvmat)
+            
+            if(getfunnamestr == "rcsfun_raw") {
+              Qc_str_name     <- paste0("Qc=Spl;", "\n")
+              Qc_str_mat_name <- paste0("matrix[N,QK]Qc=Spl;", "\n")
+            } else if(getfunnamestr == "spl_d0") {
+              Qc_str_name     <- paste0("Qc=Spl;", "\n")
+              Qc_str_mat_name <- paste0("matrix[N,QK]Qc=Spl;", "\n")
+            } else if(getfunnamestr == "spl_d1") {
+              Qc_str_name     <- paste0("Qc=SplQRd0;", "\n")
+              Qc_str_mat_name <- paste0("matrix[N,QK]Qc=SplQRd0;", "\n")
+            } else if(getfunnamestr == "spl_d2") {
+              
+            } 
+            
+            set_QR_decomp_str <- paste0(Qc_str_name, 
+                                        set_QR_decomp_R, "\n", 
+                                        getQmat, "\n", 
+                                        getRmat, "\n", 
+                                        getRinvmat)
+           
+            xstaring <- replace_string_part(x = xstaring, 
+                                              start = Qc_str_mat_name,
+                                              end =  "inverse(XR);", 
+                                              replace = set_QR_decomp_str,
+                                              extract = FALSE,
+                                              cat_str = FALSE)
+  
+            
+            xstaring <- gsub("sfull_betas=sfull_matrix*transpose(XR_inv)" ,
+                             "sfull_betas=sfull_matrix %*% t(XR_inv)",
+                             xstaring, fixed = T)
+
+            xstaring <- gsub("Spl=matrix(0,N,SbasisN)QRd0" ,
+                             "QRd0=matrix(0,N,SbasisN)",
+                             xstaring, fixed = T)
+            xstaring <- gsub("Spl=matrix(0,N,SbasisN)QRd1" ,
+                             "QRd1=matrix(0,N,SbasisN)",
+                             xstaring, fixed = T)
+            xstaring <- gsub("matrix[N,SbasisN]sfull_matrix" ,
+                             "sfull_matrix=matrix(0,N,SbasisN)",
+                             xstaring, fixed = T)
+            xstaring <- gsub("matrix[N,SbasisN]R_tall" ,
+                             "R_tall=matrix(0,N,SbasisN)",
+                             xstaring, fixed = T)
+            
+            xstaring <- gsub("matrix[N,SbasisN]sfull_betas" ,
+                             "sfull_betas=matrix(0,N,SbasisN)",
+                             xstaring, fixed = T)
+            
+            xstaring <- gsub("(SplQRd1*sfull_betas)*rep(1.0,QK)" ,
+                             "Matrix::rowSums(SplQRd1 %*% sfull_betas)",
+                             xstaring, fixed = T)
+            
+          } # if(getfunnamestr == "rcsfun_raw" |....
+        } # if (decomp == 'QR') {
+      } # if (!is.null(decomp)) {
+      
+      xstaring <- gsub("cols" , "ncol", xstaring, fixed = T)
+      
+      xstaring <- gsub("matrixXp" , "Xp", xstaring, fixed = T) # spfnameX
+      
+      # This needed because \code{bsp}, \code{msp}, and \code{isp} may have NULL
+      # / numeric(0). This same approach based on the 
+      # function checkgetiknotsbknots() is used in bsitar and other funs
+      # Note that in Stan, when knots = NULL, the vector is empty []
+      gsub_it <- "iknotsx=knots[2:(length(knots)-1)]"
+      gsub_by <- "iknotsx=checkgetiknotsbknots(knots,'iknots')"
+      xstaring <- gsub(gsub_it, gsub_by, xstaring, fixed = T)
+      gsub_it <- "bknotsx=c(knots[1], knots[length(knots)])"
+      gsub_by <- "bknotsx=checkgetiknotsbknots(knots,'bknots')"
+      xstaring <- gsub(gsub_it, gsub_by, xstaring, fixed = T)
+      
+      # # pr(Xp) - see if any print statement used
+      gsub_it <- "pr("
+      gsub_by <- "print("
+      xstaring <- gsub(gsub_it, gsub_by, xstaring, fixed = T)
+      
+      xstaring
+    } # extract_r_fun_from_scode
+  
+  
+ 
+  
+
+  rcsfun_raw_str   <- extract_r_fun_from_scode(rcsfun_raw,
+                                               what = NULL,
+                                               decomp = decomp,
+                                               spfncname = spfncname)
+  spl_d0_str   <- extract_r_fun_from_scode(spl_d0,
+                                           what = NULL,
+                                           decomp = decomp,
+                                           spfncname = spfncname)
+  spl_d1_str   <- extract_r_fun_from_scode(spl_d1,
+                                           what = NULL,
+                                           decomp = decomp,
+                                           spfncname = spfncname)
+  spl_d2_str   <- extract_r_fun_from_scode(spl_d2,
+                                           what = NULL,
+                                           decomp = decomp,
+                                           spfncname = spfncname)
+  
+ 
+  ######################################################################
+  
+  getknots_str <- NULL
+  # 22.07.2025
+  if(!add_separte_getknots_fun) {
+    getknots_fun_raw <- NULL
+  }
+  
+  if (select_model == 'sitar' | select_model == 'rcs') {
+    getknots_str <- extract_r_fun_from_scode(
+      getknots_fun_raw,
+      what = 'getKnots',
+      decomp = decomp,
+      spfncname = spfncname
+    )
+  }
+  
+  
+  rcsfunmultadd_str     <- extract_r_fun_from_scode(
+    rcsfunmultadd,
+    what = 'X',
+    decomp = decomp,
+    spfncname = spfncname)
+  
+
+ 
+  
+  
+  all_raw_str <- c(rcsfun_raw_str,
+                   spl_d0_str,
+                   spl_d1_str,
+                   spl_d2_str,
+                   # getX_str, NOW NOT USING getx
+                   getknots_str,
+                   rcsfunmultadd_str)
+  
+  rcsfun <- remove_spaces_and_tabs(rcsfun)
+  
+   
+  
+  # smat_include_stan_path <- here::here('inst', 'include')
+  
+  #smat_include_stan_path <- ""
+  
+  
+  if(is.null(smat_include_path)) {
+    # smat_include_stan_path <- ""
+    # # if(system.file('inst', package = 'bsitar') != "") {
+    # #   smat_include_stan_path <- paste0(smat_include_stan_path, "/inst")
+    # # }
+    # if(system.file('include', package = 'bsitar') != "") {
+    #   smat_include_stan_path <- paste0(smat_include_stan_path, "/include")
+    # }
+    # if(system.file('stanhelper', package = 'bsitar') != "") {
+    #   smat_include_stan_path <- paste0(smat_include_stan_path, "/stanhelper")
+    # }
+    # smat_include_stan_path <- paste0(smat_include_stan_path, "/")
+    # smat_include_stan_path <- smat_include_stan_path # "/inst/stanhelper/"
+    smat_include_stan_path <- system.file('stanhelper', package = "bsitar")
+    smat_include_stan_path <- paste0(smat_include_stan_path, "/")
+  } else if(!is.null(smat_include_path)) {
+    smat_include_stan_path <- smat_include_path
+  }
+   
+  # print('smat_include_path')
+  # print(smat_include_path)
+  # 
+  # print('smat_include_stan')
+  # print(smat_include_stan)
+  # print('smat_preH')
+  # print(smat_preH)
+  # print('smat_include_stan_path')
+  # print(smat_include_stan_path)
+  
+  
+  # smat_preH is not allowed because adding two #include does not
+  # work in package
+  # Hence preH is added to main .stan files
+  
+  SplinefunxStan_file <- SplinefunxStan
+  
+  
+  funx_names      <- paste0(SplinefunxStan_file, add_fast)
+  funx_names.stan <- paste0(funx_names, ".stan")
+  set_path_str    <- paste0(smat_include_stan_path, funx_names, funx_names.stan)
+  
+  
+   # print(funx_names)
+  # stop()
+  
+  # funx_names <- "GS_nsk_call_stan"
+  
+  ###########################################################################
+  # nsk
+  ###########################################################################
+  if(funx_names == "GS_nsk_call_stan_fast_2") {
+    functions_to_add_stan_block <- c('GS_nsp_nsk_helper_stan',
+                                     'GS_bsp_tuple_stan',
+                                     'GS_nsp_nsk_stan_fast_2',
+                                     'GS_nsp_call_stan',
+                                     'GS_nsk_call_stan')
+  } else if(funx_names == "GS_nsk_call_stan_fast_1") {
+    functions_to_add_stan_block <- c('GS_nsp_nsk_helper_stan',
+                                     'GS_bsp_tuple_stan',
+                                     'GS_nsp_nsk_stan_fast_1',
+                                     'GS_nsp_call_stan',
+                                     'GS_nsk_call_stan')
+  } else if(funx_names == "GS_nsk_call_stan") {
+    functions_to_add_stan_block <- c('GS_nsp_nsk_helper_stan',
+                                     'GS_bsp_stan',
+                                     'GS_nsp_nsk_stan',
+                                     'GS_nsp_call_stan',
+                                     'GS_nsk_call_stan')
+  } else {
+    # stop("Something wrong in setting up the function code for: ", funx_names)
+  }
+  
+  ###########################################################################
+  # nsp
+  ###########################################################################
+  if(funx_names == "GS_nsp_call_stan_fast_2") {
+    functions_to_add_stan_block <- c('GS_nsp_nsk_helper_stan',
+                                     'GS_bsp_tuple_stan',
+                                     'GS_nsp_nsk_stan_fast_2',
+                                     'GS_nsp_call_stan')
+  } else if(funx_names == "GS_nsp_call_stan_fast_1") {
+    functions_to_add_stan_block <- c('GS_nsp_nsk_helper_stan',
+                                     'GS_bsp_tuple_stan',
+                                     'GS_nsp_nsk_stan_fast_1',
+                                     'GS_nsp_call_stan')
+  } else if(funx_names == "GS_nsp_call_stan") {
+    functions_to_add_stan_block <- c('GS_nsp_nsk_helper_stan',
+                                     'GS_bsp_stan',
+                                     'GS_nsp_nsk_stan',
+                                     'GS_nsp_call_stan')
+  } else {
+    # stop("Something wrong in setting up the function code for: ", funx_names)
+  }
+  ###########################################################################
+  # bsp
+  ###########################################################################
+  if(funx_names == "GS_bsp_call_stan_fast_2") {
+    functions_to_add_stan_block <- c('GS_nsp_nsk_helper_stan',
+                                     'GS_bsp_tuple_stan',
+                                     'GS_bsp_nsk_stan_fast_2',
+                                     'GS_bsp_call_stan')
+  } else if(funx_names == "GS_bsp_call_stan_fast_1") {
+    functions_to_add_stan_block <- c('GS_nsp_nsk_helper_stan',
+                                     'GS_bsp_tuple_stan',
+                                     'GS_bsp_nsk_stan_fast_1',
+                                     'GS_bsp_call_stan')
+  } else if(funx_names == "GS_bsp_call_stan") {
+    functions_to_add_stan_block <- c('GS_nsp_nsk_helper_stan',
+                                     'GS_bsp_stan',
+                                     'GS_bsp_intermediate_stan',
+                                     'GS_bsp_call_stan')
+  } else {
+    # stop("Something wrong in setting up the function code for: ", funx_names)
+  }
+  ###########################################################################
+  # msp
+  ###########################################################################
+  if(funx_names == "GS_msp_call_stan_fast_2") {
+    functions_to_add_stan_block <- c('GS_nsp_nsk_helper_stan',
+                                     'GS_msp_tuple_stan',
+                                     'GS_msp_nsk_stan_fast_2',
+                                     'GS_msp_call_stan')
+  } else if(funx_names == "GS_msp_call_stan_fast_1") {
+    functions_to_add_stan_block <- c('GS_nsp_nsk_helper_stan',
+                                     'GS_msp_tuple_stan',
+                                     'GS_msp_nsk_stan_fast_1',
+                                     'GS_msp_call_stan')
+  } else if(funx_names == "GS_msp_call_stan") {
+    functions_to_add_stan_block <- c('GS_nsp_nsk_helper_stan',
+                                     'GS_bsp_stan',
+                                     'GS_msp_stan',
+                                     'GS_msp_call_stan')
+  } else {
+    # stop("Something wrong in setting up the function code for: ", funx_names)
+  }
+  ###########################################################################
+  # isp
+  ###########################################################################
+  if(funx_names == "GS_isp_call_stan_fast_2") {
+    functions_to_add_stan_block <- c('GS_nsp_nsk_helper_stan',
+                                     'GS_bsp_tuple_stan',
+                                     'GS_isp_tuple_stan',
+                                     'GS_isp_call_stan')
+  } else if(funx_names == "GS_isp_call_stan_fast_1") {
+    functions_to_add_stan_block <- c('GS_nsp_nsk_helper_stan',
+                                     'GS_bsp_tuple_stan',
+                                     'GS_isp_tuple_stan',
+                                     'GS_isp_call_stan')
+  } else if(funx_names == "GS_isp_call_stan") {
+    functions_to_add_stan_block <- c('GS_nsp_nsk_helper_stan',
+                                     'GS_bsp_stan',
+                                     'GS_isp_stan',
+                                     'GS_isp_call_stan')
+  } else {
+    # stop("Something wrong in setting up the function code for: ", funx_names)
+  }
+  ###########################################################################
+  # rcs
+  ###########################################################################
+  if(funx_names == "GS_rcs_call_stan") {
+    functions_to_add_stan_block <- c('GS_rcs_call_stan')
+  } 
+  
+  ###########################################################################
+  # preH -> if !smat_preH 
+  ###########################################################################
+  if(!smat_preH) {
+    # Regardless of smat_preH or ! smat_preH, GS_preH_stan not needed for 'rcs'
+    if(smat != "rcs") {
+      functions_to_add_stan_block <- c('GS_preH_stan',
+                                       functions_to_add_stan_block)
+    }
+  }
+  ###########################################################################
+  # Handling of !smat_preH & smat_preH 
+  ###########################################################################
+  all_funs_for_stan_block_str <- ""
+  for (i in functions_to_add_stan_block) {
+    R_str_name    <- paste0(i, "_", "R_str")
+    R_str_call    <- paste0(R_str_name, "()")
+    R_str_fun_str <- ept(R_str_call)
+    all_funs_for_stan_block_str <- paste0(all_funs_for_stan_block_str, 
+                                          # "\n ",
+                                          R_str_fun_str)
+  }
+  if(smat_preH) {
+    gsub_it <- "H = GS_getH_stan(allknots, normalize);"
+    gsub_by <- "// H = GS_getH_stan(allknots, normalize);"
+    all_funs_for_stan_block_str <- gsub(gsub_it, gsub_by, 
+                                        all_funs_for_stan_block_str, fixed = T)
+    gsub_it <- "MatpreH;"
+    gsub_by <- precomputedH_Stan
+    all_funs_for_stan_block_str <- gsub(gsub_it, gsub_by, 
+                                        all_funs_for_stan_block_str, fixed = T)
+  } else if(!smat_preH) {
+    gsub_it <- "H = MatpreH;"
+    gsub_by <- "// H = MatpreH;"
+    all_funs_for_stan_block_str <- gsub(gsub_it, gsub_by, 
+                                        all_funs_for_stan_block_str, fixed = T)
+  }
+  
+  include_str <- all_funs_for_stan_block_str
+  
+  
+  # cat(include_str)
+  # stop()
+  
+  
+  
+  # add_sigma_by_ls, only include main function and _d0/_d1/_d2
+  # This assumes that same function is used for both mu and sigma
+  # If this assumption is wrong, then need to re work on names
+  if(called_for_ls) {
+    include_str <- ""
+  }
+  
+  
+  # For multivariate model, include common functions only once
+  if(ii == 1) {
+    rcsfun <- paste0(include_str, "\n", rcsfun)
+  }
+ 
+  if (!add_rcsfunmatqrinv_genquant) {
+    out <- list(rcsfun = rcsfun, r_funs = all_raw_str, 
+                include_fun_names = include_fun_names)
+  } else if (add_rcsfunmatqrinv_genquant) {
+    out <- list(rcsfun = rcsfun,
+                r_funs = all_raw_str,
+                gq_funs = rcsfunmatqrinv_genquant,
+                include_fun_names = include_fun_names)
+  }
+  
+   # cat(rcsfun)
+   
+  return(out)
 }
 
 

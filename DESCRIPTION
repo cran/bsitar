@@ -2,7 +2,7 @@ Type: Package
 Package: bsitar
 Title: Bayesian Super Imposition by Translation and Rotation Growth
         Curve Analysis
-Version: 0.3.2
+Version: 0.3.3
 Authors@R: 
     person("Satpal", "Sandhu", , "satpal.sandhu@bristol.ac.uk", 
            role = c("aut", "cre", "cph"),
@@ -13,8 +13,8 @@ Description: The Super Imposition by Translation and Rotation (SITAR) model
     spline mean curve to the growth data and aligns individual-specific growth 
     curves to the underlying mean curve via a set of random effects (see Cole, 
     2010 <doi:10.1093/ije/dyq115> for details). The non-Bayesian version of the 
-    SITAR model can be fit by using the already available R package 'sitar'. While 
-    the 'sitar' package allows modelling of a single outcome only, the 'bsitar' 
+    SITAR model can be fit by using the already available R package 'sitar'. Unlike 
+    the 'sitar' package which allows modelling of a single outcome only, the 'bsitar' 
     package offers great flexibility in fitting models of varying complexities, 
     including joint modelling of multiple outcomes such as height and weight 
     (multivariate model). Additionally, the 'bsitar' package allows for the simultaneous  
@@ -32,19 +32,23 @@ Description: The Super Imposition by Translation and Rotation (SITAR) model
     and peak growth velocity.
 License: GPL-2
 Depends: R (>= 3.6)
-Imports: brms (>= 2.22.0), rstan (>= 2.32.6), loo (>= 2.7.0), dplyr (>=
-        1.1.3), rlang (>= 1.1.2), Rdpack (>= 2.6.2), insight (>=
-        1.0.1), data.table (>= 1.16.4), collapse (>= 2.0.19),
-        marginaleffects (>= 0.25.0), sitar, magrittr, methods, utils
-Suggests: ggplot2 (>= 3.4.0), bayesplot (>= 1.11.0), posterior (>=
-        1.3.1), testthat (>= 3.0.0), dtplyr (>= 1.3.1), checkmate (>=
-        2.3.1), doParallel (>= 1.0.17), parallel (>= 4.3.1), foreach
-        (>= 1.5.2), ggridges (>= 0.5.6), jtools (>= 2.2.2), fastplyr
-        (>= 0.2.0), doFuture (>= 1.0.1), cheapr (>= 0.9.8), installr
-        (>= 0.23.4), splines2 (>= 0.5.3), tidyr, nlme, purrr, future,
-        future.apply, forcats, patchwork, tibble, pracma, extraDistr,
-        bookdown, knitr, kableExtra, rmarkdown, spelling, Hmisc, R.rsp,
-        graphics, grDevices, ggtext, glue, stats, here
+Imports: brms (>= 2.23.0), rstan (>= 2.32.7), loo (>= 2.7.0), dplyr (>=
+        1.2.0), rlang (>= 1.1.2), Rdpack (>= 2.6.6), insight (>=
+        1.4.6), data.table (>= 1.18.0), collapse (>= 2.1.6),
+        marginaleffects (>= 0.32.0), sitar (>= 1.5.0), magrittr,
+        methods, utils
+Suggests: ggplot2 (>= 4.0.2), bayesplot (>= 1.15.0), posterior (>=
+        1.6.1), testthat (>= 3.3.2), ggridges (>= 0.5.6), jtools (>=
+        2.3.0), splines2 (>= 0.5.4), scales (>= 1.3.0), kableExtra (>=
+        1.4.0), knitr (>= 1.51), future (>= 1.69.0), future.callr (>=
+        0.10.2), future.apply (>= 1.20.0), future.mirai (>= 0.10.1),
+        mirai (>= 2.5.0), doParallel (>= 1.0.17), foreach (>= 1.5.2),
+        doFuture (>= 1.1.2), fastplyr (>= 0.9.0), cheapr (>= 1.3.2),
+        dtplyr (>= 1.3.1), checkmate (>= 2.3.3), installr (>= 0.23.4),
+        bayestestR (>= 0.17.0), R.utils, parallel, MASS, Matrix, tidyr,
+        nlme, purrr, forcats, patchwork, tibble, pracma, extraDistr,
+        bookdown, rmarkdown, spelling, Hmisc, growthcleanr, boot, R.rsp
+        (>= 0.46.0), graphics, grDevices, abind, glue, stats
 URL: https://github.com/Sandhu-SS/bsitar
 BugReports: https://github.com/Sandhu-SS/bsitar/issues
 Additional_repositories:
@@ -56,9 +60,10 @@ LazyData: true
 LazyLoad: no
 LazyDataCompression: xz
 NeedsCompilation: no
-RoxygenNote: 7.3.2
+RoxygenNote: 7.3.3
 Language: en-US
-Packaged: 2025-02-07 06:23:11 UTC; drsat
-Author: Satpal Sandhu [aut, cre, cph] (<https://orcid.org/0000-0002-8539-6897>)
+Packaged: 2026-03-25 13:05:59 UTC; drsat
+Author: Satpal Sandhu [aut, cre, cph] (ORCID:
+    <https://orcid.org/0000-0002-8539-6897>)
 Repository: CRAN
-Date/Publication: 2025-02-07 06:50:02 UTC
+Date/Publication: 2026-03-25 15:40:02 UTC

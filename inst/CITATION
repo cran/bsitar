@@ -7,3 +7,23 @@ bibentry(
   url      = "https://CRAN.R-project.org/package=bsitar",
   key      = "bsitar-package"
 )
+
+
+bibentry(
+  bibtype = "Article",
+  author = c(
+    person(given = "Satpal",    family = "Sandhu"),
+    person(given = "George",    family = "Leckie"),
+    person(given = "Kate",      family = "Tilling"),
+    person(given = "Rachael A", family = "Hughes")
+  ),
+  title = "Studying the dynamics of mandibular growth spurts in individuals with Class I and Class II skeletal growth patterns using the Bayesian superimposition by translation and rotation (SITAR) model",
+  journal = "European Journal of Orthodontics",
+  volume = "47",
+  number = "6",
+  year = "2025",
+  month = "11",
+  doi = "10.1093/ejo/cjaf088"
+)
+
+

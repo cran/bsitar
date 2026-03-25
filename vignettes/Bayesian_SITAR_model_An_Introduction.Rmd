@@ -120,12 +120,12 @@ Here we describe the Bayesian model specification for a two-level SITAR model al
 \mathbf R & = \begin{bmatrix} 1  & \rho_{\alpha_j\zeta_j} & \rho_{\alpha_j\gamma_j} \\\rho_{\zeta_j\alpha_j} & 1 & \rho_{\zeta_j\gamma_j} \\\rho_{\gamma_j\alpha_j} & \rho_{\gamma_j\zeta_j} & 1 \end{bmatrix} \\
 \\
 \alpha_0   & \sim \operatorname{normal}(\ y_{mean},\  {y_{sd}}) \\
-\zeta_0   & \sim \operatorname{normal}(\ 0,\ 1.5) \\
-\gamma_0  & \sim \operatorname{normal}(\ 0,\ 0.5) \\
-\beta_1 \text{,..,} \beta_r & \sim \operatorname{normal}(\ 0, \ \mathbf {X_{scaled}}) \\
+\zeta_0   & \sim \operatorname{normal}(\ 0,\ 2.0) \\
+\gamma_0  & \sim \operatorname{normal}(\ 0,\ 1.0) \\
+\beta_1 \text{,..,} \beta_r & \sim \operatorname{normal}(\ \mathbf{\beta_{lm}}, \ \mathbf {X_{Spl}}) \\
 \alpha_j   & \sim \operatorname{normal_{Half}}(\ {0},\  {y_{sd}}) \\
-\zeta_j   & \sim \operatorname{normal_{Half}}(\ {0},\  {1.0}) \\
-\gamma_j   & \sim \operatorname{normal_{Half}}(\ {0},\  {0.25}) \\
+\zeta_j   & \sim \operatorname{normal_{Half}}(\ {0},\  {2.0}) \\
+\gamma_j   & \sim \operatorname{normal_{Half}}(\ {0},\  {1.0}) \\
 \sigma_\epsilon & \sim \operatorname{normal_{Half}}(\ {0},\  {y_{sd}}) \\
 \mathbf R & \sim \operatorname{LKJ}(1),
 \end{aligned}
@@ -137,7 +137,7 @@ Here we describe the Bayesian model specification for a two-level SITAR model al
 The first line in the equation above represents the likelihood, which states that the outcome is distributed with a mean `mu` and standard deviation `sigma`, $\sigma_\epsilon$. The `mu` is a function of the growth curve parameters, as described earlier (see Equation \ref{eq:1}). The unstructured variance co-variance matrix $\mathbf {\Sigma_{ID}}$ is same as show earlier (Equation \ref{eq:1}) and 
 is constructed using the separation strategy. In this strategy., which is followed
 in Stan, the variance covariance matrix $\mathbf {\Sigma_{ID}}$ is decomposed into a diagonal matrix $\mathbf S$ (composed of standard deviation vector), and a correlation matrix $\mathbf R$ ([see here for details ](https://jrnold.github.io/bayesian_notes/appendix.html)). The residuals are assumed to be independent and normally distributed with a mean of `0` and a $n_j \times n_j$ dimensional identity covariance matrix with a diagonal constant variance parameter, $\sigma_\epsilon$, i.e., $\mathbf {I\sigma_\epsilon}$, where  $\mathbf I$ is the identity matrix (a diagonal matrix of 1s) and $\sigma_\epsilon$ is the residual standard deviation. In other words, the residual variance (i.e., within individual variance) matrix is composed of a single parameter $\sigma_\epsilon$ which form the 
-diagonal of the matrix. The assumption of homoscedasticity (constant variance) of the residuals can be relaxed.
+diagonal of the matrix. The assumption of homoscedasticity (constant variance) of the residuals can be relaxed. A detailed description of the prior distributions for each parameter is provided in below Section [priors].
 
 
 \newline
@@ -156,22 +156,31 @@ otherwise the scale factor is $1.0$ (i.e., no auto scaling). The 'bsitar'
 package, on the other hand, offers full flexibility in choosing the scale factor
 via a built in option, `autoscale`. Setting `autoscale=TRUE` scales prior by a factor of $2.5$ (as earlier used in 'rstanarm'). However, as mentioned earlier, the scaling factor can be set as any real number such as $1.5$ (e.g., `autoscale = 1.5`). The `autoscale` option is available for all location-scale based distibutions such as `normal`, `student_t`, `cauchy` etc. We strongly recommend to go through the documentation on priors included in the
 [brms](https://rdrr.io/cran/brms/man/set_prior.html) and
-[rstanrm](https://rdrr.io/cran/rstanarm/man/priors.html) packages.
+[rstanrm](https://rdrr.io/cran/rstanarm/man/priors.html) packages. The default 
+setting for `autoscale` in 'bsitar' package is `FALSE` i.e., the scale factor is
+set to `1`.
 
 
 
 Below we describe the default priors used for the regression coefficients as well as the standard deviation of random effects for `a` (size), `b` (timing) and `c` (intensity) parameters and their correlations. The default distribution for each parameter (regression coefficients, standard deviation for group level random effects, and residuals) is `normal` distribution.
 
-* The population regression parameter `a` is assigned 'normal' prior centered at $y_{\text{mean}}$ (i.e., mean of the outcome) with scale defined as the standard deviation of the outcome $y_{\text{sd}}$ multiplied by the default scaling factor $2.5$ i.e., `normal(ymean, ysd, autoscale = TRUE)`. The prior on the standard deviation of the random effect parameter `a` is identical to the regression parameter with the exception that it is centered at mean `0` i.e., `normal(0, ysd, autoscale = TRUE)`.
+* The population regression parameter `a` is assigned 'normal' prior centered at $y_{\text{mean}}$ (i.e., mean of the outcome) with scale defined as the standard deviation of the outcome $y_{\text{sd}}$ multiplied by the default scaling factor $1.0$ i.e., `normal(ymean, ysd, autoscale = FALSE)`. The prior on the standard deviation of the random effect parameter `a` is identical to the regression parameter with the exception that it is centered at mean `0` i.e., `normal(0, ysd, autoscale = FALSE)`.
 
-* For the population regression parameter `b`, the default prior follows a 'normal' distribution with mean `0` and a scale of `1.5`, i.e., `normal(0, 1.5, autoscale = FALSE)`. Note that the `autoscale` option is set to `FALSE.` Since the predictor `age` is typically mean-centered when fitting the SITAR model, this prior implies that 95% of the distribution's mass (assuming it approaches a normal curve) for 
-the timing parameter will cover range between 11 and 17 years when the predictor `age` is centered at 14 years. Depending on the mean age and whether the data correspond to males or females, the scale factor can be adjusted accordingly. The prior for the standard deviation of `b` parameter is also `normal`, with a mean of 0 and a standard deviation of `1.0` (`normal(0, 1.0, autoscale = FALSE)`), implying that 95% of the distribution's mass for the individual variability in the timing 
-parameter will cover 4 years ($\pm 2.0$) around the population average parameter `b`.
+* For the population regression parameter `b`, the default prior follows a 'normal' distribution with mean `0` and a scale of `2.0`, i.e., `normal(0, 2.0, autoscale = FALSE)`. Note that the `autoscale` option is set to `FALSE.` Since the predictor `age` is typically mean-centered when fitting the SITAR model, this prior implies that 95% of the distribution's mass (assuming it approaches a normal curve) for the timing parameter will cover range between 10 and 18 years when the predictor `age` is centered at 14 years. Depending on the mean age and whether the data correspond to males or females, the scale factor can be adjusted accordingly.
+The prior for the standard deviation of `b` parameter is also `normal`, with a
+mean of 0 and a standard deviation of `2.0` (`normal(0, 2.0, autoscale =
+FALSE)`), implying that 95% of the distribution's mass for the individual
+variability in the timing parameter will cover 4 years ($\pm 2.0$) around the
+population average parameter `b`.
 
-* The default prior for the population average intensity regression parameter `c` is 'normal' with a mean of `0` and a scale of `0.5`, i.e., `normal(0, 0.5, autoscale = FALSE)`. Note that intensity parameter is estimated on the `exp` scale, and therefore is interpreted as percentage increase in size. For the standard deviation of `c` parameter, prior assigned is `normal(0, 0.25, autoscale = FALSE)` 
+* The default prior for the population average intensity regression parameter `c` is 'normal' with a mean of `0` and a scale of `1.0`, i.e., `normal(0, 1.0, autoscale = FALSE)`. Note that intensity parameter is estimated on the `exp` scale, and therefore is interpreted as percentage increase in size. For the standard deviation of `c` parameter, prior assigned is `normal(0, 1.0, autoscale = FALSE)`. Note that since parameter `c` is as `exp`, the user should consider
+reducing the scale of prior from `1.0` to `0.5` or even `0.25` particularly for
+the standard deviation of random effect.
 
 * The prior for the correlations between random effect parameters follows the Lewandowski-Kurowicka-Joe (LKJ) distribution. The `LKJ` prior is specified via a single parameter `eta`. If `eta = 1` (the default), all correlation matrices are equally likely `a priori`. If `eta > 1`, extreme correlations become less likely, whereas if `0 < eta < 1`, higher probabilities are assigned to extreme correlations.
 See [brms](https://rdrr.io/cran/brms/man/set_prior.html) for more details.
+
+* For the spline coefficients, we assign a normal prior with the location set to $\beta_{\text{lm}}$, the vector of spline coefficients obtained from a linear model fit to the data. The scale is defined as the standard deviation of the spline design matrix $X_{\text{Spl}}$ multiplied by the default scaling factor $1.0$ i.e., `normal(lm, lm, autoscale = FALSE)`.
 
 
 \newline
@@ -227,18 +236,18 @@ The [univariate][Bayesian SITAR model - Univariate formulation] described earlie
 \\
 \alpha_0^\text{Y1}   & \sim \operatorname{normal}(\ y^\text{Y1}_{mean},\  {y^\text{Y1}_{sd}}) \\
 \alpha_0^\text{Y2}   & \sim \operatorname{normal}(\ y^\text{Y2}_{mean},\  {y^\text{Y2}_{sd}}) \\
-\zeta_0^\text{Y1} & \sim \operatorname{normal}(\ 0, 1.5) \\
-\zeta_0^\text{Y2} & \sim \operatorname{normal}(\ 0, 1.5) \\
-\gamma_0^\text{Y1} & \sim \operatorname{normal}(\ 0, 0.5) \\
-\gamma_0^\text{Y2} & \sim \operatorname{normal}(\ 0, 0.5) \\
-\beta_1^\text{Y1} \text{,..,} \beta_r^\text{Y1} & \sim \operatorname{normal}(\ 0, \ \mathbf {X^\text{Y1}_{scaled}}) \\
-\beta_1^\text{Y2} \text{,..,} \beta_r^\text{Y2} & \sim \operatorname{normal}(\ 0, \ \mathbf {X^\text{Y2}_{scaled}}) \\
+\zeta_0^\text{Y1} & \sim \operatorname{normal}(\ 0, 2.0) \\
+\zeta_0^\text{Y2} & \sim \operatorname{normal}(\ 0, 2.0) \\
+\gamma_0^\text{Y1} & \sim \operatorname{normal}(\ 0, 1.0) \\
+\gamma_0^\text{Y2} & \sim \operatorname{normal}(\ 0, 1.0) \\
+\beta_1^\text{Y1} \text{,..,} \beta_r^\text{Y1} & \sim \operatorname{normal}(\ \mathbf {\beta^\text{Y2}_{lm}}, \ \mathbf {X^\text{Y1}_{Spl}}) \\
+\beta_1^\text{Y2} \text{,..,} \beta_r^\text{Y2} & \sim \operatorname{normal}(\ \mathbf {\beta^\text{Y2}_{lm}}, \ \mathbf {X^\text{Y2}_{Spl}}) \\
 \alpha_j^\text{Y1}   & \sim \operatorname{normal_{Half}}(\ {0},\  {y^\text{Y1}_{sd}}) \\
 \alpha_j^\text{Y2}   & \sim \operatorname{normal_{Half}}(\ {0},\  {y^\text{Y2}_{sd}}) \\
-\zeta_j^\text{Y1}  & \sim \operatorname{normal_{Half}}(\ {0},\ {1.0}) \\
-\zeta_j^\text{Y2} & \sim \operatorname{normal_{Half}}(\ {0},\ {1.0}) \\
-\gamma_j^\text{Y1} & \sim \operatorname{normal_{Half}}(\ {0},\ {0.25}) \\
-\gamma_j^\text{Y2} & \sim \operatorname{normal_{Half}}(\ {0},\ {0.25}) \\
+\zeta_j^\text{Y1}  & \sim \operatorname{normal_{Half}}(\ {0},\ {2.0}) \\
+\zeta_j^\text{Y2} & \sim \operatorname{normal_{Half}}(\ {0},\ {2.0}) \\
+\gamma_j^\text{Y1} & \sim \operatorname{normal_{Half}}(\ {0},\ {1.0}) \\
+\gamma_j^\text{Y2} & \sim \operatorname{normal_{Half}}(\ {0},\ {1.0}) \\
 \sigma_{ij}^\text{Y1} & \sim \operatorname{normal_{Half}}(\ {0},\  {y^\text{Y1}_{sd}}) \\
 \sigma_{ij}^\text{Y2} & \sim \operatorname{normal_{Half}}(\ {0},\  {y^\text{Y2}_{sd}}) \\
 \mathbf R_W & \sim \operatorname{LKJ}(1) \\
@@ -249,7 +258,7 @@ The [univariate][Bayesian SITAR model - Univariate formulation] described earlie
 
 
 \newline
-Where $^\text{Y1}$ and $^\text{Y2}$ superscripts indicate which variable is connected with which parameter. This is a straightforward multivariate generalization from the previous model (see Equation \ref{eq:3}). At the individual level, we have six parameters varying across individuals, resulting in a $6 \times 6$ $\mathbf{S}_{ID}$ matrix and a $6 \times 6$ $\mathbf{R}_{ID}$ matrix. The within-individual variability is captured by the residual parameters, which include a $2 \times 2$ $\mathbf{S}_{W}$ matrix and a $2 \times 2$ $\mathbf{R}_{W}$ matrix. The priors described above for the [Univariate model specification][Bayesian SITAR model - Univariate formulation] are applied to each outcome. The prior on the residual correlation between outcomes is the `lkj` prior, as described [earlier][Bayesian SITAR model - Univariate formulation] for the correlation between group level random effects.
+Where $^\text{Y1}$ and $^\text{Y2}$ superscripts indicate which variable is connected with which parameter. This is a straightforward multivariate generalization from the previous model (see Equation \ref{eq:3}). At the individual level, we have six parameters varying across individuals, resulting in a $6 \times 6$ $\mathbf{S}_{ID}$ matrix and a $6 \times 6$ $\mathbf{R}_{ID}$ matrix. The within-individual variability is captured by the residual parameters, which include a $2 \times 2$ $\mathbf{S}_{W}$ matrix and a $2 \times 2$ $\mathbf{R}_{W}$ matrix. The priors described above for the [Univariate model specification][Bayesian SITAR model - Univariate formulation] are applied to each outcome. The prior on the residual correlation between outcomes is the `lkj` prior, as described [earlier][Bayesian SITAR model - Univariate formulation] for the correlation between group level random effects. A detailed description of the prior distributions for each parameter is provided in Section [priors]. The default setting applies the same priors to all outcomes.
 
 
 

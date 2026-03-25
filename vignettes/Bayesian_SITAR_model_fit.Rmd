@@ -29,7 +29,7 @@ opts_chunk$set(
   message = FALSE,
   warning = FALSE,
   # eval = if (isTRUE(exists("params"))) params$EVAL else FALSE,
-  purl = FALSE,
+  purl = T,
   dev = "jpeg",
   dpi = 100,
   fig.cap = "",
@@ -101,6 +101,7 @@ stopifnot(require(sitar))
 ```{r loadbsitar, eval=TRUE, echo=TRUE,include=TRUE}
 # Load required packages
 library(bsitar)  # To fit Bayesian SITAR model
+# devtools::load_all()
 library(sitar)   # To fit frequentist SITAR model
 library(ggplot2) # For plots
 ```
@@ -291,7 +292,7 @@ data_bsitar_Vapv <- plot_curves(model_bayes, opt = 'V', returndata = TRUE, newda
 
 ```{r prepare_adv_bsitar_2, echo=FALSE,include=FALSE, warning= FALSE, message=FALSE}
 # Get random effects for bsitar model
-setid <- model_bayes$model_info$ids
+setid               <- model_bayes$model_info$idvars
 bfh1_ranef_frame    <- brms::ranef(model_bayes)
 bfh1_ranef_frame_id <- bfh1_ranef_frame[[setid]]
 dimxi_l <- list()
@@ -329,8 +330,8 @@ data_bsitar_u_f <- plot_curves(model_bayes, opt = 'u', returndata = TRUE, newdat
 data_bsitar_a_f <- plot_curves(model_bayes, opt = 'a', returndata = TRUE, newdata = data_sitar_uad_df123, ipts = NULL, summary = TRUE)
 data_bsitar_d_f <- plot_curves(model_bayes, opt = 'd', returndata = TRUE, newdata = data_sitar_uad_df12, ipts = NULL, summary = TRUE)
 
-data_bsitar_u_f <- data_bsitar_u_f %>% dplyr::rename(!!yvar := yvar) %>% dplyr::select(all_of(colnames(data_sitar_uad_df123)))
-data_bsitar_a_f <- data_bsitar_a_f %>% dplyr::rename(!!yvar := yvar) %>% dplyr::select(all_of(colnames(data_sitar_uad_df123)))
+data_bsitar_u_f <- data_bsitar_u_f %>% dplyr::rename(!!yvar := all_of(yvar)) %>% dplyr::select(all_of(colnames(data_sitar_uad_df123)))
+data_bsitar_a_f <- data_bsitar_a_f %>% dplyr::rename(!!yvar := all_of(yvar)) %>% dplyr::select(all_of(colnames(data_sitar_uad_df123)))
 data_bsitar_d_f <- data_bsitar_d_f %>% dplyr::rename(!!yvar := 'Estimate') %>% dplyr::select(all_of(colnames(data_sitar_uad_df123)))
 
 data_bsitar_u_f <- data_bsitar_u_f %>% dplyr::mutate(Curve = 'u') %>% dplyr::mutate(Model = 'bsitar')
@@ -438,13 +439,19 @@ linetypes  <- c('solid', 'dashed', 'dotted', 'dotdash', 'longdash', 'twodash')
 
 ```{r prepare_apv, echo=FALSE,include=FALSE, warning= FALSE, message=FALSE}
 parms_apv_sitar <- plot(model_frequ, apv = TRUE, returndata = FALSE)
-parms_apv_sitar <- parms_apv_sitar$apv %>% data.frame() %>% setNames('sitar')
+if(ncol(parms_apv_sitar$apv) > 1) {
+  parms_apv_sitar <- parms_apv_sitar$apv %>% t() %>% data.frame() %>% setNames('sitar')
+} else {
+  parms_apv_sitar <- parms_apv_sitar$apv %>% data.frame() %>% setNames('sitar')
+}
 parms_apv_sitar <- round(parms_apv_sitar, ndecimal)
 row.names(parms_apv_sitar) <- NULL
 parms_apv_bsitar <- plot_curves(model_bayes, apv = TRUE, newdata = data_sitar_df, ipts = NULL, summary = TRUE) 
 parms_apv_bsitar <- parms_apv_bsitar$growthparameters
 colnames(parms_apv_bsitar) <- c('Parameter', 'bsitar')
-parms_apv_all <- cbind(parms_apv_bsitar, parms_apv_sitar)
+parms_apv_column <- parms_apv_bsitar %>% dplyr::select(Parameter)
+parms_apv_bsitar <- parms_apv_bsitar %>% dplyr::select(-Parameter)
+parms_apv_all <- cbind(parms_apv_column, parms_apv_sitar, parms_apv_bsitar)
 ```
 
 
@@ -667,7 +674,7 @@ replayPlot(plt_plotuadids)
 ```{r tsidssitar, eval=TRUE, echo=FALSE, include=TRUE}
 knitr::kable(fh1_ranef_id %>% dplyr::filter(.data[[idvar]] %in% ranef_id_max_min)  , 
              digits = ndecimal, 
-             caption = "Random effects for the tallest and shortest individual for the **sitar** model", 
+             caption = "Random effects for the tallest and shortest individual - **sitar** model", 
              row.names=FALSE, 
              align='c',
              format="html", 
@@ -695,7 +702,7 @@ knitr::kable(fh1_ranef_id %>% dplyr::filter(.data[[idvar]] %in% ranef_id_max_min
 ```{r tsidsbsitar, eval=TRUE, echo=FALSE, include=TRUE}
 knitr::kable(bfh1_ranef_id %>% dplyr::filter(.data[[idvar]] %in% ranef_id_max_min)  , 
              digits = ndecimal, 
-             caption = "Random effects for the tallest and shortest individual for the **bsitar** model", 
+             caption = "Random effects for the tallest and shortest individual - **bsitar** model", 
              row.names=FALSE, 
              align='c',
              format="html", 
@@ -724,7 +731,7 @@ knitr::kable(bfh1_ranef_id %>% dplyr::filter(.data[[idvar]] %in% ranef_id_max_mi
 # https://community.rstudio.com/t/sizing-tables-in-pdf-documents-using-knitr-and-kableextra/19285/2
 knitr::kable(fh1_ranef_id[1:10, ], 
              digits = ndecimal, 
-             caption = "Random effects estimates for the first ten individuals        (**sitar** model)", 
+             caption = "Random effects estimates for the first ten individuals    -    **sitar** model", 
              # label = '\\label{tab:tab_ranef_bsitar}Table',
              row.names = FALSE, 
              # align=c("l",rep("r",3)),
@@ -759,7 +766,7 @@ knitr::kable(fh1_ranef_id[1:10, ],
 ```{r bsitarraneffecid,  eval=TRUE, echo=FALSE, include=TRUE}
 knitr::kable(bfh1_ranef_id[1:10, ], 
              digits = ndecimal, 
-             caption = "Random effects estimates for the first ten individuals        (**bsitar** model)", 
+             caption = "Random effects estimates for the first ten individuals    -    **bsitar** model", 
              row.names=FALSE, 
              align='c',
              format="html", 
@@ -820,7 +827,7 @@ replayPlot(plt_bsitarranefcorrplot)
 # options(knitr.kable.NA="")
 knitr::kable(fh1_ranef_corr, 
              digits = ndecimal, 
-             caption = "Correlation estimates for the random effects (**sitar** model)", 
+             caption = "Correlation estimates for the random effects - **sitar** model", 
              row.names = FALSE, 
              # col.names = TRUE, 
              align='c',
@@ -849,7 +856,7 @@ knitr::kable(fh1_ranef_corr,
 # options(knitr.kable.NA="")
 knitr::kable(bfh1_ranef_corr, 
              digits = ndecimal, 
-             caption = "Correlation estimates for the random effects (**bsitar** model)", 
+             caption = "Correlation estimates for the random effects - **bsitar** model", 
              row.names = FALSE, 
              # col.names = TRUE, 
              align='c',
@@ -875,7 +882,7 @@ knitr::kable(bfh1_ranef_corr,
 
 ## Growth curves (distance and velocity)
 ### Population average (mean) distance and velocity curves
-```{r prepare_plotd, eval=TRUE,  echo=FALSE,include=FALSE}
+```{r prepare_plotd_data, eval=TRUE,  echo=FALSE,include=FALSE}
 data_sitar_dfx2 <- data_sitar_dx2 %>% data.frame()
 
 data_bsitar_dx2 <- plot_curves(model_bayes, opt = 'd', returndata = TRUE, newdata = data_sitar_dfx2, ipts = NULL, summary = TRUE) %>% 
@@ -923,9 +930,29 @@ p +
 
 data_all_ad <- data_all_ad %>% dplyr::select(-Model)
 
-plt_plotd <- recordPlot()
+# plt_plotd <- recordPlot()
 
 ```
+
+
+\newline
+```{r prepare_plotd, eval=TRUE, echo=FALSE, include=FALSE}
+data_all_dv %>% 
+  # this will put sitar before bsitar in legends
+  dplyr::mutate(Model = forcats::fct_rev(Model)) %>%
+  dplyr::mutate(groupby = interaction(id, Model) ) %>% 
+  ggplot(., aes(x = age)) +
+  geom_line(aes(x = age, y = distance, group = groupby,
+                linetype = Model), 
+            color = colours[1], alpha = alphas[2], linewidth = linewidths[2],
+            show.legend = TRUE) +
+  scale_x_continuous(breaks = seq(xrange[1], xrange[2], 1), limits = xrange) +
+  theme_grids1 + theme_legends1
+
+plt_plotd <- recordPlot()
+```
+
+
 
 
 \newline
@@ -951,6 +978,8 @@ The estimated distance curve (see figure below) shows that the increase in heigh
 \newline
 ```{r prepare_plotv, eval=TRUE, echo=FALSE, include=FALSE}
 data_all_dv %>% 
+  # this will put sitar before bsitar in legends
+  dplyr::mutate(Model = forcats::fct_rev(Model)) %>%
   dplyr::mutate(groupby = interaction(id, Model) ) %>% 
   ggplot(., aes(x = age)) +
   geom_line(aes(x = age, y = velocity, group = groupby,
@@ -974,6 +1003,8 @@ replayPlot(plt_plotv)
 ### Individual specific distance and velocity curves
 ```{r prepare_plotD2, eval=TRUE, echo=FALSE, include=FALSE}
 data_all_DV %>% 
+  # this will put sitar before bsitar in legends
+  dplyr::mutate(Model = forcats::fct_rev(Model)) %>%
   dplyr::mutate(groupby = interaction(id, Model) ) %>% 
   ggplot(., aes(x = age)) +
   geom_line(aes(x = age, y = distance, group = groupby, 
@@ -998,6 +1029,8 @@ replayPlot(plt_plotD2)
 \newline
 ```{r prepare_plotV2, eval=TRUE, echo=FALSE,include=FALSE}
 data_all_DV %>% 
+  # this will put sitar before bsitar in legends
+  dplyr::mutate(Model = forcats::fct_rev(Model)) %>%
   dplyr::mutate(groupby = interaction(id, Model) ) %>% 
   ggplot(., aes(x = age)) +
   geom_line(aes(x = age, y = velocity, group = groupby, 
@@ -1046,7 +1079,7 @@ As velocity curves estimated by the *sitar* and *bsitar* models are very similar
 ```{r tabapgv, eval=TRUE, echo=FALSE, include=TRUE}
 knitr::kable(parms_apv_all, 
              digits = ndecimal, 
-             caption = "Population average timing and intensity estimates for the **sitar** and **bsitar** models", 
+             caption = "Population average timing and intensity estimates - **sitar** and **bsitar** models", 
              row.names = FALSE, 
              # col.names = TRUE, 
              align='c',
@@ -1084,7 +1117,7 @@ Like the population average estimates, both *sitar* and *bsitar* models provide 
 # https://community.rstudio.com/t/sizing-tables-in-pdf-documents-using-knitr-and-kableextra/19285/2
 knitr::kable(data_sitar_Vapv[1:10, ], 
              digits = ndecimal, 
-            caption = "Individual specific timing and intensity estimates for the first ten individuals (**sitar** model)", 
+            caption = "Individual specific timing and intensity estimates for the first ten individuals - **sitar** model", 
              row.names = FALSE, 
              # align=c("l",rep("r",3)),
              align='c',
@@ -1110,7 +1143,7 @@ knitr::kable(data_sitar_Vapv[1:10, ],
 ```{r bsitarraneffecidapv, eval=TRUE, echo=FALSE, include=TRUE}
 knitr::kable(data_bsitar_Vapv[1:10, ], 
              digits = ndecimal, 
-              caption = "Individual specific timing and intensity estimates for the first ten individuals (**bsitar** model)", 
+              caption = "Individual specific timing and intensity estimates for the first ten individuals - **bsitar** model", 
              row.names=FALSE, 
              align='c',
              format="html", 

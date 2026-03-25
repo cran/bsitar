@@ -1,7 +1,7 @@
 
 
 
-#' @title Update model
+#' @title Update the Bayesian SITAR model
 #'
 #' @description The \strong{update_model()} function is a wrapper around the
 #'   \code{update()} function from the \pkg{brms} package, which refits the model
@@ -34,15 +34,13 @@
 #'
 #' @return An updated object of class \code{brmsfit}.
 #'   
-#' @export update_model.bgmfit
+#' @rdname update_model
 #' @export
 #'
 #' @inherit berkeley author
 #'
 #' @examples
-#' 
 #' \donttest{
-#' 
 #' # Fit Bayesian SITAR model 
 #' 
 #' # To avoid mode estimation which takes time, the Bayesian SITAR model fit to 
@@ -76,14 +74,11 @@ update_model.bgmfit <-
            check_newargs = FALSE,
            envir = NULL,
            ...) {
-    # changes on 21.07.2024 for brms version ‘2.21.6’
-    # deletions/insertions -> tidy_ranef standata_basis 
-    # insertion -> bframe
-    # edited -> model$prior
+   
     if(is.null(envir)) {
       envir <- model$model_info$envir
     } else {
-      envir <- parent.frame()
+      envir <- envir
     }
     
 
@@ -100,7 +95,6 @@ update_model.bgmfit <-
         }
       }
       
-      # This to evaluate T/F to TRUE/FALSE
       for (i in names(args_o)) {
         if (is.symbol(args_o[[i]])) {
           if (args_o[[i]] == "T")
@@ -120,7 +114,6 @@ update_model.bgmfit <-
       args_o_new$data <- NULL
       args_o_org$data <- NULL
       
-      # This to evaluate T/F to TRUE/FALSE
       for (i in names(args_o_org)) {
         if (is.symbol(args_o_org[[i]])) {
           if (args_o_org[[i]] == "T")
@@ -131,7 +124,6 @@ update_model.bgmfit <-
       }
       
       all_same_args_c <- all_same_args <- c()
-      # args_o_org_updated <- list()
       for (args_oi in names(args_o_new)) {
         all_same_args_c <- c(all_same_args_c, identical(args_o_org[[args_oi]],
                                                         args_o_new[[args_oi]]) 
@@ -164,7 +156,7 @@ update_model.bgmfit <-
     check_if_package_installed(model, xcall = NULL)
     
     formula. <- NULL
-    args <- formalArgs(bsitar)
+    args <- methods::formalArgs(bsitar)
     args <- args[!args == "..."]
     
     call_ <- model$model_info$call.full.bgmfit[-1] %>% as.list()
@@ -200,6 +192,12 @@ update_model.bgmfit <-
     else
       new_init_arg <- FALSE
     
+    if ("init_r" %in% dot_and_call_intersect)
+      new_init_r_arg <- TRUE
+    else
+      new_init_r_arg <- FALSE
+    
+   
     
     for (ix in  exclude_args_names) {
       call_[[ix]] <- NULL
@@ -208,8 +206,9 @@ update_model.bgmfit <-
     dots <- list(...)
     dots$data <- NULL
     
-    as_one_logical         <-
-      is_equal <- needs_recompilation <- substitute_name <- NULL
+    
+    as_one_logical <- is_equal <- NULL
+    needs_recompilation <- substitute_name <- NULL
     
     as_one_logical         <-
       utils::getFromNamespace("as_one_logical", "brms")
@@ -253,8 +252,6 @@ update_model.bgmfit <-
       utils::getFromNamespace("validate_sample_prior", "brms")
     validate_save_pars     <-
       utils::getFromNamespace("validate_save_pars", "brms")
-    # standata_basis         <-
-    #   utils::getFromNamespace("standata_basis", "brms")
     getframe_basis      <-
       utils::getFromNamespace("frame_basis", "brms")
     algorithm_choices      <-
@@ -285,9 +282,7 @@ update_model.bgmfit <-
     }
     silent <- dots$silent
     model <- brms::restructure(model)
-    # if (isTRUE(model$version$brms < "2.0.0")) {
-    #   warning2("Updating models fitted with older versions of brms may fail.")
-    # }
+    
     model$file <- NULL
     
     if ("data" %in% names(dots)) {
@@ -301,6 +296,10 @@ update_model.bgmfit <-
       data_name <- get_data_name(model$data)
     }
     
+    # Don't validate data because prepare_data2 is called with the bsitar()
+    should_validate_data <- FALSE
+    
+   
     if (missing(formula.) || is.null(formula.)) {
       dots$formula <- model$formula
       if (!is.null(dots[["family"]])) {
@@ -342,6 +341,7 @@ update_model.bgmfit <-
         dots$formula <- update(formula(model), dots$formula)
       }
     }
+    
     dots$formula <- validate_formula(dots$formula, data = dots$data)
     
     if (is.null(dots$prior)) {
@@ -409,25 +409,24 @@ update_model.bgmfit <-
         model$stan_args[names_old_stan_args]
     }
     
+    
+    
     if (is.null(recompile)) {
       dots_for_scode              <- dots
       dots_for_scode$prior        <- NULL
       dots_for_scode$stanvars     <- NULL
       dots_for_scode$formula      <- NULL
-      if (!new_init_arg)
-        dots_for_scode$init         <- NULL
+      if (!new_init_arg)   dots_for_scode$init <- NULL
+      if (!new_init_r_arg) dots_for_scode$init_r <- NULL
       dots_for_scode              <- c(dots_for_scode, call_)
       dots_for_scode$get_stancode <- TRUE
-      new_stancode <-
-        suppressMessages(do.call(bsitar, dots_for_scode))
-      
-      
+      new_stancode <- suppressMessages(do.call(bsitar, dots_for_scode))
       new_stancode <- sub("^[^\n]+\n", "", new_stancode)
       old_stancode <- brms::stancode(model, version = FALSE)
       recompile <- needs_recompilation(model) || !same_backend ||
         !is_equal(new_stancode, old_stancode)
       if (recompile && silent < 2) {
-        message("The desired updates require recompiling")
+        message("The desired update requires recompiling")
       }
     }
     recompile <- as_one_logical(recompile)
@@ -438,10 +437,13 @@ update_model.bgmfit <-
         dots_for_recompile$prior    <- NULL
         dots_for_recompile$stanvars <- NULL
         dots_for_recompile$formula  <- NULL
-        if (!new_init_arg)
-          dots_for_recompile$init     <- NULL
+        if (!new_init_arg)   dots_for_recompile$init <- NULL
+        if (!new_init_r_arg) dots_for_recompile$init_r <- NULL
+        # if (!new_init_arg)
+        #   dots_for_recompile$init     <- NULL
         dots_for_recompile          <- c(dots_for_recompile, call_)
         model <- do.call(bsitar, dots_for_recompile)
+        # model <- CustomDoCall(bsitar, dots_for_recompile)
       }
     } else {
       if (!is.null(dots$formula)) {
@@ -451,23 +453,21 @@ update_model.bgmfit <-
       bterms <- brms::brmsterms(model$formula)
       bframe <- getbrmsframe(bterms, data = model$data)
       model$data2 <- validate_data2(dots$data2, bterms = bterms)
-      model$data <- validate_data(
-        dots$data,
-        bterms = bterms,
-        data2 = model$data2,
-        knots = dots$knots,
-        drop_unused_levels = dots$drop_unused_levels
-      )
+      if(should_validate_data) {
+        model$data <- validate_data(
+          dots$data,
+          bterms = bterms,
+          data2 = model$data2,
+          knots = dots$knots,
+          drop_unused_levels = dots$drop_unused_levels) 
+      }
       model$prior <- .validate_prior(
         dots$prior,
-        # bterms = bterms,
         bframe = bframe,
-        # data = model$data,
         sample_prior = dots$sample_prior
       )
       model$family <- get_element(model$formula, "family")
       model$autocor <- get_element(model$formula, "autocor")
-      # model$ranef <- tidy_ranef(bterms, data = model$data)
       model$ranef <- getframe_re(bterms, data = model$data)
       model$stanvars <- validate_stanvars(dots$stanvars)
       model$threads <- validate_threads(dots$threads)
@@ -496,8 +496,8 @@ update_model.bgmfit <-
         dots_for_norecompile$formula  <- NULL
         if (!new_init_arg | new_init_arg) {
           dots_for_norecompile$init     <- NULL
-          dots_for_norecompile          <-
-            c(dots_for_norecompile, call_)
+          dots_for_norecompile$init_r   <- NULL
+          dots_for_norecompile          <- c(dots_for_norecompile, call_)
           model <- do.call(bsitar, dots_for_norecompile)
         } # if(!new_init_arg) {
         if (new_init_arg) {
@@ -507,13 +507,15 @@ update_model.bgmfit <-
     }
     if(expose_function) model <- expose_model_functions(model, envir = envir)
     attr(model$data, "data_name") <- data_name
-    model
+    return(model)
   }
 
 
 
-#' @rdname update_model.bgmfit
+#' @rdname update_model
 #' @export
 update_model <- function(model, ...) {
   UseMethod("update_model")
 }
+
+
