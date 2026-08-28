@@ -4,35 +4,46 @@
 #' @title Update the Bayesian SITAR model
 #'
 #' @description The \strong{update_model()} function is a wrapper around the
-#'   \code{update()} function from the \pkg{brms} package, which refits the model
-#'   based on the user-specified updated arguments.
+#'   \code{update()} function from the \pkg{brms} package, which refits the
+#'   model based on the user-specified updated arguments.
 #' 
-#' @details This function is an adapted version of the \strong{update()} function 
-#'   from the \pkg{brms} package.
-#' 
+#' @details This function is an adapted version of the \strong{update()}
+#'   function from the \pkg{brms} package.
+#'
 #' @param model An object of class \code{bgmfit}.
 #'
 #' @param newdata An optional \code{data.frame} to be used when updating the
 #'   model. If \code{NULL} (default), the data used in the original model fit is
-#'   reused. Note that data-dependent default priors are not automatically updated.
+#'   reused. Note that data-dependent default priors are not automatically
+#'   updated.
 #'
 #' @param recompile A logical value indicating whether the Stan model should be
 #'   recompiled. When \code{NULL} (default), \strong{update_model()} tries to
 #'   internally determine whether recompilation is required. Setting
 #'   \code{recompile} to \code{FALSE} will ignore any changes in the Stan code.
 #'   
-#' @param check_newargs A logical value (default \code{FALSE}) indicating whether
-#'   to check if the arguments in the original \code{model} fit and the 
-#'   \code{update_model} are identical. When \code{check_newargs = TRUE} and the 
-#'   arguments are identical, it indicates that an update is unnecessary. In this 
-#'   case, the original \code{model} object is returned, along with a message if 
-#'   \code{verbose = TRUE}.
+#' @param check_newargs A logical value (default \code{FALSE}) indicating
+#'   whether to check if the arguments in the original \code{model} fit and the
+#'   \code{update_model} are identical. When \code{check_newargs = TRUE} and the
+#'   arguments are identical, it indicates that an update is unnecessary. In
+#'   this case, the original \code{model} object is returned, along with a
+#'   message if \code{verbose = TRUE}.
+#'
+#' @param new_threads A logical (default \code{FALSE}) indicating whether to
+#'   drop the \code{threads} i.e., setting \code{threads = NULL} (by using
+#'   \code{new_threads = NULL} or \code{new_threads = NA}). The \code{threads}
+#'   argument sets the number of threads used for within-chain parallelization.
+#'   See [bsitar()] for details. The \code{new_threads} is rarely used as
+#'   \code{threads} is automatically inferred from the \code{model}. The only
+#'   indication of setting \code{new_threads = NULL} is when [brms::brm()] does
+#'   support within-chain parallelization. such as in case of modelling
+#'   autocorrelation of residuals (See argument \code{autocor_formula}).
 #' 
 #' @inherit growthparameters.bgmfit params
 #'
 #' @param ... Other arguments passed to \code{[brms::brm()]}.
 #'
-#' @return An updated object of class \code{brmsfit}.
+#' @return An updated object of class \code{bgmfit}.
 #'   
 #' @rdname update_model
 #' @export
@@ -72,6 +83,7 @@ update_model.bgmfit <-
            expose_function = FALSE,
            verbose = FALSE,
            check_newargs = FALSE,
+           new_threads = FALSE,
            envir = NULL,
            ...) {
    
@@ -81,14 +93,96 @@ update_model.bgmfit <-
       envir <- envir
     }
     
+    if(!inherits(model, "bgmfit")) {
+      stop2c("The model must be a bsitar object but the specified object
+             is of class ", collapse_comma(class(model)))
+    }
+    
+    setup_formula_dots <- function(..., check_formulas = NULL) {
+      dots <- as.list(substitute(list(...)))[-1]  
+      if(!is.null(check_formulas)) {
+        convert_to_char <- check_formulas
+      } else {
+        return(list(...))
+      }
+      nm <- names(dots)
+      for (i in seq_along(dots)) {
+        if (!is.null(nm) && nzchar(nm[i]) && nm[i] %in% convert_to_char) {
+          dots[[i]] <- paste(deparse(dots[[i]]), collapse = " ")
+          dots[[i]] <- gsub_space(dots[[i]])
+          dots[[i]] <- gsub("\"", "'", dots[[i]])
+          dots[[i]] <- gsub("^'|'$", "", dots[[i]])
+          dots[[i]] <- sub("^list\\((.*)\\)$", "\\1", dots[[i]])
+          dots[[i]] <- gsub("\\n", "", dots[[i]], fixed = T)
+          dots[[i]] <- gsub("\"", "", dots[[i]])
+        }
+      }
+      ots_check <- dots
+      return(ots_check)
+    }
+    
+    # "list(nlf(sigma~z)+lf(z~1+(1|gr(id))))"
+    
+    check_formulas <- c('a_formula', 'b_formula', 'c_formula', 'd_formula',
+                        'e_formula', 'f_formula', 'g_formula', 'h_formula',
+                        'i_formula', 'a_formula_gr', 'b_formula_gr',
+                        'c_formula_gr', 'd_formula_gr', 'e_formula_gr',
+                        'f_formula_gr', 'g_formula_gr', 'h_formula_gr',
+                        'i_formula_gr', 'a_formula_gr_str', 'b_formula_gr_str', 
+                        'c_formula_gr_str', 'd_formula_gr_str', 
+                        'e_formula_gr_str', 
+                        'f_formula_gr_str', 'g_formula_gr_str',
+                        'h_formula_gr_str',
+                        'i_formula_gr_str', 'sigma_formula', 'sigma_formula_gr',
+                        'sigma_formula_gr_str', 'sigma_formula_manual')
+    
+    xxx_for_formula <- setup_formula_dots(..., check_formulas = check_formulas) 
+    name_for_formula <- names(xxx_for_formula)
+    
+    update_formula <- FALSE
+    if(any(name_for_formula %in% check_formulas)) {
+      update_formula <- TRUE
+    }
 
+    new_threads_call <- NULL
+    if(is.list(new_threads)) {
+      new_threads_call <- new_threads
+      new_threads <- new_threads$threads
+      new_threads_scall <- match.call()[-1][['new_threads']]$threads
+      if(is.null(new_threads)) {
+        new_threads <- FALSE
+      }
+    } else {
+      new_threads_scall <- match.call()[-1][['new_threads']]
+    }
+   
+    new_threads_set <- FALSE
+    if(!new_threads & is.null(new_threads_scall)) {
+      new_threads_set <- TRUE
+      new_threads_val <- NA
+    } else if(is.null(new_threads)) {
+      new_threads_set <- TRUE
+      new_threads_val <- new_threads
+    } else if(is.na(new_threads)) {
+      new_threads_set <- TRUE
+      new_threads_val <- new_threads
+    } else if(is.logical(new_threads)) {
+      if(new_threads) {
+        new_threads_set <- TRUE
+        new_threads_val <- NA
+      } 
+    } else if(!is.logical(new_threads)) {
+      new_threads_set <- TRUE
+      new_threads_val <- new_threads
+    }
+    
+    
     if(check_newargs) {
       call_o <- match.call()
       call_o_args <- as.list(call_o)[-1]
-      
       args_o <- as.list(model$model_info$call.full.bgmfit)[-1]
-      
-      args_o_dots_ <- list(...)
+      args_o_dots_ <- setup_formula_dots(..., 
+                                         check_formulas = check_formulas) 
       if (length(args_o_dots_) > 0) {
         for (i in names(args_o_dots_)) {
           args_o[[i]] <- args_o_dots_[[i]]
@@ -106,10 +200,8 @@ update_model.bgmfit <-
       
       args_o_new <- args_o_dots_
       args_o_new[['expose_function']] <- expose_function
-      
       calling    <- model$model_info$call.full.bgmfit
       calling[['verbose']] <- NULL
-      
       args_o_org <- calling
       args_o_new$data <- NULL
       args_o_org$data <- NULL
@@ -148,21 +240,15 @@ update_model.bgmfit <-
         }
       }
       return(model)
-    } # if(check_newargs) {
-    
-    
-    
+    } 
     
     check_if_package_installed(model, xcall = NULL)
-    
     formula. <- NULL
     args <- methods::formalArgs(bsitar)
     args <- args[!args == "..."]
-    
     call_ <- model$model_info$call.full.bgmfit[-1] %>% as.list()
-    
     call_$data <- NULL
-    mcall_ <- list(...)
+    mcall_ <- setup_formula_dots(..., check_formulas = check_formulas)
     
     if (length(mcall_) != 0) {
       for (i in names(mcall_)) {
@@ -178,12 +264,20 @@ update_model.bgmfit <-
       }
     }
     
+  
+    if(!is.null(new_threads_call)) {
+      new_threads_call$threads <- new_threads_val
+      call_$threads <- new_threads_call
+    } else {
+      call_$threads <- new_threads_val
+    }
     
+   
     dot_and_call_intersect <-
-      intersect(names(list(...)), names(call_))
-    
+      intersect(names(setup_formula_dots(..., check_formulas = check_formulas)),
+                names(call_))
+
     exclude_args_names <- c(model$model_info[['brms_arguments_list']])
-    
     exclude_args_names <-
       c(exclude_args_names, dot_and_call_intersect)
     
@@ -196,17 +290,13 @@ update_model.bgmfit <-
       new_init_r_arg <- TRUE
     else
       new_init_r_arg <- FALSE
-    
-   
-    
+
     for (ix in  exclude_args_names) {
       call_[[ix]] <- NULL
     }
     
-    dots <- list(...)
+    dots <- setup_formula_dots(..., check_formulas = check_formulas)
     dots$data <- NULL
-    
-    
     as_one_logical <- is_equal <- NULL
     needs_recompilation <- substitute_name <- NULL
     
@@ -240,8 +330,6 @@ update_model.bgmfit <-
       utils::getFromNamespace(".validate_prior", "brms")
     get_element            <-
       utils::getFromNamespace("get_element", "brms")
-    # tidy_ranef             <-
-    #   utils::getFromNamespace("tidy_ranef", "brms")
     getframe_re      <-
       utils::getFromNamespace("frame_re", "brms")
     validate_stanvars      <-
@@ -269,10 +357,8 @@ update_model.bgmfit <-
     stop2                  <- utils::getFromNamespace("stop2", "brms")
     
     validate_silent        <- utils::getFromNamespace("validate_silent", "brms")
-    
-    getbrmsframe        <- utils::getFromNamespace("brmsframe", "brms")
-    
-    
+    getbrmsframe           <- utils::getFromNamespace("brmsframe", "brms")
+
     testmode <- isTRUE(dots[["testmode"]])
     dots$testmode <- NULL
     if ("silent" %in% names(dots)) {
@@ -282,9 +368,7 @@ update_model.bgmfit <-
     }
     silent <- dots$silent
     model <- brms::restructure(model)
-    
     model$file <- NULL
-    
     if ("data" %in% names(dots)) {
       stop2("Please use argument 'newdata' to update the data.")
     }
@@ -296,10 +380,7 @@ update_model.bgmfit <-
       data_name <- get_data_name(model$data)
     }
     
-    # Don't validate data because prepare_data2 is called with the bsitar()
     should_validate_data <- FALSE
-    
-   
     if (missing(formula.) || is.null(formula.)) {
       dots$formula <- model$formula
       if (!is.null(dots[["family"]])) {
@@ -327,7 +408,7 @@ update_model.bgmfit <-
            autocor = autocor,
            nl = nl)
       if (is_nonlinear(model)) {
-        
+        #
       } else {
         mvars <- all.vars(dots$formula$formula)
         mvars <- setdiff(mvars, c(names(model$data), "."))
@@ -341,16 +422,14 @@ update_model.bgmfit <-
         dots$formula <- update(formula(model), dots$formula)
       }
     }
-    
+
     dots$formula <- validate_formula(dots$formula, data = dots$data)
-    
     if (is.null(dots$prior)) {
       dots$prior <- model$prior
     } else {
       if (!is.brmsprior(dots$prior)) {
         stop2("Argument 'prior' needs to be a 'brmsprior' model.")
       }
-     
     }
     attr(dots$prior, "allow_invalid_prior") <- TRUE
     if (!"sample_prior" %in% names(dots)) {
@@ -390,7 +469,6 @@ update_model.bgmfit <-
     if (!"normalize" %in% names(dots)) {
       dots$normalize <- is_normalized(model$model)
     }
-    
     if (is.null(dots$iter)) {
       dots$warmup <- first_not_null(dots$warmup, model$fit@sim$warmup)
     }
@@ -409,7 +487,9 @@ update_model.bgmfit <-
         model$stan_args[names_old_stan_args]
     }
     
-    
+    if(update_formula) {
+      recompile <- TRUE
+    }
     
     if (is.null(recompile)) {
       dots_for_scode              <- dots
@@ -429,9 +509,13 @@ update_model.bgmfit <-
         message("The desired update requires recompiling")
       }
     }
+    
     recompile <- as_one_logical(recompile)
     if (recompile) {
       dots$fit <- NA
+      if(new_threads_set) {
+        dots$threads <- new_threads_val
+      }
       if (!testmode) {
         dots_for_recompile          <- dots
         dots_for_recompile$prior    <- NULL
@@ -439,11 +523,8 @@ update_model.bgmfit <-
         dots_for_recompile$formula  <- NULL
         if (!new_init_arg)   dots_for_recompile$init <- NULL
         if (!new_init_r_arg) dots_for_recompile$init_r <- NULL
-        # if (!new_init_arg)
-        #   dots_for_recompile$init     <- NULL
         dots_for_recompile          <- c(dots_for_recompile, call_)
         model <- do.call(bsitar, dots_for_recompile)
-        # model <- CustomDoCall(bsitar, dots_for_recompile)
       }
     } else {
       if (!is.null(dots$formula)) {
@@ -481,11 +562,9 @@ update_model.bgmfit <-
         save_mevars = dots$save_mevars,
         save_all_pars = dots$save_all_pars
       )
-      # model$basis <- standata_basis(bterms, data = model$data)
       model$basis <- getframe_basis(bframe, data = model$data)
       algorithm <- match.arg(dots$algorithm, algorithm_choices())
       dots$algorithm <- model$algorithm <- algorithm
-      # can only avoid recompilation when using the old backend
       dots$backend <- model$backend
       if (!testmode) {
         dots$fit <- model
@@ -499,14 +578,16 @@ update_model.bgmfit <-
           dots_for_norecompile$init_r   <- NULL
           dots_for_norecompile          <- c(dots_for_norecompile, call_)
           model <- do.call(bsitar, dots_for_norecompile)
-        } # if(!new_init_arg) {
+        } 
         if (new_init_arg) {
-          # TODO
-        } # if(new_init_arg) {
-      } # if (!testmode) {
+          # 
+        } 
+      }
     }
     if(expose_function) model <- expose_model_functions(model, envir = envir)
-    attr(model$data, "data_name") <- data_name
+    if(inherits(model, "brmsfit") | inherits(model, "bgmfit")) {
+      attr(model$data, "data_name") <- data_name
+    }
     return(model)
   }
 

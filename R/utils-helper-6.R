@@ -1,27 +1,16 @@
 
 
-#' An internal function to prepare export rcs string for Stan, and auxiliary 
-#' R function
-#' 
-#' @description
-#' Note that now all three functions nsp, nsk and rcs are set using
-#' 'utils-helper-7' This makes 'utils-helper-6' reduntant. BUT DON'T DELTE it
-#' yet
-#'
-#'
-#' @return An character string which later evaluated to a custom function
-#'   and inserted into the Stan's functions block.
-#'   
-#' @author Satpal Sandhu  \email{satpal.sandhu@bristol.ac.uk}
-#'
-#' @keywords internal
+#' Internal functions to prepare string for Stan, and auxiliary R function
 #' @noRd
 #'
 GS_nsp_nsk_helper_stan_R_str <- function() {
+  # 1 Find elements in vector x that equal/below/above real number y
+  # 2 Find the indexes of the elements in the vector x that equal real number y
+  # 3 Find the indexes of the elements in the vector x that equal real number y
+  # 4 Find the indexes of the elements in the vector x that equal real number y
+  # 5 more compact version of 4, check it - for now, commented out
+  # 6 Repeating input vector K times
   set_stan_str <- "
- ////////////////////////////////////////////////////////////////////////
-  // Find elements in vector x that equal/below/above real number y
- /////////////////////////////////////////////////////////////////////////
   int num_matches(vector x, real y, real z) {
     int n = 0;
     for (i in 1:rows(x))
@@ -34,9 +23,6 @@ GS_nsp_nsk_helper_stan_R_str <- function() {
       }
     return n;
   }
-  /////////////////////////////////////////////////////////////////////////    
-  // Find the indexes of the elements in the vector x that equal real number y
-  /////////////////////////////////////////////////////////////////////////
   array[] int which_equal(vector x, real y, real z) {
     array[num_matches(x, y, z)] int match_positions;
     int pos = 1;
@@ -60,11 +46,6 @@ GS_nsp_nsk_helper_stan_R_str <- function() {
     }
     return match_positions;
   }
-
-  /////////////////////////////////////////////////////////////////////////    
-  // Find the indexes of the elements in the vector x that equal real number y
-  // more compact version, check it - for now, commented out
-  /////////////////////////////////////////////////////////////////////////
   /*
   array[] int which_equal(vector x, real y, real z) {
     int N = num_elements(x);
@@ -81,13 +62,9 @@ GS_nsp_nsk_helper_stan_R_str <- function() {
     return match_positions;
   }
   */
-  /////////////////////////////////////////////////////////////////////////
-  // Repeating input vector K times
-  /////////////////////////////////////////////////////////////////////////
   vector repeat_vector(vector input, int K) {
     int N = rows(input);
     vector[N*K] repvec; // stack N-vector K times
-    // assign i-th value of input to i+(k-1)*N -th value of repvec
     for (k in 1:K) {
       for (i in 1:N) {
         repvec[i+(k-1)*N] = input[i]; 
@@ -97,34 +74,13 @@ GS_nsp_nsk_helper_stan_R_str <- function() {
   }
 "
   return(set_stan_str)
-} # GS_nsp_nsk_helper_stan_R_str
+} 
 
 
 
-################################################################################
-# GS_bsp_stan_R_str
-################################################################################
-
-#' An internal function to prepare export rcs string for Stan, and auxiliary 
-#' R function
-#' 
-#' Note that now all three functions nsp, nsk and rcs are set using 'utils-helper-7'
-#' This makes 'utils-helper-6' reduntant. BUT DON'T DELTE it yet
-#'
-#'
-#' @return An character string which later evaluated to a custom function
-#'   and inserted into the Stan's functions block.
-#'   
-#' @author Satpal Sandhu  \email{satpal.sandhu@bristol.ac.uk}
-#'
-#' @keywords internal
-#' @noRd
-#'
 GS_bsp_stan_R_str <- function() {
+  # Function to compute B-splines and their derivatives
   set_stan_str <- "
-  /////////////////////////////////////////////////////////////////////////  
-  // Function to compute B-splines and their derivatives
-  ///////////////////////////////////////////////////////////////////////// 
   matrix GS_bsp_stan(vector x, vector knots, vector bknots, 
                     vector fullknots, vector allknots, 
                     int N, int degree, int ord, 
@@ -175,37 +131,15 @@ GS_bsp_stan_R_str <- function() {
     } else {
       return M2;
     }
-  } // end matrix GS_bsp_stan  
+  }
 "
   return(set_stan_str)
-} # GS_bsp_stan_R_str
+} 
 
 
-
-################################################################################
-# GS_bsp_tuple_stan_R_str
-################################################################################
-
-#' An internal function to prepare export rcs string for Stan, and auxiliary 
-#' R function
-#' 
-#' Note that now all three functions nsp, nsk and rcs are set using 'utils-helper-7'
-#' This makes 'utils-helper-6' reduntant. BUT DON'T DELTE it yet
-#'
-#'
-#' @return An character string which later evaluated to a custom function
-#'   and inserted into the Stan's functions block.
-#'   
-#' @author Satpal Sandhu  \email{satpal.sandhu@bristol.ac.uk}
-#'
-#' @keywords internal
-#' @noRd
-#'
 GS_bsp_tuple_stan_R_str <- function() {
+  # Function to compute B-splines and their derivatives - Tuple version
   set_stan_str <- "
-  /////////////////////////////////////////////////////////////////////////
-  // Function to compute B-splines and their derivatives - Tuple version
-  /////////////////////////////////////////////////////////////////////////
   tuple(matrix, matrix) GS_bsp_tuple_stan(vector x, vector knots, vector bknots, 
                     vector fullknots, vector allknots, 
                     int N, int degree, int ord, 
@@ -244,35 +178,12 @@ GS_bsp_tuple_stan_R_str <- function() {
   }
 "
   return(set_stan_str)
-} # GS_bsp_tuple_stan_R_str
+} 
 
 
-
-
-################################################################################
-# GS_nsp_nsk_stan_R_str
-################################################################################
-
-#' An internal function to prepare export rcs string for Stan, and auxiliary 
-#' R function
-#' 
-#' Note that now all three functions nsp, nsk and rcs are set using 'utils-helper-7'
-#' This makes 'utils-helper-6' reduntant. BUT DON'T DELTE it yet
-#'
-#'
-#' @return An character string which later evaluated to a custom function
-#'   and inserted into the Stan's functions block.
-#'   
-#' @author Satpal Sandhu  \email{satpal.sandhu@bristol.ac.uk}
-#'
-#' @keywords internal
-#' @noRd
-#'
 GS_nsp_nsk_stan_R_str <- function() {
+  # Main function for B-splines and their derivatives
   set_stan_str <- "
-  /////////////////////////////////////////////////////////////////////////
-  // Main function for B-splines and their derivatives
-  /////////////////////////////////////////////////////////////////////////
   matrix GS_nsp_nsk_stan(vector x, vector knots, vector bknots, 
                     vector fullknots, vector allknots, 
                     int N, int degree, int ord, 
@@ -337,7 +248,7 @@ GS_nsp_nsk_stan_R_str <- function() {
             bsderiv[i, 1: Nintervals - degree] = (bsderiv_bknots[1,]);
           }
         }
-      } // if (size_x_below_boundary > 0)      
+      }    
       if (size_x_above_boundary > 0) {
         array[size_x_above_boundary] int xselect = x_above_boundary;
         int Nxselect = size_x_above_boundary; 
@@ -359,10 +270,9 @@ GS_nsp_nsk_stan_R_str <- function() {
               bsderiv[i,1: Nintervals - degree ] = (bsderiv_bknots[2,]);
            }         
         }
-      } // if (size_x_above_boundary > 0)    
-    } // if (size_x_below_boundary > 0 || size_x_above_boundary > 0) {
+      }   
+    } 
     matrix[Nk+2, Nk] H;
-    // Now MatpreH is just a place holder that will be replaced my matrix
     if(preH) {
      H = MatpreH;
     } else {
@@ -387,39 +297,16 @@ GS_nsp_nsk_stan_R_str <- function() {
       }
     }
     return result;
-  } // end matrix GS_nsp_nsk_stan  
+  } 
 "
   return(set_stan_str)
-} # GS_bsp_tuple_stan_R_str
+} 
 
 
 
-
-
-################################################################################
-# GS_nsp_nsk_stan_fast_1_R_str
-################################################################################
-
-#' An internal function to prepare export rcs string for Stan, and auxiliary 
-#' R function
-#' 
-#' Note that now all three functions nsp, nsk and rcs are set using 'utils-helper-7'
-#' This makes 'utils-helper-6' reduntant. BUT DON'T DELTE it yet
-#'
-#'
-#' @return An character string which later evaluated to a custom function
-#'   and inserted into the Stan's functions block.
-#'   
-#' @author Satpal Sandhu  \email{satpal.sandhu@bristol.ac.uk}
-#'
-#' @keywords internal
-#' @noRd
-#'
 GS_nsp_nsk_stan_fast_1_R_str <- function() {
+  # Main function for B-splines and their derivatives
   set_stan_str <- "
-  /////////////////////////////////////////////////////////////////////////
-  // Main function for B-splines and their derivatives
-  /////////////////////////////////////////////////////////////////////////
   matrix GS_nsp_nsk_stan(
   vector x, vector knots, vector bknots, 
   vector fullknots, vector allknots, 
@@ -442,20 +329,17 @@ GS_nsp_nsk_stan_fast_1_R_str <- function() {
   if (calcderiv) {
     bsderiv = my_tuple_main.2;
   }
-  // Precompute boundary indices only if needed
   int n_below = num_matches(x, bknots[1], -1);
   int n_above = num_matches(x, bknots[2], 1);
   array[n_below] int x_below_boundary;
   array[n_above] int x_above_boundary;
   if (n_below > 0) x_below_boundary = which_equal(x, bknots[1], -1);
   if (n_above > 0) x_above_boundary = which_equal(x, bknots[2], 1);
-
   if (n_below > 0 || n_above > 0) {
     tuple(matrix[2, n_basis], matrix[2, n_basis]) my_tuple =
       GS_bsp_tuple_stan(bknots, knots, bknots, fullknots, allknots, 2, degree, ord, Nintk, Nk, Nintervals, intercept, 0);
     matrix[2, n_basis] bs_bknots = my_tuple.1;
     matrix[2, n_basis] bsderiv_bknots = my_tuple.2;
-
     if (n_below > 0) {
       vector[n_below] x_below = x[x_below_boundary];
       row_vector[n_basis] bsknot1 = bs_bknots[1, ];
@@ -483,18 +367,14 @@ GS_nsp_nsk_stan_fast_1_R_str <- function() {
       }
     }
   }
-    // Precompute H matrix only once
     matrix[Nk + 2, Nk] H;
     if (preH) {
       H = MatpreH;
     } else {
       H = GS_getH_stan(allknots, normalize);
     }
-  
     int ncolselect = Nk + intercept - 1;
     matrix[N, Nk] out = calcderiv ? (bsderiv * H) : (bs * H);
-  
-    // Avoid unnecessary allocation
     if (intercept) {
       return out;
     } else {
@@ -503,33 +383,12 @@ GS_nsp_nsk_stan_fast_1_R_str <- function() {
   }
 "
   return(set_stan_str)
-} # GS_nsp_nsk_stan_fast_1_R_str
+} 
 
 
-################################################################################
-# GS_nsp_nsk_stan_fast_2_R_str
-################################################################################
-
-#' An internal function to prepare export rcs string for Stan, and auxiliary 
-#' R function
-#' 
-#' Note that now all three functions nsp, nsk and rcs are set using 'utils-helper-7'
-#' This makes 'utils-helper-6' reduntant. BUT DON'T DELTE it yet
-#'
-#'
-#' @return An character string which later evaluated to a custom function
-#'   and inserted into the Stan's functions block.
-#'   
-#' @author Satpal Sandhu  \email{satpal.sandhu@bristol.ac.uk}
-#'
-#' @keywords internal
-#' @noRd
-#'
 GS_nsp_nsk_stan_fast_2_R_str <- function() {
+  # Main function for B-splines and their derivatives
   set_stan_str <- "
-  /////////////////////////////////////////////////////////////////////////
-  // Main function for B-splines and their derivatives
-  /////////////////////////////////////////////////////////////////////////
   matrix GS_nsp_nsk_stan(
     vector x, vector knots, vector bknots, 
     vector fullknots, vector allknots, 
@@ -552,20 +411,17 @@ GS_nsp_nsk_stan_fast_2_R_str <- function() {
     if (calcderiv) {
       bsderiv = my_tuple_main.2;
     }
-  
     int n_below = num_matches(x, bknots[1], -1);
     int n_above = num_matches(x, bknots[2], 1);
     array[n_below] int x_below_boundary;
     array[n_above] int x_above_boundary;
     if (n_below > 0) x_below_boundary = which_equal(x, bknots[1], -1);
     if (n_above > 0) x_above_boundary = which_equal(x, bknots[2], 1);
-  
     if (n_below > 0 || n_above > 0) {
       tuple(matrix[2, n_basis], matrix[2, n_basis]) my_tuple =
         GS_bsp_tuple_stan(bknots, knots, bknots, fullknots, allknots, 2, degree, ord, Nintk, Nk, Nintervals, intercept, 0);
       matrix[2, n_basis] bs_bknots = my_tuple.1;
       matrix[2, n_basis] bsderiv_bknots = my_tuple.2;
-  
       if (n_below > 0) {
         vector[n_below] x_below = x[x_below_boundary];
         row_vector[n_basis] bsknot1 = bs_bknots[1, ];
@@ -599,10 +455,8 @@ GS_nsp_nsk_stan_fast_2_R_str <- function() {
     } else {
       H = GS_getH_stan(allknots, normalize);
     }
-  
     int ncolselect = Nk + intercept - 1;
     matrix[N, Nk] out = calcderiv ? (bsderiv * H) : (bs * H);
-  
     if (intercept) {
       return out;
     } else {
@@ -611,36 +465,12 @@ GS_nsp_nsk_stan_fast_2_R_str <- function() {
   }
 "
   return(set_stan_str)
-} # GS_nsp_nsk_stan_fast_2_R_str
+} 
 
 
-
-
-
-################################################################################
-# GS_nsp_call_stan_R_str
-################################################################################
-
-#' An internal function to prepare export rcs string for Stan, and auxiliary 
-#' R function
-#' 
-#' Note that now all three functions nsp, nsk and rcs are set using 'utils-helper-7'
-#' This makes 'utils-helper-6' reduntant. BUT DON'T DELTE it yet
-#'
-#'
-#' @return An character string which later evaluated to a custom function
-#'   and inserted into the Stan's functions block.
-#'   
-#' @author Satpal Sandhu  \email{satpal.sandhu@bristol.ac.uk}
-#'
-#' @keywords internal
-#' @noRd
-#'
 GS_nsp_call_stan_R_str <- function() {
+  # call GS_nsp_call_stan
   set_stan_str <- "
-  /////////////////////////////////////////////////////////////////////////
-  // call GS_nsp_call_stan
-  /////////////////////////////////////////////////////////////////////////
   matrix GS_nsp_call_stan(vector x, vector knotsx, vector bknotsx, 
                         int degree, int intercept, int derivs, real centerval, int normalize,
                         int preH) {
@@ -652,7 +482,6 @@ GS_nsp_call_stan_R_str <- function() {
   knots = segment(fullknots, 2, num_elements(fullknots)-2);
   bknots = append_row(head(bknotsx, 1), tail(bknotsx, 1)); 
    int Nintk   = num_elements(knots);
-   // int degree  = 3;
    int ord     = degree + 1;
    int Nk      = Nintk + 2;
    int df      = Nintk + 1 + intercept;
@@ -698,39 +527,18 @@ GS_nsp_call_stan_R_str <- function() {
           }
         }
       } 
-    } // if (centerval != 0) {
+    } 
   return(out);
-  } // end matrix GS_nsp_call_stan
+  } 
 "
   return(set_stan_str)
-} # GS_nsp_call_stan_R_str
+} 
 
 
 
-################################################################################
-# GS_nsk_call_stan_R_str
-################################################################################
-
-#' An internal function to prepare export rcs string for Stan, and auxiliary 
-#' R function
-#' 
-#' Note that now all three functions nsp, nsk and rcs are set using 'utils-helper-7'
-#' This makes 'utils-helper-6' reduntant. BUT DON'T DELTE it yet
-#'
-#'
-#' @return An character string which later evaluated to a custom function
-#'   and inserted into the Stan's functions block.
-#'   
-#' @author Satpal Sandhu  \email{satpal.sandhu@bristol.ac.uk}
-#'
-#' @keywords internal
-#' @noRd
-#'
 GS_nsk_call_stan_R_str <- function() {
+  # call GS_nsk_call_stan
   set_stan_str <- "
-  /////////////////////////////////////////////////////////////////////////
-  // call GS_nsk_call_stan
-  /////////////////////////////////////////////////////////////////////////
   matrix GS_nsk_call_stan(vector x, vector knotsx, vector bknotsx, 
                         int degree, int intercept, int derivs, real centerval, int normalize,
                         int preH) {       
@@ -742,7 +550,6 @@ GS_nsk_call_stan_R_str <- function() {
   knots = segment(fullknots, 2, num_elements(fullknots)-2);
   bknots = append_row(head(bknotsx, 1), tail(bknotsx, 1)); 
    int Nintk   = num_elements(knots);
-   // int degree  = 3;
    int ord     = degree + 1;
    int Nk      = Nintk + 2;
    int df      = Nintk + 1 + intercept;
@@ -781,39 +588,15 @@ GS_nsk_call_stan_R_str <- function() {
        out = kout[, 2:cols(kout)];
     } 
     return(out);
-  } // end matrix GS_nsk_call_stan
+  } 
 "
   return(set_stan_str)
-} # GS_nsk_call_stan_R_str
+} 
 
 
-
-
-
-################################################################################
-# GS_nsk_call_stan_R_str
-################################################################################
-
-#' An internal function to prepare export rcs string for Stan, and auxiliary 
-#' R function
-#' 
-#' Note that now all three functions nsp, nsk and rcs are set using 'utils-helper-7'
-#' This makes 'utils-helper-6' reduntant. BUT DON'T DELTE it yet
-#'
-#'
-#' @return An character string which later evaluated to a custom function
-#'   and inserted into the Stan's functions block.
-#'   
-#' @author Satpal Sandhu  \email{satpal.sandhu@bristol.ac.uk}
-#'
-#' @keywords internal
-#' @noRd
-#'
 GS_preH_stan_R_str <- function() {
+  # Function to calculate H matrix (as defined in GS_getH_stan)
   set_stan_str <- "
-  /////////////////////////////////////////////////////////////////////////
-  // Function to calculate H matrix (as defined in GS_getH_stan)
-  /////////////////////////////////////////////////////////////////////////
   matrix GS_getH_stan(vector knots, int normalize) {
   int Nintk = num_elements(knots) - 8;
   real C11 = 6 / ((knots[5] - knots[2]) * (knots[5] - knots[3]));
@@ -822,7 +605,6 @@ GS_preH_stan_R_str <- function() {
   real Cp22 = 6 / ((knots[Nintk + 6] - knots[Nintk + 3]) * (knots[Nintk + 6] - knots[Nintk + 4]));
   real Cp2 = 6 / ((knots[Nintk + 7] - knots[Nintk + 4]) * (knots[Nintk + 6] - knots[Nintk + 4]));
   real Cp12 = -Cp22 - Cp2;
-
   if (Nintk == 0) {
     matrix[2, 4] H = to_matrix(transpose([3, 0, 2, 1, 1, 2, 0, 3]), 2, 4);
     if (normalize) {
@@ -892,38 +674,18 @@ GS_preH_stan_R_str <- function() {
     }
     return transpose(H);
     }
-  } // end matrix GS_getH_stan
+  }
 "
   return(set_stan_str)
 } # GS_preH_stan_R_str
 
 
-
-################################################################################
-# GS_auxillary_stan_R_str - not used anywhere
-################################################################################
-
-#' An internal function to prepare export rcs string for Stan, and auxiliary 
-#' R function
-#' 
-#' Note that now all three functions nsp, nsk and rcs are set using 'utils-helper-7'
-#' This makes 'utils-helper-6' reduntant. BUT DON'T DELTE it yet
-#'
-#'
-#' @return An character string which later evaluated to a custom function
-#'   and inserted into the Stan's functions block.
-#'   
-#' @author Satpal Sandhu  \email{satpal.sandhu@bristol.ac.uk}
-#'
-#' @keywords internal
-#' @noRd
-#'
 GS_auxillary_stan_R_str <- function() {
+  # Find elements in vector x that equal/below/above real number y
+  # Check if vectors VecSame
+  # Check if matrices VecSame
+  # Repeating input matrix K times
   set_stan_str <- "
-  ////////////////////////////////////////////////////////////////////////
-  // Find elements in vector x that equal/below/above real number y
- /////////////////////////////////////////////////////////////////////////
-  // Efficient vector matching/counting
   int num_matches(vector x, real y, real z) {
     int n = 0;
     int N = num_elements(x);
@@ -936,9 +698,6 @@ GS_auxillary_stan_R_str <- function() {
     }
     return n;
   }
-  /////////////////////////////////////////////////////////////////////////
-   // Check if vectors VecSame
-   /////////////////////////////////////////////////////////////////////////
   int VecSame(vector A, vector B) {
     int N = num_elements(A);
     for (i in 1:N) {
@@ -946,9 +705,6 @@ GS_auxillary_stan_R_str <- function() {
     }
     return 1;
   }
-  /////////////////////////////////////////////////////////////////////////
-   // Check if matrices VecSame
-   /////////////////////////////////////////////////////////////////////////
   int MatSame(matrix A, matrix B) {
     int R = rows(A);
     int C = cols(A);
@@ -959,15 +715,10 @@ GS_auxillary_stan_R_str <- function() {
     }
     return 1;
   }
-
-  /////////////////////////////////////////////////////////////////////////
-  // Repeating input matrix K times
-  /////////////////////////////////////////////////////////////////////////
   matrix repeat_matrix(matrix input, int K) {
     int N = rows(input);
     int M = cols(input);
     matrix[N*K,M] repmat; // stack N*M matrix K times
-    // assign i-th row of input to i+(k-1)*N -th row of repmat
     for (k in 1:K) {
       for (i in 1:N) {
         repmat[i+(k-1)*N] = input[i]; 
@@ -977,40 +728,12 @@ GS_auxillary_stan_R_str <- function() {
   }  
   "
   return(set_stan_str)
-} # GS_auxillary_stan_R_str
+} 
 
 
-###############################################################################
-###############################################################################
-############################# RCS FUNCTION ####################################
-###############################################################################
-###############################################################################
-
-
-################################################################################
-# GS_rcs_call_stan_R_str
-################################################################################
-
-#' An internal function to prepare export rcs string for Stan, and auxiliary 
-#' R function
-#' 
-#' Note that now all three functions nsp, nsk and rcs are set using 'utils-helper-7'
-#' This makes 'utils-helper-6' reduntant. BUT DON'T DELTE it yet
-#'
-#'
-#' @return An character string which later evaluated to a custom function
-#'   and inserted into the Stan's functions block.
-#'   
-#' @author Satpal Sandhu  \email{satpal.sandhu@bristol.ac.uk}
-#'
-#' @keywords internal
-#' @noRd
-#'
 GS_rcs_call_stan_R_str <- function() {
+  # Function to calculate truncated power basis based rcs matrix
   set_stan_str <- "
- ////////////////////////////////////////////////////////////////////////
-  // Function to calculate truncated power basis based rcs matrix
-  /////////////////////////////////////////////////////////////////////////
   /**
    * Calculates the Restricted Cubic Spline (RCS) basis matrix.
    *
@@ -1044,43 +767,34 @@ GS_rcs_call_stan_R_str <- function() {
                         real centerval,
                         int normalize,
                         int preH) {
-                        
     int inclx = 1;                  
     int N = num_elements(x);
-    
     vector[num_elements(knotsx)+2] fullknots;
     vector[num_elements(fullknots)-2] knots;
     vector[2] bknots;
     fullknots = append_row(append_row(rep_vector(bknotsx[1], 1), knotsx), rep_vector(bknotsx[2], 1));
     knots = segment(fullknots, 2, num_elements(fullknots)-2);
     bknots = append_row(head(bknotsx, 1), tail(bknotsx, 1)); 
-    
     int nk = num_elements(fullknots);
-   
     matrix[N, nk - 1] basis_evals;
     real knot1 = fullknots[1];
     real knot_nk = fullknots[nk];
     real knot_nk_minus_1 = fullknots[nk - 1];
     real denom_common = (knot_nk - knot1)^2;
     real denom_spline_diff = (knot_nk - knot_nk_minus_1);
-
     matrix[N, nk] Xx_pos; 
     for (n_idx in 1:N) {
       for (k_idx in 1:nk) {
         Xx_pos[n_idx, k_idx] = fmax(0.0, x[n_idx] - fullknots[k_idx]);
       }
     }
-
     if (derivs == 0) {
       basis_evals[:, 1] = x;
     } else if (derivs == 1) {
       basis_evals[:, 1] = rep_vector(1.0, N);
     } else if (derivs == 2) {
       basis_evals[:, 1] = rep_vector(0.0, N);
-    } else {
-      //
-    }
-
+    } 
     for (j in 1:(nk - 2)) {
       int jp1 = j + 1; 
       if (derivs == 0) {
@@ -1100,9 +814,7 @@ GS_rcs_call_stan_R_str <- function() {
           (6.0 * Xx_pos[:, nk]) * (fullknots[nk - 1] - fullknots[j]) / (denom_spline_diff * denom_common);
       }
     }
-
     matrix[N, 0] final_basis_evals_empty = rep_matrix(0.0, N, 0); 
-
     if (intercept == 1) {
       if (derivs == 0) {
         if (inclx == 1) {
@@ -1133,8 +845,6 @@ GS_rcs_call_stan_R_str <- function() {
              matrix[N, nk] temp_basis; 
              temp_basis[:, 1] = rep_vector(0.0, N); 
              temp_basis[:, 2] = rep_vector(0.0, N); 
-             print(temp_basis);
-             print(basis_evals);
              temp_basis[:, 3:(nk - 0)] = basis_evals[:, 2:(nk - 1)]; 
              return temp_basis;
         } else {
@@ -1145,19 +855,16 @@ GS_rcs_call_stan_R_str <- function() {
              return temp_basis;
         }
       }
-    } else { // intercept == 0
+    } else { 
       if (inclx == 0) {
         return basis_evals[:, 2:(nk-1)]; 
       } else {
         return basis_evals;
       }
     }
-    // Should not reach here
     return final_basis_evals_empty;
-  } // end matrix GS_rcs_call_stan
+  } 
 "
   return(set_stan_str)
-} # GS_rcs_call_stan_R_str
-
-
+} 
 

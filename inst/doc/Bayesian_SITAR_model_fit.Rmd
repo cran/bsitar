@@ -80,7 +80,7 @@ We study the Berkeley data, which comprise repeated growth measurements taken on
 
 
 
-\newline
+\newpage
 ## Model fit
 If needed, install the 'bsitar' and 'sitar' packages (along with any other required packages, such as ggplot2).
 
@@ -163,7 +163,7 @@ if(existsfit) {
 ```
 
 
-\newline
+\newpage
 ## Model summary
 
 Summarize the **sitar** model
@@ -447,7 +447,7 @@ if(ncol(parms_apv_sitar$apv) > 1) {
 parms_apv_sitar <- round(parms_apv_sitar, ndecimal)
 row.names(parms_apv_sitar) <- NULL
 parms_apv_bsitar <- plot_curves(model_bayes, apv = TRUE, newdata = data_sitar_df, ipts = NULL, summary = TRUE) 
-parms_apv_bsitar <- parms_apv_bsitar$growthparameters
+parms_apv_bsitar <- parms_apv_bsitar$growthparameters 
 colnames(parms_apv_bsitar) <- c('Parameter', 'bsitar')
 parms_apv_column <- parms_apv_bsitar %>% dplyr::select(Parameter)
 parms_apv_bsitar <- parms_apv_bsitar %>% dplyr::select(-Parameter)
@@ -561,6 +561,7 @@ reround_c <- round(sitar_ranef_id_max$c*100, ndecimal)
 ```
 
 
+\newpage
 ## Random effects (size, timing and intensity)
 The effect of SITAR adjustment in individual curves via random effects is shown more clearly in the figure below, which displays observed and adjusted curves for the tallest and shortest individuals along with the population average (mean) curve. The corresponding estimates of random effects (size, timing, and intensity) are provided in the tables below. Note that intensity c, multiplied by 100, is a percentage. Results for both models are very similar to each other. Results for the *sitar* model are presented below.
 
@@ -879,7 +880,7 @@ knitr::kable(bfh1_ranef_corr,
 ```
 
 
-
+\newpage
 ## Growth curves (distance and velocity)
 ### Population average (mean) distance and velocity curves
 ```{r prepare_plotd_data, eval=TRUE,  echo=FALSE,include=FALSE}
@@ -1065,8 +1066,8 @@ replayPlot(plt_plotV2)
 Individual-specific distance and velocity curves (shown below) follow a pattern similar to the population average distance and velocity curves described [earlier][Population average (mean) distance and velocity curves]. Individual velocity curves (shown below) show that all individuals experience a pubertal growth spurt, but the timing of the spurt varies between 10 and 14 years, with varying growth patterns among individuals. Some individuals are consistently taller than average, while others are consistently shorter. While some start relatively short and become taller, others have an opposite growth pattern, i.e., they are taller at an early age and achieve less height in later years compared to those who were short at an early age.
 
 
+\newpage
 ## Growth parameters (timing and intensity)
-\newline
 ### Population average (mean) estimates
 ```{asis, echo=tabfiglabs}
 # Figure \@ref(fig:plotv)), it is not surprising

@@ -1,13 +1,9 @@
 
-#############################################################
-############### fast_nsk_rcsfun_str_get ##################
-#############################################################
+
 
 fast_nsk_rcsfun_str_get <- function() {
   fast_nsk_rcsfun_str <- 
     "
-  
-  // get the vector of spacings between nodes
   vector spline_geths(vector nodes) {
     int n = size(nodes) - 1;
     vector[n] hs;
@@ -17,9 +13,6 @@ fast_nsk_rcsfun_str_get <- function() {
     return hs;
   }
 
-  // obtain the vector of spline coefficients given the location
-  // of the nodes and values there
-  // We are using natural spline definition
   vector spline_getcoeffs(vector nodes, vector vals) {
     int n_nodes = size(nodes);
     int n = n_nodes - 1;
@@ -30,9 +23,7 @@ fast_nsk_rcsfun_str_get <- function() {
     vector[n_nodes] ret;
     vector[n - 1] zs;
     matrix[n - 1, n - 1] M = rep_matrix(0, n - 1, n - 1);
-
     n = n_nodes - 1;
-
     for (i in 1:n) {
       hi[i] = nodes[i + 1] - nodes[i];
       bi[i] = 1 / hi[i] * (vals[i + 1] - vals[i]);
@@ -49,17 +40,12 @@ fast_nsk_rcsfun_str_get <- function() {
       M[i, i + 1] = hi[i + 1];
     }
     zs = M \\ ui;
-
     ret[1] = 0;
     ret[n_nodes] = 0;
     ret[2:n_nodes - 1] = zs;
-
     return ret;
   }
 
-  // Evaluate the spline, given nodes, values at the nodes
-  // spline coefficients, locations of evaluation points
-  // and integer bin ids of each point
   vector spline_eval(vector nodes,
                     vector vals, vector zs,
                     vector x, array[] int i) {
@@ -72,7 +58,6 @@ fast_nsk_rcsfun_str_get <- function() {
       i1[ii] = i[ii] + 1;
     }
     h = spline_geths(nodes);
-
     ret = (
           zs[i1] ./ 6 ./ h[i] .* square(x - nodes[i]) .* (x - nodes[i]) +
           zs[i] ./ 6 ./ h[i] .* square(nodes[i1] - x) .* (nodes[i1] - x) +
@@ -82,21 +67,14 @@ fast_nsk_rcsfun_str_get <- function() {
     return ret;
   }
 
-  // find in which node interval we should place each point of the vector
   array[] int spline_findpos(vector nodes, vector x, vector b,  vector c) {
     int n_nodes = size(nodes);
     int n_dat = size(x);
     array[n_dat] int ret;
     for (i in 1:n_dat) {
-    
-  //  real setx = (x[i] / exp(c[i])) + b[i];
- 
-  real bx =  b[i];
-  real cx =  c[i];
-//  real setx = ( x[i] - b[i] ) *  c[i];
- 
- real setx = x[i];
-    
+      real bx =  b[i];
+      real cx =  c[i];
+      real setx = x[i];
       int success = 0;
       for (j in 1:n_nodes - 1) {
       real nodesj  = (nodes[j] - bx) * cx ;
@@ -113,10 +91,10 @@ fast_nsk_rcsfun_str_get <- function() {
     }
     return ret;
   }
-
   "
   return(fast_nsk_rcsfun_str)
-} # fast_nsk_rcsfun_str_get
+} 
+
 
 
 

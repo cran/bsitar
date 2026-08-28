@@ -2,21 +2,6 @@
 
 #' An internal function to compute hypothesis from estimates
 #'
-#' @details Function adpated from \code{marginaleffects:::get_hypothesis}
-#'   available at
-#'   <https://github.com/vincentarelbundock/marginaleffects/blob/main/R/get_hypothesis.R>
-#' 
-#' @param x A data frame
-#' @param hypothesis A character vector 
-#' @param by A character or a character vector 
-#' @param newdata A character vector 
-#' @param draws A column name (a character)
-#' 
-#' @return A data frame
-#' 
-#' @author Satpal Sandhu  \email{satpal.sandhu@bristol.ac.uk}
-#' 
-#' @keywords internal
 #' @noRd
 #' 
 get_hypothesis_x <- function(
@@ -25,25 +10,19 @@ get_hypothesis_x <- function(
     by = NULL,
     newdata = NULL,
     draws = NULL) {
-  
   if (is.null(hypothesis)) return(x)
-  
   try(zz <- insight::check_if_installed(c("data.table"), 
                                         minimum_version = 
                                           get_package_minversion(
-                                            'data.table'
-                                          ), 
+                                            'data.table'), 
                                         prompt = FALSE,
                                         stop = FALSE))
-  
   try(zz <- insight::check_if_installed(c("checkmate"), 
                                         minimum_version = 
                                           get_package_minversion(
-                                            'checkmate'
-                                          ), 
+                                            'checkmate'), 
                                         prompt = FALSE,
                                         stop = FALSE))
-  
   if (is.function(hypothesis)) {
     argnames <- names(formals(hypothesis))
     if (!"x" %in% argnames) stop("The `hypothesis` function must accept an `x` argument.", call. = FALSE)
@@ -62,8 +41,6 @@ get_hypothesis_x <- function(
   }
   
   lincom <- NULL
-  
-  # lincom: numeric vector or matrix
   if (isTRUE(checkmate::check_numeric(hypothesis))) {
     if (isTRUE(checkmate::check_atomic_vector(hypothesis))) {
       checkmate::assert_numeric(hypothesis, len = nrow(x))
@@ -72,24 +49,8 @@ get_hypothesis_x <- function(
       lincom <- hypothesis
     }
   }
-  
-  # lincom: string shortcuts
   valid <- c("pairwise", "reference", "sequential", 
              "revpairwise", "revreference", "revsequential")
-  
-  # Turning off the nrow(x) > 25 check
-  if (isTRUE(hypothesis %in% valid)) {
-    # if (nrow(x) > 25) {
-    #   msg <- 'The "pairwise", "reference", and "sequential" options of the 
-    #       `hypotheses` argument are not supported for `marginaleffects` commands
-    #        which generate more than 25 rows of results. Use the `newdata`, 
-    #        `by`, and/or `variables` arguments to compute a smaller set of 
-    #        results on which to conduct hypothesis tests.'
-    #   # insight::format_error(msg)
-    #   stop2c(msg)
-    # }
-  }
-  
   if (isTRUE(hypothesis == "reference")) {
     lincom <- lincom_reference(x, by)
   } else if (isTRUE(hypothesis == "revreference")) {
@@ -104,13 +65,9 @@ get_hypothesis_x <- function(
     lincom <- lincom_revpairwise(x, by)
   }
   lincom <- sanitize_lincom(lincom, x)
-  
-  # matrix hypothesis
   if (isTRUE(checkmate::check_matrix(lincom))) {
     out <- lincom_multiply(x, lincom)
     return(out)
-    
-    # string hypothesis
   } else if (is.character(hypothesis)) {
     out_list <- draws_list <- list()
     lab <- attr(hypothesis, "label")
@@ -130,10 +87,8 @@ get_hypothesis_x <- function(
     }
     return(out)
   }
-  
   insight::format_error("`hypotheses` is broken. Please report this bug: https://github.com/vincentarelbundock/marginaleffects/issues.")
 }
-
 
 get_hypothesis_row_labels <- function(x, by = NULL) {
   lab <- grep("^term$|^by$|^group$|^value$|^contrast$|^contrast_", colnames(x), value = TRUE)
@@ -152,12 +107,9 @@ get_hypothesis_row_labels <- function(x, by = NULL) {
       lab <- apply(lab_df, 1, paste, collapse = ", ")
     }
   }
-  
-  # wrap in parentheses to avoid a-b-c-d != (a-b)-(c-d)
   if (any(grepl("-", lab))) {
     lab <- sprintf("(%s)", lab)
   }
-  
   return(lab)
 }
 
@@ -288,7 +240,6 @@ lincom_pairwise <- function(x, by) {
 
 
 lincom_multiply <- function(x, lincom) {
-  # bayesian
   draws <- attr(x, "posterior_draws")
   if (!is.null(draws)) {
     draws <- t(as.matrix(lincom)) %*% draws
@@ -297,22 +248,18 @@ lincom_multiply <- function(x, lincom) {
       tmp = apply(draws, 1, stats::median))
     data.table::setnames(out, old = "tmp", new = "estimate")
     attr(out, "posterior_draws") <- draws
-    
-    # frequentist
   } else {
     out <- data.table::data.table(
       term = colnames(lincom),
       tmp = as.vector(x[["estimate"]] %*% lincom))
     data.table::setnames(out, old = "tmp", new = "estimate")
   }
-  
   out <- out[out$term != "1 - 1", , drop = FALSE]
   return(out)
 }
 
 
 eval_string_hypothesis <- function(x, hypothesis, lab) {
-  # row indices: `hypotheses` includes them, but `term` does not
   if (isTRUE(grepl("\\bb\\d+\\b", hypothesis)) && !any(grepl("\\bb\\d+\\b", x[["term"]]))) {
     bmax <- regmatches(lab, gregexpr("\\bb\\d+\\b", lab))[[1]]
     bmax <- tryCatch(max(as.numeric(gsub("b", "", bmax))), error = function(e) 0)
@@ -326,8 +273,6 @@ eval_string_hypothesis <- function(x, hypothesis, lab) {
       hypothesis <- gsub(paste0("b", i), tmp, hypothesis)
     }
     rowlabels <- paste0("marginaleffects__", seq_len(nrow(x)))
-    
-    # term names
   } else {
     if (!"term" %in% colnames(x) || anyDuplicated(x$term) > 0) {
       msg <- c(
@@ -341,7 +286,6 @@ eval_string_hypothesis <- function(x, hypothesis, lab) {
     }
     rowlabels <- x$term
   }
-  
   eval_string_function <- function(vec, hypothesis, rowlabels) {
     envir <- parent.frame()
     void <- sapply(
@@ -351,13 +295,11 @@ eval_string_hypothesis <- function(x, hypothesis, lab) {
     out <- eval(parse(text = hypothesis), envir = envir)
     return(out)
   }
-  
   if (!is.null(attr(lab, "names"))) {
     lab = attr(lab, "names")
   } else {
     lab = gsub("\\s+", "", lab)
   }
-  
   draws <- attr(x, "posterior_draws")
   if (!is.null(draws)) {
     insight::check_if_installed("collapse", minimum_version = "1.9.0")
@@ -380,86 +322,56 @@ eval_string_hypothesis <- function(x, hypothesis, lab) {
       term = lab,
       tmp = out)
   }
-  
   data.table::setnames(out, old = "tmp", new = "estimate")
   attr(out, "posterior_draws") <- draws
   return(out)
 }
 
 
+
+
 expand_wildcard <- function(hyp, bmax, lab) {
-  # Find all occurrences of b*
   bstar_indices <- gregexpr("b\\*", hyp)[[1]]
   if (bstar_indices[1] == -1) return(list(hyp, lab))
   bstar_count <- length(bstar_indices)
   if (bstar_count > 1) {
     insight::format_error("Error: More than one 'b*' substring found.")
   }
-  
-  # Replace b* with b1, b2, b3, ..., bmax
   labs <- character(bmax)
   result <- character(bmax)
   for (i in 1:bmax) {
     result[i] <- sub("b\\*", paste0("b", i), hyp)
     labs[i] <- sub("b\\*", paste0("b", i), lab)
   }
-  
   return(list(result, labs))
 }
 
 
 
 
-
-
-#' An internal function to compute hypothesis from estimates
-#'
-#' @details Function adpated from \code{marginaleffects:::get_hypothesis}
-#'   available at
-#'   <https://github.com/vincentarelbundock/marginaleffects/blob/main/R/get_hypothesis.R>
-#' 
-#' @param data A data frame
-#' @param from A character vector to be renamed \code{to}
-#' @param to A character specifying the new names for \code{from}
-#' @param to_title A character vector to be be converted to title case
-#' @param to_lower A character vector to be be converted to lower case
-#' @param to_upper A character vector to be be converted to upper case
-#' 
-#' @return A data frame
-#' 
-#' @author Satpal Sandhu  \email{satpal.sandhu@bristol.ac.uk}
-#' 
-#' @keywords internal
-#' @noRd
-#' 
 rename_keyvars <- function(data, 
                            from, 
                            to, 
                            to_title = NULL, 
                            to_lower = NULL, 
                            to_upper = NULL) {
-  
   if(length(from) != length(to)) stop("lenght mismatch")
-  
   for (i in 1:length(from)) {
     if(from[i] %in% colnames(data) & !to[i] %in% colnames(data)) {
       data[[to[i]]] <- data[[from[i]]]
       data[[from[i]]] <- NULL
     }
   }
-  
   if(!is.null(to_title)) {
     for (i in 1:length(to_title)) {
       if(!is.character(to_title[i])) to_title[i] <- deparse(to_title[i])
       if(any(grepl(to_title[i], colnames(data), ignore.case = T))) {
-        # newname <- tools::toTitleCase(to_title[i])
         newname <- sub("(.)", "\\U\\1", to_title[i], perl = TRUE)
         colnames(data) <- gsub(to_title[i], newname, 
                                colnames(data), fixed = T)
       }
     }
   }
-  
   if(!is.null(to_lower)) {
     for (i in 1:length(to_lower)) {
       if(!is.character(to_lower[i])) to_lower[i] <- deparse(to_lower[i])
@@ -470,7 +382,6 @@ rename_keyvars <- function(data,
       }
     }
   }
-  
   if(!is.null(to_upper)) {
     for (i in 1:length(to_upper)) {
       if(!is.character(to_upper[i])) to_upper[i] <- deparse(to_upper[i])
@@ -481,67 +392,25 @@ rename_keyvars <- function(data,
       }
     }
   }
-  
   return(data)
 }
 
 
 
 
-
-##############################################################################
-##############################################################################
-##############################################################################
-##############################################################################
-
-
-
-
-
-##############################################################################
-# New hypothesis - formula based
-##############################################################################
-
-#' An internal function to compute hypothesis from estimates (formula based)
-#'
-#' @details Function adpated from \code{marginaleffects:::get_hypothesis}
-#'   available at
-#'   <https://github.com/vincentarelbundock/marginaleffects/blob/main/R/get_hypothesis.R>
-#' 
-#' This is the new implementation that is based on hypothesis formula instead 
-#' of string
-#' 
-#' @param x A data frame
-#' @param hypothesis A character vector 
-#' @param by A character or a character vector 
-#' @param newdata A character vector 
-#' @param draws A column name (a character)
-#' 
-#' @return A data frame
-#' 
-#' @author Satpal Sandhu  \email{satpal.sandhu@bristol.ac.uk}
-#' 
-#' @keywords internal
-#' @noRd
-#' 
 get_hypothesis_x2 <- function (x, 
                                hypothesis, 
                                by = NULL, 
                                newdata = NULL, 
                                draws = NULL) {
-  
   hypothesis_function <- utils::getFromNamespace('hypothesis_function',
                             'marginaleffects')
-  
   hypothesis_matrix <- utils::getFromNamespace('hypothesis_matrix',
                                                  'marginaleffects')
-  
   hypothesis_string <- utils::getFromNamespace('hypothesis_string',
                                                  'marginaleffects')
-  
   hypothesis_function <- utils::getFromNamespace('hypothesis_function',
                                                  'marginaleffects')
-  
   deprecated <- c("pairwise", "revpairwise", "sequential", 
                   "revsequential", "reference", "meandev", "meanotherdev", 
                   "revreference")
@@ -580,67 +449,34 @@ get_hypothesis_x2 <- function (x,
 
 
 
-
-
-#' An internal function to compute hypothesis from estimates (formula based)
-#'
-#' @details This is needed for the get_hypothesis_x2
-#' 
-#' @param x A data frame
-#' @param hypothesis A character vector 
-#' @param by A character or a character vector 
-#' @param newdata A character vector 
-#' @param draws A column name (a character)
-#' 
-#' @return A data frame
-#' 
-#' @author Satpal Sandhu  \email{satpal.sandhu@bristol.ac.uk}
-#' 
-#' @keywords internal
-#' @noRd
-#' 
 hypothesis_formula_x2 <- function (x, 
                                    hypothesis, 
                                    newdata, 
                                    by,
                                    draws = NULL) {
-  
   ..col_x <- NULL;
   ..col_newdata <- NULL;
   ..cols <- NULL;
   ..idx <- NULL;
   estimate  <- NULL;
-  
   if(is.null(draws)) {
     draws <- attr(x, "posterior_draws")
   } else {
     draws <- newdata[[draws]]
     by    <- newdata[['id']]
-    # draws <- as.matrix(draws, nrow = nrow(x))
   }
-  
-  # by <- as.data.frame(by)
-  
   sanitize_hypothesis_formula <- 
     utils::getFromNamespace('sanitize_hypothesis_formula',
                             'marginaleffects')
-  
-  
   get_labels <- 
     utils::getFromNamespace('get_labels',
                             'marginaleffects')
-  
   hypothesis_formula_list <- 
     utils::getFromNamespace('hypothesis_formula_list',
                             'marginaleffects')
-  
   matrix_apply_column <- 
     utils::getFromNamespace('matrix_apply_column',
                             'marginaleffects')
-  
-  ###############
-  # don't remove na contrats - change part out[!is.na(out)] to out
-  # Recursive function to replace specific expressions
   replace_in_body <- function(body_expr, old_expr, new_expr) {
     if (is.call(body_expr)) {
       for (i in seq_along(body_expr)) {
@@ -653,7 +489,6 @@ hypothesis_formula_x2 <- function (x,
     }
     return(body_expr)
   }
-  
   form <- sanitize_hypothesis_formula(hypothesis)
   group <- form$group
   x <- data.table::as.data.table(x)
@@ -678,10 +513,6 @@ hypothesis_formula_x2 <- function (x,
                                             quote(out[!is.na(out)]), quote(out))
     
   }
-  
-  
-  ##############
-  
   args <- list(matrix(x$estimate), FUN = fun_comparison)
   if (is.null(labels)) {
     labels <- paste("Row", seq_len(nrow(x)))
@@ -747,7 +578,6 @@ hypothesis_formula_x2 <- function (x,
   if (!is.null(draws)) {
     draws <- matrix_apply_column(draws, FUN = fun_comparison, 
                                  by = groupval)
-    
     if ("hypothesis" %in% colnames(out)) {
       row.names(draws) <- out$hypothesis
     }

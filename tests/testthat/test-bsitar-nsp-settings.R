@@ -11,7 +11,7 @@ if(skip_test_local_rcmd_check) {
 # Test bsitar with default settings
 ###############################################################################
 
-test_that("bsitar works fully with default settings", {
+test_that("bsitar works fully with nsp settings", {
   skip_on_cran()
   
   test_scode <- bsitar(x = age, y = height, id = id, 
@@ -26,7 +26,7 @@ test_that("bsitar works fully with default settings", {
                        # init = '0',
                        init = NULL, # Don't use default random with init_r = 0.5
                        vcov_init_0 = TRUE,
-                       refres = 0, silent = 2,
+                       refresh = 0, silent = 2,
                        seed = 123)
   
   expect_type(test_scode, "character")
@@ -44,7 +44,7 @@ test_that("bsitar works fully with default settings", {
                        # init = '0',
                        init = NULL, # Don't use default random with init_r = 0.5
                        vcov_init_0 = TRUE,
-                       refres = 0, silent = 2,
+                       refresh = 0, silent = 2,
                        seed = 123)
   
   expect_type(test_sdata, "list")
@@ -63,7 +63,7 @@ test_that("bsitar works fully with default settings", {
                        # init = '0',
                        init = NULL, # Don't use default random with init_r = 0.5
                        vcov_init_0 = TRUE,
-                       refres = 0, silent = 2,
+                       refresh = 0, silent = 2,
                        seed = 123)
   }))
   
@@ -79,7 +79,6 @@ test_that("bsitar works fully with default settings", {
   
   expect_equal(round(test_gparms$Estimate[1], 2), 12.86, tolerance = 0.01)
   expect_equal(round(test_gparms$Estimate[2], 2), 6.38, tolerance = 0.01)
-  # 6.45 -> 6.38 to68fix
-  
+
 })
 

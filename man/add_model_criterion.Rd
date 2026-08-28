@@ -24,6 +24,7 @@
   cores = 1,
   model_deriv = NULL,
   return_model = TRUE,
+  return_criteria = FALSE,
   verbose = FALSE,
   expose_function = FALSE,
   usesavedfuns = NULL,
@@ -114,20 +115,14 @@ execution.
 \code{mc.cores} option.
 }}
 
-\item{model_deriv}{A logical value specifying whether to estimate the
-velocity curve from the derivative function or by differentiating the
-distance curve. Set \code{model_deriv = TRUE} for functions that require
-the velocity curve, such as \code{growthparameters()} and
-\code{plot_curves()}. Set it to \code{NULL} for functions that use the
-distance curve (i.e., fitted values), such as \code{loo_validation()} and
-\code{plot_ppc()}.}
+\item{model_deriv}{Ignored.}
 
 \item{return_model}{A logical (default \code{TRUE}) to indicate whether to
-return the model object or just assign the criteria to the model. When
-\code{return_model = NULL}, then \code{return_model} is automatically
-assigned \code{FALSE} if \code{test_mode = FALSE}, and \code{TRUE} when
-\code{test_mode = TRUE}. Note that when \code{test_mode = TRUE}, the model
-object will be returned along with the criteria.}
+return the model object or just assign the criteria to the model. Mainly
+for internal use.}
+
+\item{return_criteria}{A logical (default \code{FALSE}) to indicate whether
+to return the criterion. Mainly for internal use.}
 
 \item{verbose}{A logical argument (default \code{FALSE}) to specify whether
 to print information collected during the setup of the object(s).}
@@ -175,8 +170,8 @@ added.
 The \strong{add_model_criterion()} function is a wrapper around
 \code{\link[brms:add_criterion]{brms::add_criterion()}} that allows adding fit criteria to a model. Note
 that arguments such as \code{compare} and \code{pointwise} are relevant
-only for \link[brms:add_ic]{brms::add_loo}, while \code{summary}, \code{robust}, and
-\code{probs} are ignored except for the \code{\link[brms:bayes_R2.brmsfit]{brms::bayes_R2()}}
+only for \link[brms:add_loo]{brms::add_loo}, while \code{summary}, \code{robust}, and
+\code{probs} are ignored except for the \code{\link[brms:bayes_R2]{brms::bayes_R2()}}
 }
 \examples{
 \donttest{
@@ -194,8 +189,8 @@ model <- add_model_criterion(model, criterion = c("waic"))
 
 }
 \seealso{
-\link[brms:add_ic]{brms::add_loo}, \code{\link[brms:add_ic]{brms::add_ic()}}, \code{\link[brms:add_ic]{brms::add_waic()}},
-\code{\link[brms:bayes_R2.brmsfit]{brms::bayes_R2()}}
+\link[brms:add_loo]{brms::add_loo}, \code{\link[brms:add_ic]{brms::add_ic()}}, \code{\link[brms:add_waic]{brms::add_waic()}},
+\code{\link[brms:bayes_R2]{brms::bayes_R2()}}
 }
 \author{
 Satpal Sandhu  \email{satpal.sandhu@bristol.ac.uk}

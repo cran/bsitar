@@ -42,6 +42,8 @@
 # utils-helper-25-fast_nsk_rcsfun_str_get
 # utils-helper-26-generate_age_list
 # utils-helper-27-knot_search
-
+# utils-helper-28-hypothesis_test - related
+# utils-helper-29-summary_table - related
+# utils-helper-30-plot_diagnostics - related
 
 

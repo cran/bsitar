@@ -158,16 +158,16 @@ the individual-specific predictor range. Setting \code{xrange = 1} applies
 the same range for individuals within the same higher grouping variable
 (e.g., study). Setting \code{xrange = 2} applies an identical range across
 the entire sample. Alternatively, a numeric vector (e.g., \code{xrange =
-  c(6, 20)}) can be provided to set the range within the specified values.}
+c(6, 20)}) can be provided to set the range within the specified values.}
 
 \item{digits}{An integer (default \code{2}) for rounding the estimates to the
-specified number of decimal places using \code{\link[base:Round]{base::round()}}.}
+specified number of decimal places using \code{\link[base:round]{base::round()}}.}
 
 \item{numeric_cov_at}{An optional (named list) argument to specify the value
 of continuous covariate(s). The default \code{NULL} option sets the
 continuous covariate(s) to their mean. Alternatively, a named list can be
 supplied to manually set these values. For example, \code{numeric_cov_at =
-  list(xx = 2)} will set the continuous covariate variable 'xx' to 2. The
+list(xx = 2)} will set the continuous covariate variable 'xx' to 2. The
 argument \code{numeric_cov_at} is ignored when no continuous covariates are
 included in the model.}
 
@@ -175,13 +175,13 @@ included in the model.}
 be passed to the \code{ipts} argument (see below). This is useful when
 fitting location-scale models and measurement error models. If
 post-processing functions throw an error such as \code{variable 'x' not
-  found in either 'data' or 'data2'}, consider using \code{aux_variables}.}
+found in either 'data' or 'data2'}, consider using \code{aux_variables}.}
 
 \item{grid_add}{An optional argument to specify the variable(s) that can be
 passed to the \code{\link[marginaleffects:datagrid]{marginaleffects::datagrid()}}. This is useful when fitting
 location-scale models and measurement error models. If
 post-processing functions throw an error such as \code{variable 'x' not
-  found in either 'data' or 'data2'}, consider using \code{grid_add}.
+found in either 'data' or 'data2'}, consider using \code{grid_add}.
 Note that unlike \code{aux_variables} which are passed to the internal data
 functions such as \code{'get.newdata'}, the \code{grid_add} are passed to
 the \code{\link[marginaleffects:datagrid]{marginaleffects::datagrid()}}.}
@@ -253,7 +253,7 @@ method to ensure reproducibility.}
 
 \item{future}{A logical value (default \code{FALSE}) indicating whether to
 perform parallel computations. If \code{TRUE}, posterior summaries are
-computed in parallel using \code{\link[future.apply:future_lapply]{future.apply::future_sapply()}}.}
+computed in parallel using \code{\link[future.apply:future_sapply]{future.apply::future_sapply()}}.}
 
 \item{future_session}{A character string or a named list specifying the
 parallel plan when \code{future = TRUE}.
@@ -269,7 +269,7 @@ Use \code{"multicore"} for forking (not supported on Windows).
 \code{daemons} for \code{\link[mirai:daemons]{mirai::daemons()}}).
 }
 Example: \code{list(future_session = mirai_cluster, daemons =
-      list(...))}.
+    list(...))}.
 }}
 
 \item{future_splits}{A list, numeric vector, or logical value (default
@@ -307,10 +307,11 @@ execution.
 \code{doFuture} package.
 }}
 
-\item{future_re_expose}{A logical value (default \code{NULL}) indicating whether
-to re-expose internal \code{Stan} functions when \code{future = TRUE}.
-This is critical when \code{\link[future:plan]{future::plan()}} is set to \code{"multisession"},
-as compiled C++ functions cannot be exported across distinct R sessions.
+\item{future_re_expose}{A logical value (default \code{NULL}) indicating
+whether to re-expose internal \code{Stan} functions when \code{future =
+TRUE}. This is critical when \code{\link[future:plan]{future::plan()}} is set to
+\code{"multisession"}, as compiled C++ functions cannot be exported across
+distinct R sessions.
 \itemize{
 \item If \code{NULL} (default), it is automatically set to \code{TRUE}
 when the plan is \code{"multisession"}.
@@ -340,13 +341,13 @@ execution.
 \item{fullframe}{A logical value indicating whether to return a
 \code{fullframe} object in which \code{newdata} is bound to the summary
 estimates. Note that \code{fullframe} cannot be used with \code{summary =
-  FALSE}, and it is only applicable when \code{idata_method = 'm2'}. A
+FALSE}, and it is only applicable when \code{idata_method = 'm2'}. A
 typical use case is when fitting a \code{univariate_by} model. This option
 is mainly for internal use.}
 
 \item{average}{A logical indicating whether to call
 \code{\link[marginaleffects:comparisons]{marginaleffects::comparisons()}} (if \code{FALSE}) or
-\code{\link[marginaleffects:comparisons]{marginaleffects::avg_comparisons()}} (if \code{TRUE}). Default is
+\code{\link[marginaleffects:avg_comparisons]{marginaleffects::avg_comparisons()}} (if \code{TRUE}). Default is
 \code{FALSE}.}
 
 \item{plot}{A logical indicating whether to plot the comparisons using
@@ -362,12 +363,12 @@ intervals band from the lines i.e., \code{geom_ribbon}, then include
 general approach in which any layer name with  prefix \code{'rm_'} included
 in the \code{mapping_facet} will be removed. An example is shown below:\cr
 \code{mapping_facet = list(group = 'id', colour = 'id', facet_wrap =
-  c('study'), rm_geom_ribbon = TRUE)}.}
+c('study'), rm_geom_ribbon = TRUE)}.}
 
 \item{showlegends}{A logical value to specify whether to show legends
 (\code{TRUE}) or not (\code{FALSE}). If \code{NULL} (default), the value of
 \code{showlegends} is internally set to \code{TRUE} if \code{re_formula =
-  NA}, and \code{FALSE} if \code{re_formula = NULL}.}
+NA}, and \code{FALSE} if \code{re_formula = NULL}.}
 
 \item{variables}{A named list specifying the level 1 predictor, such as
 \code{age} or \code{time}, used for estimating growth parameters in the
@@ -383,12 +384,12 @@ using this default, the argument \code{deriv} is automatically set to
 \code{0} and \code{model_deriv} to \code{FALSE}. If parameters are to be
 estimated based on the model's first derivative, \code{deriv} must be set
 to \code{1} and \code{variables} will be defined as \code{variables =
-  list('age' = 0)}. Note that if the default behavior is used (\code{deriv =
-  0} and \code{variables = list('x' = 1e-6)}), additional arguments cannot be
+list('age' = 0)}. Note that if the default behavior is used (\code{deriv =
+0} and \code{variables = list('x' = 1e-6)}), additional arguments cannot be
 passed to \code{variables}. In contrast, when using an alternative approach
 (\code{deriv = 0} and \code{variables = list('x' = 0)}), additional options
 can be passed to the \code{\link[marginaleffects:comparisons]{marginaleffects::comparisons()}} and
-\code{\link[marginaleffects:comparisons]{marginaleffects::avg_comparisons()}} functions.}
+\code{\link[marginaleffects:avg_comparisons]{marginaleffects::avg_comparisons()}} functions.}
 
 \item{condition}{Conditional slopes
 \itemize{
@@ -423,10 +424,10 @@ and should be used cautiously.}
 
 \item{method_call}{A character string specifying whether to compute
 comparisons using \code{\link[marginaleffects:predictions]{marginaleffects::predictions()}} (\code{method_call =
-  'predictions'}) or \code{\link[marginaleffects:comparisons]{marginaleffects::comparisons()}} (\code{method_call =
-  'comparisons'}). The \code{'method_call'} is evaluated only when
+'predictions'}) or \code{\link[marginaleffects:comparisons]{marginaleffects::comparisons()}} (\code{method_call =
+'comparisons'}). The \code{'method_call'} is evaluated only when
 \code{method = 'custom'} ignored otherwise. Default \code{method_call =
-  NULL} allows automatic selection of the \code{'method_call'} depending on
+NULL} allows automatic selection of the \code{'method_call'} depending on
 whether comparisons are for slopes or predictions.}
 
 \item{marginals}{A \code{list}, \code{data.frame}, or \code{tibble} of
@@ -443,7 +444,7 @@ to return the original posterior draws for parameters. Options include:
 \item \code{'add'}: adds the original posterior draws to the outcome.
 }
 When \code{pdrawso = TRUE}, the default behavior is \code{pdrawso =
-  'return'}. Note that the posterior draws are returned before calling
+'return'}. Note that the posterior draws are returned before calling
 \code{\link[marginaleffects:posterior_draws]{marginaleffects::posterior_draws()}}.}
 
 \item{pdrawsp}{A character string (default \code{FALSE}) to indicate whether
@@ -453,7 +454,7 @@ to return the posterior draws for parameters. Options include:
 \item \code{'add'}: adds the posterior draws to the outcome.
 }
 When \code{pdrawsp = TRUE}, the default behavior is \code{pdrawsp =
-  'return'}. The \code{pdrawsp} represent the parameter estimates for each of
+'return'}. The \code{pdrawsp} represent the parameter estimates for each of
 the posterior samples, and the summary of these are the estimates returned.}
 
 \item{pdrawsh}{A character string (default \code{FALSE}) to indicate whether
@@ -468,8 +469,8 @@ posterior samples, and the summary of these are the contrast returned.}
 \item{comparison}{A character string specifying the comparison type for
 growth parameter estimation. Options are \code{'difference'} and
 \code{'differenceavg'}. This argument sets up the internal function for
-estimating parameters using \code{\link[sitar:getPeakTrough]{sitar::getPeak()}}, \code{\link[sitar:getPeakTrough]{sitar::getTakeoff()}}, and
-\code{\link[sitar:getPeakTrough]{sitar::getTrough()}} functions. These options are restructured according to
+estimating parameters using \code{\link[sitar:getPeak]{sitar::getPeak()}}, \code{\link[sitar:getTakeoff]{sitar::getTakeoff()}}, and
+\code{\link[sitar:getTrough]{sitar::getTrough()}} functions. These options are restructured according to
 the user-specified \code{hypothesis} argument.}
 
 \item{type}{string indicates the type (scale) of the predictions used to
@@ -498,16 +499,16 @@ posterior distribution before computing summaries (default \code{NULL}).
 The argument \code{transform_draws} is derived from the
 \code{\link[marginaleffects:predictions]{marginaleffects::predictions()}} function and should not be confused with
 the \code{transform} argument from the deprecated
-\code{\link[brms:posterior_predict.brmsfit]{brms::posterior_predict()}} function. It's important to note that for both
-\code{\link[marginaleffects:predictions]{marginaleffects::predictions()}} and \code{\link[marginaleffects:predictions]{marginaleffects::avg_predictions()}},
+\code{\link[brms:posterior_predict]{brms::posterior_predict()}} function. It's important to note that for both
+\code{\link[marginaleffects:predictions]{marginaleffects::predictions()}} and \code{\link[marginaleffects:avg_predictions]{marginaleffects::avg_predictions()}},
 the \code{transform_draws} argument takes precedence over the
 \code{transform} argument. Note that when \code{transform_draws = NULL}, an
 attempt is made to automatically set \code{transform_draws = 'exp'} for
 \code{dpar = 'sigma'}. User can set  \code{transform_draws = FALSE} to turn
 off this automatic assignment of \code{'exp'} to the
 \code{transform_draws}. It is also important to set \code{transform_draws =
-  FALSE} when computing the first derivative (velocity) for \code{dpar =
-  'sigma'}.}
+FALSE} when computing the first derivative (velocity) for \code{dpar =
+'sigma'}.}
 
 \item{cross}{\itemize{
 \item \code{FALSE}: Contrasts represent the change in adjusted predictions when one predictor changes and all other variables are held constant.
@@ -617,7 +618,7 @@ options are restored upon function exit using \code{\link[base:on.exit]{base::on
 the type of credible intervals: \code{'eti'} for equal-tailed intervals or
 \code{'hdi'} for highest density intervals. This option sets the global
 options as follows: \code{options("marginaleffects_posterior_interval" =
-  "eti")} or \code{options("marginaleffects_posterior_interval" = "hdi")},
+"eti")} or \code{options("marginaleffects_posterior_interval" = "hdi")},
 and is restored on exit using \code{\link[base:on.exit]{base::on.exit()}}.}
 
 \item{dummy_to_factor}{A named list (default \code{NULL}) to convert dummy
@@ -671,7 +672,7 @@ automatically. A use case for \code{funlist} is when \code{sigma_formula},
 function (e.g., \code{poly(age)}). The \code{funlist} should include
 function names defined in the \code{globalenv()}. For functions needing
 both distance and velocity curves (e.g., \code{plot_curves(..., opt =
-  'dv')}), \code{funlist} must include two functions: one for the distance
+'dv')}), \code{funlist} must include two functions: one for the distance
 curve and one for the velocity curve.}
 
 \item{xvar}{A character string (default \code{NULL}) specifying the
@@ -684,7 +685,7 @@ internally. A use case is when conflicting variables exist (e.g.,
 \code{'x'} variable that should be used for manual differentiation of the
 distance curve. Internally, the \code{xvar} is set as \code{difx} if
 specified. The argument \code{difx} is evaluated only when \code{dpar =
-  'sigma'}, ignored otherwise. Note that argument \code{xvar} itself is rarely
+'sigma'}, ignored otherwise. Note that argument \code{xvar} itself is rarely
 used because \code{xvar} is inferred internally. A use case is when
 conflicting variables exist (e.g., \code{sigma_formula}) and user wants to
 set a specific variable as \code{'x'}.}
@@ -695,7 +696,7 @@ internally.}
 
 \item{itransform}{A character string (default \code{NULL}) indicating the
 variables names that are reverse transformed. Options are  \code{c("x",
-  "y", "sigma")}. The \code{itransform} is primarily used to get the
+"y", "sigma")}. The \code{itransform} is primarily used to get the
 \code{xvar} variable at original scale i.e., \code{itransform = 'x'}. To
 turn of all transformations, use \code{itransform = ""}. when
 \code{itransform = NULL}, the appropriate transformation for \code{xvar} is
@@ -703,22 +704,29 @@ selected automatically. Note that when no match for \code{xvar} is found in
 the \code{data,frame}, the \code{itransform} will be ignored within the
 calling function, \code{'prepare_transformations()'}.}
 
-\item{newdata_fixed}{An indicator to specify whether to check data
-format and structure for the user provided \code{newdata}, and apply needed
-\code{prepare_data2} and \code{prepare_transformations}
-(\code{newdata_fixed = NULL}, default), return user provided \code{newdata}
-(\code{newdata = TRUE}) as it is without checking for the data format or
-applying \code{prepare_data2} and \code{prepare_transformations}
-(\code{newdata_fixed = 0}), check for the data format and if needed,
-prepare data format using \code{prepare_data2} (\code{newdata_fixed = 1}),
-or apply \code{prepare_transformations} only assuming that data format is
-correct (\code{newdata_fixed = 2}). It is strongly recommended that user
-either leave the \code{newdata = NULL} and \code{newdata_fixed = NULL} in
-which case data used in the model fitting is automatically retrieved and
-checked for the required data format and transformations, and if needed,
-\code{prepare_data2} and \code{prepare_transformations} are applied
-internally. The other flags provided for  \code{newdata_fixed = 0, 1, 2}
-are mainly for the internal use during post-processing.}
+\item{newdata_fixed}{An indicator specifying how to handle the format and
+structure of the user-provided \code{newdata} before use. The available
+options are:
+\itemize{
+\item \code{NULL} (default): Checks the data format and structure of
+\code{newdata}, and applies \code{prepare_data2} and
+\code{prepare_transformations} as needed.
+\item \code{TRUE}: Returns \code{newdata} as-is, without any format
+checking or transformation.
+\item \code{0}: Same as \code{TRUE} — returns \code{newdata} without
+checking the data format or applying \code{prepare_data2} and
+\code{prepare_transformations}.
+\item \code{1}: Checks the data format and, if needed, prepares it using
+\code{prepare_data2}, but does not apply \code{prepare_transformations}.
+\item \code{2}: Applies \code{prepare_transformations} only, assuming the
+data format is already correct.
+}
+It is strongly recommended to leave both \code{newdata = NULL} and
+\code{newdata_fixed = NULL} (the defaults). In this case, the data used
+during model fitting is automatically retrieved, checked for the required
+format, and transformed as needed via \code{prepare_data2} and
+\code{prepare_transformations}. The flags \code{newdata_fixed = 0},
+\code{1}, and \code{2} are intended primarily for internal use.}
 
 \item{envir}{The environment used for function evaluation. The default is
 \code{NULL}, which sets the environment to \code{parent.frame()}. Since
@@ -738,9 +746,9 @@ specified parameters, or a list when \code{method = 'custom'} and
 The \strong{get_comparisons()} function estimates and
 compares growth curves such as distance and velocity. This function is a
 wrapper around \code{\link[marginaleffects:comparisons]{marginaleffects::comparisons()}} and
-\code{\link[marginaleffects:comparisons]{marginaleffects::avg_comparisons()}}. The \code{\link[marginaleffects:comparisons]{marginaleffects::comparisons()}}
+\code{\link[marginaleffects:avg_comparisons]{marginaleffects::avg_comparisons()}}. The \code{\link[marginaleffects:comparisons]{marginaleffects::comparisons()}}
 function computes unit-level (conditional) estimates, whereas
-\code{\link[marginaleffects:comparisons]{marginaleffects::avg_comparisons()}} returns average (marginal) estimates.
+\code{\link[marginaleffects:avg_comparisons]{marginaleffects::avg_comparisons()}} returns average (marginal) estimates.
 A detailed explanation is available \href{https://marginaleffects.com}{here}.
 Note that the \pkg{marginaleffects} package is highly flexible, and users
 are expected to have a strong understanding of its workings. Additionally,
@@ -781,7 +789,7 @@ re_formula = NULL, draw_ids = 1:2)
 }
 \seealso{
 \code{\link[marginaleffects:comparisons]{marginaleffects::comparisons()}},
-\code{\link[marginaleffects:comparisons]{marginaleffects::avg_comparisons()}},
+\code{\link[marginaleffects:avg_comparisons]{marginaleffects::avg_comparisons()}},
 \code{\link[marginaleffects:plot_comparisons]{marginaleffects::plot_comparisons()}}
 }
 \author{

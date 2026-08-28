@@ -12,7 +12,7 @@
 
 <meta name="author" content="Satpal Sandhu" />
 
-<meta name="date" content="2026-03-25" />
+<meta name="date" content="2026-08-28" />
 
 <title>Bayesian SITAR model - An introduction</title>
 
@@ -262,7 +262,7 @@ code > span.er { color: #a61717; background-color: #e3d2d2; }
 
 <h1 class="title toc-ignore">Bayesian SITAR model - An introduction</h1>
 <h4 class="author">Satpal Sandhu</h4>
-<h4 class="date">March 25, 2026</h4>
+<h4 class="date">August 28, 2026</h4>
 
 
 <div id="TOC">
@@ -272,6 +272,8 @@ code > span.er { color: #a61717; background-color: #e3d2d2; }
 - an overview</a></li>
 <li><a href="#bayesian-sitar-model---univariate-formulation" id="toc-bayesian-sitar-model---univariate-formulation">Bayesian SITAR
 model - Univariate formulation</a></li>
+<li><a href="#priors" id="toc-priors">Priors</a></li>
+<li><a href="#initials" id="toc-initials">Initials</a></li>
 <li><a href="#bayesian-sitar-model---multivariate-formulation" id="toc-bayesian-sitar-model---multivariate-formulation">Bayesian SITAR
 model - Multivariate formulation</a></li>
 <li><a href="#model-estimation---frequentist-vs.-bayesian" id="toc-model-estimation---frequentist-vs.-bayesian">Model estimation -
@@ -323,6 +325,7 @@ growth <span class="citation">(<a href="#ref-RN6217">McArdle,
 popularity in modeling longitudinal skeletal growth data, such as height
 <span class="citation">(<a href="#ref-RN6071a">Hauspie et al.,
 2004b</a>; <a href="#ref-RN6217">McArdle, 2015</a>)</span>.</p>
+<div style="page-break-after: always;"></div>
 </div>
 <div id="sitar-growth-curve-model---an-overview" class="section level2">
 <h2>SITAR growth curve model - an overview</h2>
@@ -370,6 +373,7 @@ random effects. The random effects are assumed to be multivariate
 normally distributed with zero means and an unstructured
 variance-covariance matrix (i.e., distinct variances and co-variance
 between random effects) as shown below:</p>
+<p></p>
 <span class="math display">\[\begin{equation} \label{eq:2}
 \begin{matrix}&amp;\\&amp;\\\left(\begin{matrix}\begin{matrix}\alpha_j\\\zeta_j\\\gamma_j\\\end{matrix}\\\end{matrix}\right)&amp;\sim
 M V
@@ -377,6 +381,7 @@ N\left(\left(\begin{matrix}\begin{matrix}0\\0\\0\\\end{matrix}\\\end{matrix}\rig
 for\ individual\ j\ =\ 1,} \ldots\mathrm{,J} \\\end{matrix}
 \end{equation}\]</span>
 <p><br /></p>
+<div style="page-break-after: always;"></div>
 </div>
 <div id="bayesian-sitar-model---univariate-formulation" class="section level2">
 <h2>Bayesian SITAR model - Univariate formulation</h2>
@@ -424,9 +429,9 @@ re-express the model in Equation <span class="math inline">\(\ref{eq:1}\)</span>
 \end{aligned}
 
 \end{equation}\]</span></p>
-<p>The first line in the equation above represents the likelihood, which
-states that the outcome is distributed with a mean <code>mu</code> and
-standard deviation <code>sigma</code>, <span class="math inline">\(\sigma_\epsilon\)</span>. The <code>mu</code> is a
+<p> The first line in the equation above represents the likelihood,
+which states that the outcome is distributed with a mean <code>mu</code>
+and standard deviation <code>sigma</code>, <span class="math inline">\(\sigma_\epsilon\)</span>. The <code>mu</code> is a
 function of the growth curve parameters, as described earlier (see
 Equation <span class="math inline">\(\ref{eq:1}\)</span>). The
 unstructured variance co-variance matrix <span class="math inline">\(\mathbf {\Sigma_{ID}}\)</span> is same as show
@@ -444,8 +449,10 @@ individual variance) matrix is composed of a single parameter <span class="math 
 of the matrix. The assumption of homoscedasticity (constant variance) of
 the residuals can be relaxed. A detailed description of the prior
 distributions for each parameter is provided in below Section <a href="#priors">priors</a>.</p>
-<div id="priors" class="section level5">
-<h5>Priors</h5>
+<div style="page-break-after: always;"></div>
+</div>
+<div id="priors" class="section level2">
+<h2>Priors</h2>
 <p>We follow the recommendations made in the popular packages <a href="https://rdrr.io/cran/rstanarm/man/priors.html">rstanrm</a> and <a href="https://rdrr.io/cran/brms/man/set_prior.html">brms</a> for prior
 specification. Technically, the priors used in the ‘rstanarm’ and ‘brms’
 packages are data-dependent, and hence weakly informative. This is
@@ -548,7 +555,29 @@ design matrix <span class="math inline">\(X_{\text{Spl}}\)</span>
 multiplied by the default scaling factor <span class="math inline">\(1.0\)</span> i.e.,
 <code>normal(lm, lm, autoscale = FALSE)</code>.</p></li>
 </ul>
+<div style="page-break-after: always;"></div>
 </div>
+<div id="initials" class="section level2">
+<h2>Initials</h2>
+<p>We use the default initial values recommended by the author of the
+‘bsitar’ package. Under these default settings, user-specified initial
+values are assigned to the fixed-effect growth parameters (a, b, c, d)
+and the spline coefficients, while random initial values are assigned to
+the variance–covariance parameters, drawn uniformly from [−2,2] on the
+unconstrained scale. For the fixed-effect parameter a and the spline
+coefficients, initial values are obtained by fitting a simple linear
+model to the data; for the remaining fixed-effect parameters (b, c and
+d), the initial values are set to zero. Note that the sitar package uses
+a similar approach for setting initial values for the fixed-effect
+parameters. A similar approach is used for the covariate-specific growth
+parameters (a, b, c, and d): initial values for parameter a are obtained
+from a simple linear model fit to the data, while the remaining
+fixed-effect parameters (b, c and d) are assigned an initial value of
+zero. Note that the ‘bsitar’ package allows full control in specifying
+custom initial values for each of the fixed effects as well as the
+random effects (variance covariance parameters as well as the residual
+variance) via dedicated argument.</p>
+<div style="page-break-after: always;"></div>
 </div>
 <div id="bayesian-sitar-model---multivariate-formulation" class="section level2">
 <h2>Bayesian SITAR model - Multivariate formulation</h2>
@@ -649,7 +678,7 @@ y^\text{Y2}_{mean},\  {y^\text{Y2}_{sd}}) \\
 \gamma_0^\text{Y1} &amp; \sim \operatorname{normal}(\ 0, 1.0) \\
 \gamma_0^\text{Y2} &amp; \sim \operatorname{normal}(\ 0, 1.0) \\
 \beta_1^\text{Y1} \text{,..,} \beta_r^\text{Y1} &amp; \sim
-\operatorname{normal}(\ \mathbf {\beta^\text{Y2}_{lm}}, \ \mathbf
+\operatorname{normal}(\ \mathbf {\beta^\text{Y1}_{lm}}, \ \mathbf
 {X^\text{Y1}_{Spl}}) \\
 \beta_1^\text{Y2} \text{,..,} \beta_r^\text{Y2} &amp; \sim
 \operatorname{normal}(\ \mathbf {\beta^\text{Y2}_{lm}}, \ \mathbf
@@ -675,7 +704,7 @@ y^\text{Y2}_{mean},\  {y^\text{Y2}_{sd}}) \\
 \end{aligned}
 
 \end{equation}\]</span></p>
-<p>Where <span class="math inline">\(^\text{Y1}\)</span> and <span class="math inline">\(^\text{Y2}\)</span> superscripts indicate which
+<p> Where <span class="math inline">\(^\text{Y1}\)</span> and <span class="math inline">\(^\text{Y2}\)</span> superscripts indicate which
 variable is connected with which parameter. This is a straightforward
 multivariate generalization from the previous model (see Equation <span class="math inline">\(\ref{eq:3}\)</span>). At the individual level, we
 have six parameters varying across individuals, resulting in a <span class="math inline">\(6 \times 6\)</span> <span class="math inline">\(\mathbf{S}_{ID}\)</span> matrix and a <span class="math inline">\(6 \times 6\)</span> <span class="math inline">\(\mathbf{R}_{ID}\)</span> matrix. The
@@ -689,6 +718,7 @@ the correlation between group level random effects. A detailed
 description of the prior distributions for each parameter is provided in
 Section <a href="#priors">priors</a>. The default setting applies the
 same priors to all outcomes.</p>
+<div style="page-break-after: always;"></div>
 </div>
 <div id="model-estimation---frequentist-vs.-bayesian" class="section level2">
 <h2>Model estimation - frequentist vs. Bayesian</h2>
@@ -833,7 +863,7 @@ Medicine</em>, <em>14</em>(18), 2009–2021. https://doi.org/<a href="https://do
 </div>
 <div id="ref-lunn2000" class="csl-entry">
 Lunn, D. J., Thomas, A., Best, N., &amp; Spiegelhalter, D. (2000).
-WinBUGS - A Bayesian modelling framework: Concepts, structure, and
+WinBUGS - a bayesian modelling framework: Concepts, structure, and
 extensibility. <em>Statistics and Computing</em>, <em>10</em>(4),
 325–337. <a href="https://doi.org/10.1023/A:1008929526011">https://doi.org/10.1023/A:1008929526011</a>
 </div>
@@ -849,7 +879,7 @@ McArdle, J. J. (2015). <em>Growth curve analysis</em> (J. Wright, Ed.;
 pp. 441–446). Elsevier. https://doi.org/<a href="http://dx.doi.org/10.1016/B978-0-08-097086-8.44030-4">http://dx.doi.org/10.1016/B978-0-08-097086-8.44030-4</a>
 </div>
 <div id="ref-neal2011" class="csl-entry">
-Neal, R. M. (2011). <em>MCMC Using Hamiltonian Dynamics</em>. Routledge
+Neal, R. M. (2011). <em>MCMC using hamiltonian dynamics</em>. Routledge
 Handbooks Online. <a href="https://doi.org/10.1201/b10905-7">https://doi.org/10.1201/b10905-7</a>
 </div>
 <div id="ref-nembidzaneUsingSITARMethod2020" class="csl-entry">

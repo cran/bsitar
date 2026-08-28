@@ -1,3 +1,22 @@
+# bsitar 0.4.0
+
+
+### New features
+
+- Added ``plot_caterpillar()`` to visualize group-level random effects from ``bsitar`` models as caterpillar plots.
+  The new function extracts posterior summaries of random effects and displays them with credible intervals for a selected grouping factor and effect. Allows full flexibility for post-processing random effects by supporting user-defined transformations on the draw scale prior to summary calculation. This makes it easier to display effects on alternative scales such as exponentiated or otherwise transformed scales. Also supports plot controls for sorting levels, point and interval styling, reference lines, and axis tick handling. When multiple compatible plots are requested, the function can combine them automatically into a single patchwork display while still returning the individual plot objects for further customization.
+
+- Added ``plot_diagnostics()``, a new convenience function for generating diagnostic plots from fitted ``bsitar`` models. The function provides a unified interface for residual diagnostics, MCMC diagnostics, and posterior predictive checks, including residual-versus-fitted plots, residual Q-Q plots, trace plots, autocorrelation plots, density overlays, R-hat, effective sample size diagnostics, and posterior predictive summaries. It also supports different fitted-value scales through ``set_draws = "epred", "linpred", or "prediction"``, along with optional arguments for multivariate responses and distributional parameters such as ``resp``, ``re_formula``, ``category``, and ``dpar``. When multiple compatible plots are requested, the function can combine them automatically into a single patchwork display while still returning the individual plot objects for further customization.
+
+- Added ``compare_models()``, a new helper function for comparing one or more fitted models using common Bayesian model fit criteria such as LOO and WAIC. The function provides a convenient interface for evaluating relative model performance across candidate models, making it easier to assess expected out-of-sample predictive fit and support model selection workflows within the package. By allowing users to compare multiple models in a single step, ``compare_models()`` streamlines routine model comparison and improves consistency in reporting fit-based evaluation results.
+
+- Added `prior_sensitivity()` to run prior and likelihood power-scaling sensitivity analysis for `bsitar` models using the `priorsense` workflow directly on the fitted model or on an augmented draws object. Included optional derived-quantity support in `prior_sensitivity()` via `add_draws = TRUE`, including log-likelihood, log-prior when available, `jointloglik`, Bayesian R-squared, and posterior expected predictions for representative `newdata` values. Also includes an integrated plotting framework to `prior_sensitivity()` via the `plot` argument, allowing direct generation of `priorsense` density, ECDF, quantity, or combined diagnostic plots from the main workflow.
+An additional function `prior_sensitivity_conflict()` is used to screen sensitivity results for parameters showing possible prior-data conflict or prior-only sensitivity requiring further inspection.
+
+- New ``get_model_criterion()`` provides a lightweight wrapper around ``add_model_criterion()`` to compute and return model-fit criteria. While ``add_model_criterion()`` adds the fit criteria to the model object for subsequent model comparisons, ``get_model_criterion()`` simply returns the fit criteria. See ``?add_model_criterion`` for details and available arguments.
+
+
+
 # bsitar 0.3.3
 
 ### Breaking changes

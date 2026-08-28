@@ -21,11 +21,14 @@
   re_formula = NULL,
   numeric_cov_at = NULL,
   aux_variables = NULL,
+  cov = NULL,
+  grid_call = NULL,
+  grid_by = NULL,
   grid_add = NULL,
   levels_id = NULL,
   avg_reffects = NULL,
   ipts = NULL,
-  model_deriv = TRUE,
+  model_deriv = NULL,
   xrange = NULL,
   xrange_search = NULL,
   takeoff = FALSE,
@@ -39,6 +42,9 @@
   incl_autocor = TRUE,
   robust = FALSE,
   transform_draws = NULL,
+  transform_xaxis = list(x_min = NULL, x_max = NULL, n = 5, by = NULL, xaxis_fun = NULL,
+    spacing = "data", accuracy = 0.1, expand_mult = 0, use_coord_limits = TRUE,
+    coord_pad_mult = 0.05, coord_pad_add = 0),
   scale = c("response", "linear"),
   future = FALSE,
   future_session = "multisession",
@@ -52,19 +58,24 @@
   label.y = NULL,
   label.title = NULL,
   label.subtitle = NULL,
-  legendpos = NULL,
+  legendpos = "bottom",
   linetype.apv = NULL,
   linewidth.main = NULL,
   linewidth.apv = NULL,
   linetype.groupby = NA,
-  color.groupby = NA,
+  color.groupby = NULL,
+  fill.groupby = NULL,
   band.alpha = NULL,
+  band.legends = FALSE,
   show_age_takeoff = TRUE,
   show_age_peak = TRUE,
   show_age_cessation = TRUE,
   show_vel_takeoff = FALSE,
   show_vel_peak = FALSE,
   show_vel_cessation = FALSE,
+  each_object = FALSE,
+  ncol = NULL,
+  print = TRUE,
   returndata = FALSE,
   returndata_add_parms = FALSE,
   parms_eval = FALSE,
@@ -101,10 +112,7 @@ plotting options:
 \item 'u': Unadjusted individual-specific distance curves
 \item 'a': Adjusted individual-specific distance curves (adjusted for
 random effects)
-}
-
-Note that 'd' and 'D' cannot be specified simultaneously, nor can 'v' and
-'V'. Other combinations are allowed, e.g., 'dvau', 'Dvau', 'dVau', etc.}
+}}
 
 \item{apv}{A logical value (default \code{FALSE}) indicating whether to
 calculate and plot the age at peak velocity (APGV) when \code{opt} includes
@@ -150,7 +158,7 @@ will increase computation time. Note that \code{summary = FALSE} is
 required to obtain correct estimates when \code{re_formula = NULL}.}
 
 \item{digits}{An integer (default \code{2}) to set the decimal places for
-rounding the results using the \code{\link[base:Round]{base::round()}} function.}
+rounding the results using the \code{\link[base:round]{base::round()}} function.}
 
 \item{re_formula}{Option to indicate whether or not to include
 individual/group-level effects in the estimation. When \code{NA} (default),
@@ -168,7 +176,7 @@ average and individual-specific growth parameters.}
 of continuous covariate(s). The default \code{NULL} option sets the
 continuous covariate(s) to their mean. Alternatively, a named list can be
 supplied to manually set these values. For example, \code{numeric_cov_at =
-  list(xx = 2)} will set the continuous covariate variable 'xx' to 2. The
+list(xx = 2)} will set the continuous covariate variable 'xx' to 2. The
 argument \code{numeric_cov_at} is ignored when no continuous covariates are
 included in the model.}
 
@@ -176,11 +184,24 @@ included in the model.}
 \code{ipts} argument, useful when fitting location-scale or measurement
 error models.}
 
+\item{cov}{An optional character string to specify the \code{covariate}
+passed to the plot argument (default  \code{NULL}). Rarely used.}
+
+\item{grid_call}{An optional logical (default  \code{NULL}) to indicate
+whether to call \code{\link[marginaleffects:datagrid]{marginaleffects::datagrid()}} when \code{dpar = 'sigma'}.
+Rarely used. The two indications are when \code{sigma_model = 'ls'} or
+\code{opt = 'v'}.}
+
+\item{grid_by}{An optional character string to specify the \code{by} argument
+passed to the \code{\link[marginaleffects:datagrid]{marginaleffects::datagrid()}} (default  \code{NULL}). Rarely
+used. Ignored when \code{grid_call = FALSE}. If \code{grid_call = TRUE} and
+\code{grid_by = NULL}, then internally set as \code{grid_by = cov}.}
+
 \item{grid_add}{An optional argument to specify the variable(s) that can be
 passed to the \code{\link[marginaleffects:datagrid]{marginaleffects::datagrid()}}. This is useful when fitting
 location-scale models and measurement error models. If
 post-processing functions throw an error such as \code{variable 'x' not
-  found in either 'data' or 'data2'}, consider using \code{grid_add}.
+found in either 'data' or 'data2'}, consider using \code{grid_add}.
 Note that unlike \code{aux_variables} which are passed to the internal data
 functions such as \code{'get.newdata'}, the \code{grid_add} are passed to
 the \code{\link[marginaleffects:datagrid]{marginaleffects::datagrid()}}.}
@@ -240,14 +261,14 @@ the individual-specific predictor range. Setting \code{xrange = 1} applies
 the same range for individuals within the same higher grouping variable
 (e.g., study). Setting \code{xrange = 2} applies an identical range across
 the entire sample. Alternatively, a numeric vector (e.g., \code{xrange =
-  c(6, 20)}) can be provided to set the range within the specified values.}
+c(6, 20)}) can be provided to set the range within the specified values.}
 
 \item{xrange_search}{A vector of length two or a character string
 \code{'range'} to set the range of the predictor variable (\code{x}) within
 which growth parameters are searched. This is useful when there is more
 than one peak and the user wants to summarize the peak within a specified
 range of the \code{x} variable. The default value is \code{xrange_search =
-  NULL}.}
+NULL}.}
 
 \item{takeoff}{A logical value (default \code{FALSE}) indicating whether to
 calculate the age at takeoff velocity (ATGV) and the takeoff growth
@@ -314,16 +335,39 @@ posterior distribution before computing summaries (default \code{NULL}).
 The argument \code{transform_draws} is derived from the
 \code{\link[marginaleffects:predictions]{marginaleffects::predictions()}} function and should not be confused with
 the \code{transform} argument from the deprecated
-\code{\link[brms:posterior_predict.brmsfit]{brms::posterior_predict()}} function. It's important to note that for both
-\code{\link[marginaleffects:predictions]{marginaleffects::predictions()}} and \code{\link[marginaleffects:predictions]{marginaleffects::avg_predictions()}},
+\code{\link[brms:posterior_predict]{brms::posterior_predict()}} function. It's important to note that for both
+\code{\link[marginaleffects:predictions]{marginaleffects::predictions()}} and \code{\link[marginaleffects:avg_predictions]{marginaleffects::avg_predictions()}},
 the \code{transform_draws} argument takes precedence over the
 \code{transform} argument. Note that when \code{transform_draws = NULL}, an
 attempt is made to automatically set \code{transform_draws = 'exp'} for
 \code{dpar = 'sigma'}. User can set  \code{transform_draws = FALSE} to turn
 off this automatic assignment of \code{'exp'} to the
 \code{transform_draws}. It is also important to set \code{transform_draws =
-  FALSE} when computing the first derivative (velocity) for \code{dpar =
-  'sigma'}.}
+FALSE} when computing the first derivative (velocity) for \code{dpar =
+'sigma'}.}
+
+\item{transform_xaxis}{A named \code{list()} of arguments for \code{build_scale_x()}.
+Any unspecified arguments are automatically filled with the default values
+from \code{build_scale_x()}.
+Common elements include:
+\itemize{
+\item \code{x_min}: lower x-axis limit. If \code{NULL} (default),
+x_min is inferred internally from the \code{xvar}
+\item \code{x_max}: upper x-axis limit. If \code{NULL} (default),
+x_max is inferred internally from the \code{xvar}
+\item \code{n}: number of breaks.
+\item \code{by}: optional step size for breaks.
+\item \code{xaxis_fun}: transformation used for break placement and
+inverse labeling, for example \code{"identity"}, \code{"log"}, \code{"log10"},
+\code{"sqrt"}, or \code{"square"}, or a function
+\item \code{spacing}: either \code{"data"} or \code{"trans"}.
+\item \code{accuracy}: label accuracy.
+\item \code{expand_mult}: scale expansion multiplier.
+\item \code{use_coord_limits}: logical; if \code{TRUE}, zoom with
+\code{ggplot2::coord_cartesian()}.
+\item \code{coord_pad_mult}: multiplicative padding added to both x-axis ends.
+\item \code{coord_pad_add}: additive padding added to both x-axis ends.
+}}
 
 \item{scale}{Either \code{"response"} or \code{"linear"}.
 If \code{"response"}, results are returned on the scale
@@ -334,7 +378,7 @@ other transformations.}
 
 \item{future}{A logical value (default \code{FALSE}) indicating whether to
 perform parallel computations. If \code{TRUE}, posterior summaries are
-computed in parallel using \code{\link[future.apply:future_lapply]{future.apply::future_sapply()}}.}
+computed in parallel using \code{\link[future.apply:future_sapply]{future.apply::future_sapply()}}.}
 
 \item{future_session}{A character string or a named list specifying the
 parallel plan when \code{future = TRUE}.
@@ -350,7 +394,7 @@ Use \code{"multicore"} for forking (not supported on Windows).
 \code{daemons} for \code{\link[mirai:daemons]{mirai::daemons()}}).
 }
 Example: \code{list(future_session = mirai_cluster, daemons =
-      list(...))}.
+    list(...))}.
 }}
 
 \item{cores}{An integer specifying the number of cores for parallel
@@ -401,10 +445,10 @@ removed, and the same label is used as the title.}
 \item{label.subtitle}{An optional character string to label the title. Default
 \code{NULL}}
 
-\item{legendpos}{A character string to specify the position of the legend. If
-\code{NULL} (default), the legend position is set to 'bottom' for distance
-and velocity curves in the \code{'single'} layout. For individual-specific
-curves, the legend position is set to \code{'none'} to suppress the legend.}
+\item{legendpos}{A character string to specify the position of the legend.
+If, the legend position is set to 'bottom' for distance and velocity curves
+in the \code{'single'} layout. For individual-specific curves, the legend
+position is set to \code{'none'} to suppress the legend.}
 
 \item{linetype.apv}{A character string to specify the type of the vertical
 line marking the APGV. Default \code{NULL} sets the linetype to
@@ -416,18 +460,30 @@ and velocity curves. The default \code{NULL} sets the width to 0.35.}
 \item{linewidth.apv}{A numeric value to specify the width of the vertical
 line marking the APGV. The default \code{NULL} sets the width to 0.25.}
 
-\item{linetype.groupby}{A character string specifying the line type for
-distance and velocity curves when drawing plots for a model with factor
-covariates or individual-specific curves. The default is \code{NA}, which
-sets the line type to 'solid' and suppresses legends.}
+\item{linetype.groupby}{A character string specifying the line type of
+distance and velocity curves for \code{covariates} or individual-specific
+curves. If \code{NA}, then default color is \code{'black'} for all lines.}
 
-\item{color.groupby}{A character string specifying the line color for
-distance and velocity curves when drawing plots for a model with factor
-covariates or individual-specific curves. The default is \code{NA}, which
-suppresses legends.}
+\item{color.groupby}{A character string specifying the line color of distance
+and velocity curves for \code{covariates} or individual-specific curves. If
+\code{NA}, then default color is \code{'black'} for all lines. If
+\code{NULL} (default), then line color is set based on the co variate
+extracted from the \code{model_info}. Note that for individual-specific
+curves for co variate adjusted models, user can set it as
+\code{color.groupby = interaction(covariate, id)}}
+
+\item{fill.groupby}{A character string specifying the fill color of distance
+and velocity curves for \code{covariates} or individual-specific curves. If
+\code{NA}, then default color is \code{'black'} for all lines. If
+\code{NULL} (default), then fill color is set same as the
+\code{color.groupby}.}
 
 \item{band.alpha}{A numeric value to specify the transparency of the CI bands
 around the curves. The default \code{NULL} sets the transparency to 0.4.}
+
+\item{band.legends}{A logical value (default \code{FALSE}) to indicate
+whether to show \code{legends} for \code{CI bands}. It sets
+\code{ggplot2::guides(fill = 'none')}}
 
 \item{show_age_takeoff}{A logical value (default \code{TRUE}) to indicate
 whether to display the ATGV line(s) on the plot.}
@@ -446,6 +502,17 @@ whether to display the PGV line(s) on the plot.}
 
 \item{show_vel_cessation}{A logical value (default \code{FALSE}) to indicate
 whether to display the CGV line(s) on the plot.}
+
+\item{each_object}{Optional logical (default \code{FALSE}) indicating whether
+to return each plot object (combined and individual plots) or only the
+combined when multiple plots are requested.}
+
+\item{ncol}{Optional integer (default \code{NULL}) specifying the number of
+columns for \code{\link[patchwork:wrap_plots]{patchwork::wrap_plots()}}. If \code{NULL}, then number of
+columns is set as \code{2}.}
+
+\item{print}{A logical value (default \code{TRUE}) to indicate whether
+to print the plot object before returning it.}
 
 \item{returndata}{A logical value (default \code{FALSE}) to indicate whether
 to plot the data or return it as a \code{data.frame}.}
@@ -482,7 +549,7 @@ with covariate-dependent models.}
 
 \item{parms_method}{A character string specifying the method used when
 evaluating \code{parms_eval}. The default method is \code{getPeak}, which
-uses the \code{\link[sitar:getPeakTrough]{sitar::getPeak()}} function from the \code{sitar} package.
+uses the \code{\link[sitar:getPeak]{sitar::getPeak()}} function from the \code{sitar} package.
 Alternatively, \code{findpeaks} uses the \code{findpeaks} function from the
 \code{pracma} package. This parameter is for internal use and ensures
 compatibility across internal functions.}
@@ -493,7 +560,7 @@ to print information collected during the setup of the object(s).}
 \item{fullframe}{A logical value indicating whether to return a
 \code{fullframe} object in which \code{newdata} is bound to the summary
 estimates. Note that \code{fullframe} cannot be used with \code{summary =
-  FALSE}, and it is only applicable when \code{idata_method = 'm2'}. A
+FALSE}, and it is only applicable when \code{idata_method = 'm2'}. A
 typical use case is when fitting a \code{univariate_by} model. This option
 is mainly for internal use.}
 
@@ -545,7 +612,7 @@ automatically. A use case for \code{funlist} is when \code{sigma_formula},
 function (e.g., \code{poly(age)}). The \code{funlist} should include
 function names defined in the \code{globalenv()}. For functions needing
 both distance and velocity curves (e.g., \code{plot_curves(..., opt =
-  'dv')}), \code{funlist} must include two functions: one for the distance
+'dv')}), \code{funlist} must include two functions: one for the distance
 curve and one for the velocity curve.}
 
 \item{xvar}{A character string (default \code{NULL}) specifying the
@@ -558,7 +625,7 @@ internally. A use case is when conflicting variables exist (e.g.,
 \code{'x'} variable that should be used for manual differentiation of the
 distance curve. Internally, the \code{xvar} is set as \code{difx} if
 specified. The argument \code{difx} is evaluated only when \code{dpar =
-  'sigma'}, ignored otherwise. Note that argument \code{xvar} itself is rarely
+'sigma'}, ignored otherwise. Note that argument \code{xvar} itself is rarely
 used because \code{xvar} is inferred internally. A use case is when
 conflicting variables exist (e.g., \code{sigma_formula}) and user wants to
 set a specific variable as \code{'x'}.}
@@ -569,7 +636,7 @@ internally.}
 
 \item{itransform}{A character string (default \code{NULL}) indicating the
 variables names that are reverse transformed. Options are  \code{c("x",
-  "y", "sigma")}. The \code{itransform} is primarily used to get the
+"y", "sigma")}. The \code{itransform} is primarily used to get the
 \code{xvar} variable at original scale i.e., \code{itransform = 'x'}. To
 turn of all transformations, use \code{itransform = ""}. when
 \code{itransform = NULL}, the appropriate transformation for \code{xvar} is
@@ -577,22 +644,29 @@ selected automatically. Note that when no match for \code{xvar} is found in
 the \code{data,frame}, the \code{itransform} will be ignored within the
 calling function, \code{'prepare_transformations()'}.}
 
-\item{newdata_fixed}{An indicator to specify whether to check data
-format and structure for the user provided \code{newdata}, and apply needed
-\code{prepare_data2} and \code{prepare_transformations}
-(\code{newdata_fixed = NULL}, default), return user provided \code{newdata}
-(\code{newdata = TRUE}) as it is without checking for the data format or
-applying \code{prepare_data2} and \code{prepare_transformations}
-(\code{newdata_fixed = 0}), check for the data format and if needed,
-prepare data format using \code{prepare_data2} (\code{newdata_fixed = 1}),
-or apply \code{prepare_transformations} only assuming that data format is
-correct (\code{newdata_fixed = 2}). It is strongly recommended that user
-either leave the \code{newdata = NULL} and \code{newdata_fixed = NULL} in
-which case data used in the model fitting is automatically retrieved and
-checked for the required data format and transformations, and if needed,
-\code{prepare_data2} and \code{prepare_transformations} are applied
-internally. The other flags provided for  \code{newdata_fixed = 0, 1, 2}
-are mainly for the internal use during post-processing.}
+\item{newdata_fixed}{An indicator specifying how to handle the format and
+structure of the user-provided \code{newdata} before use. The available
+options are:
+\itemize{
+\item \code{NULL} (default): Checks the data format and structure of
+\code{newdata}, and applies \code{prepare_data2} and
+\code{prepare_transformations} as needed.
+\item \code{TRUE}: Returns \code{newdata} as-is, without any format
+checking or transformation.
+\item \code{0}: Same as \code{TRUE} — returns \code{newdata} without
+checking the data format or applying \code{prepare_data2} and
+\code{prepare_transformations}.
+\item \code{1}: Checks the data format and, if needed, prepares it using
+\code{prepare_data2}, but does not apply \code{prepare_transformations}.
+\item \code{2}: Applies \code{prepare_transformations} only, assuming the
+data format is already correct.
+}
+It is strongly recommended to leave both \code{newdata = NULL} and
+\code{newdata_fixed = NULL} (the defaults). In this case, the data used
+during model fitting is automatically retrieved, checked for the required
+format, and transformed as needed via \code{prepare_data2} and
+\code{prepare_transformations}. The flags \code{newdata_fixed = 0},
+\code{1}, and \code{2} are intended primarily for internal use.}
 
 \item{envir}{The environment used for function evaluation. The default is
 \code{NULL}, which sets the environment to \code{parent.frame()}. Since
@@ -616,17 +690,24 @@ function can be used, which not only estimates adjusted curves but also
 enables comparison across groups using the \code{hypotheses} argument.
 }
 \details{
-The \strong{plot_curves()} function is a generic tool for
-visualizing the following six curves:
+The \code{plot_curves()} function is a generic tool for visualizing up to six
+types of growth curves:
+
 \itemize{
-\item Population average distance curve
-\item Population average velocity curve
-\item Individual-specific distance curves
-\item Individual-specific velocity curves
-\item Unadjusted individual growth curves (i.e., observed growth curves)
-\item Adjusted individual growth curves (adjusted for the model-estimated
-random effects)
+\item Population-average distance curve (\code{opt = "d"})
+\item Population-average velocity curve (\code{opt = "v"})
+\item Individual-specific distance curves (\code{opt = "D"})
+\item Individual-specific velocity curves (\code{opt = "V"})
+\item Unadjusted individual growth curves (i.e., observed growth curves;
+\code{opt = "u"})
+\item Adjusted individual growth curves, adjusted for the model-estimated
+random effects (\code{opt = "a"})
 }
+
+Users can request any combination of these plots by specifying the desired
+curve types in the \code{opt} argument. For example, to request all six
+plots, set \code{opt = "dvDVua"}. The plots are generated and assembled in
+the same order as the characters appear in \code{opt}.
 
 Internally, \strong{plot_curves()} calls the \code{\link[=growthparameters]{growthparameters()}} function
 to estimate and summarize the distance and velocity curves, as well as to

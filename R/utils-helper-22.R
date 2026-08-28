@@ -1,6 +1,6 @@
 
 
-#' @title Estimate model based individual growth parameters
+#' Estimate model based individual growth parameters
 #' 
 #' @description The \strong{modelbased_growthparameters_call()} function estimates
 #'   individual growth parameters by mapping population average estimate of age
@@ -48,6 +48,7 @@
 #'   outside their measurement range}
 #' 
 #' @keywords internal
+#' @exportS3Method modelbased_growthparameters_call bgmfit
 #' @noRd
 #' 
 modelbased_growthparameters_call.bgmfit <-
@@ -127,7 +128,14 @@ modelbased_growthparameters_call.bgmfit <-
            ...) {
     
     
+    fastplyr.optimise_ppt <- getOption('fastplyr.optimise')
+    options("fastplyr.optimise" = FALSE)
+    on.exit(options("fastplyr.optimise" = fastplyr.optimise_ppt), add = TRUE)
     
+    fastplyr.inform_ppt <- getOption('fastplyr.inform')
+    options("fastplyr.inform" = FALSE)
+    on.exit(options("fastplyr.inform" = fastplyr.inform_ppt), add = TRUE)
+
     if(!is.null(estimate_center)) {
       ec_ <- getOption("marginaleffects_posterior_center")
       options("marginaleffects_posterior_center" = estimate_center)
@@ -142,31 +150,21 @@ modelbased_growthparameters_call.bgmfit <-
     ei_agg <- getOption("marginaleffects_posterior_interval")
     if(is.null(ec_agg)) ec_agg <- "mean"
     if(is.null(ei_agg)) ei_agg <- "eti"
-    
-    
-    # 6.03.2025
-    # Also, set 'marginaleffects_lean' to FALSE for 'posterior_draws()' to work
     lean_ <- getOption("marginaleffects_lean")
     options("marginaleffects_lean" = FALSE)
     on.exit(options("marginaleffects_lean" = lean_), add = TRUE)
-    
-    
-    
     try(zz <- insight::check_if_installed(c("marginaleffects"), 
                                           minimum_version = 
                                             get_package_minversion(
-                                              'marginaleffects'
-                                            ), 
+                                              'marginaleffects'), 
                                           prompt = FALSE,
                                           stop = FALSE))
-    
     if(!isTRUE(zz)) {
       message("Please install the latest version of the 'marginaleffects' package",
               "\n ",
               "remotes::install_github('vincentarelbundock/marginaleffects')")
       return(invisible(NULL))
     }
-    
     if(usecollapse) {
       usedtplyrcheck <- usedtplyr
       usedtplyr <- FALSE
@@ -175,65 +173,50 @@ modelbased_growthparameters_call.bgmfit <-
     } else {
       usedtplyr <- usedtplyr
     }
-    
     if(usedtplyr) {
       try(zz <- insight::check_if_installed(c("dtplyr"), 
                                             minimum_version =
                                               get_package_minversion(
-                                                'dtplyr'
-                                              ),
+                                                'dtplyr'),
                                             prompt = FALSE,
                                             stop = FALSE))
       
       try(zz <- insight::check_if_installed(c("data.table"), 
                                             minimum_version =
                                               get_package_minversion(
-                                                'data.table'
-                                              ),
+                                                'data.table'),
                                             prompt = FALSE,
                                             stop = FALSE))
     }
-    
     if(usecollapse) {
       try(zz <- insight::check_if_installed(c("collapse"), 
                                             minimum_version =
                                               get_package_minversion(
-                                                'collapse'
-                                              ),
+                                                'collapse'),
                                             prompt = FALSE,
                                             stop = FALSE))
-      
       try(zz <- insight::check_if_installed(c("doParallel"), 
                                             minimum_version =
                                               get_package_minversion(
-                                                'doParallel'
-                                              ),
+                                                'doParallel'),
                                             prompt = FALSE,
                                             stop = FALSE))
-      
       try(zz <- insight::check_if_installed(c("foreach"), 
                                             minimum_version =
                                               get_package_minversion(
-                                                'foreach'
-                                              ),
+                                                'foreach'),
                                             prompt = FALSE,
                                             stop = FALSE))
-      
       try(zz <- insight::check_if_installed(c("parallel"), 
                                             minimum_version =
                                               get_package_minversion(
-                                                'parallel'
-                                              ),
+                                                'parallel'),
                                             prompt = FALSE,
                                             stop = FALSE))
     }
-    
-    
     if(method == 'pkg') {
       stop("use method == 'custom' for modelbased_growthparameters_call()")
     }
-    
-    
     callfuns     <- TRUE
     setmarginals <- FALSE
     if(!is.null(marginals)) {
@@ -241,30 +224,27 @@ modelbased_growthparameters_call.bgmfit <-
       if(method == 'custom') callfuns <- FALSE
       if(method == 'pkg')    callfuns <- FALSE
     }
-    
-    
     if(is.null(envir)) {
       envir <- model$model_info$envir
     } else {
       envir <- envir
     }
-    
     if(!is.null(transform) & !is.null(transform_draws)) {
       stop("Please specify either transform or transform_draws, not both")
     }
-    
-    # 20.03.2025
     assign_function_to_environment(transform_draws, 'transform_draws', 
                                    envir = NULL)
     model$model_info[['transform_draws']] <- transform_draws
     
-    # 20.03.2025
-    # Depending on dpar 'mu' or 'sigma', subset model_info
-    # This only when set_sigma_manual used to model a b c 
-    # Not when a function such as splines::ns etc used in sigma_formula
-   
-    model <- getmodel_info(model = model, dpar = dpar)
+    if(is.null(dpar)) dpar <- 'mu'
     
+    model <- getmodel_info(model = model, 
+                           dpar = dpar,
+                           resp = resp, 
+                           deriv = deriv, 
+                           remove_cons_cov = TRUE,
+                           strict_1 = TRUE,
+                           verbose = FALSE)
     if(is.null(usesavedfuns)) {
       if(!is.null(model$model_info$exefuns[[1]])) {
         usesavedfuns <- TRUE
@@ -276,7 +256,7 @@ modelbased_growthparameters_call.bgmfit <-
           usesavedfuns <- FALSE
         }
       }
-    } else { # if(!is.null(usesavedfuns)) {
+    } else { 
       if(!usesavedfuns) {
         if(expose_function) {
           model <- expose_model_functions(model, envir = envir)
@@ -287,36 +267,26 @@ modelbased_growthparameters_call.bgmfit <-
                                   usesavedfuns = usesavedfuns)
       }
     }
-    
-    
-    
     ndraws_org <- ndraws
     ndraws_exe <- FALSE
     if(!is.null(ndraws)) {
       ndraws_exe <- TRUE
       ndraws <- ndraws
     }
-    
     if(is.null(ndraws)) {
       ndraws <- brms::ndraws(model)
     }
-    
-    
     if (is.null(resp)) {
       resp_rev_ <- resp
     } else if (!is.null(resp)) {
       resp_rev_ <- paste0("_", resp)
     }
-    
     xvar_  <- paste0('xvar', resp_rev_)
     if(is.null(xvar)) xvar   <- model$model_info[[xvar_]]
     cov_   <- paste0('cov', resp_rev_)
     cov    <- model$model_info[[cov_]]
     uvarby <- model$model_info$univariate_by$by
-    
-    ########################################################
     groupvar_ <- paste0('groupvar', resp_rev_)
-    
     hierarchical_ <- paste0('hierarchical', resp_rev_)
     if(is.null(levels_id) & is.null(idvar)) {
       idvar <- model$model_info[[groupvar_]]
@@ -331,14 +301,6 @@ modelbased_growthparameters_call.bgmfit <-
     xvar  <- xvar
     idvar <- idvar
     if(length(idvar) > 1) idvar <- idvar[1]
-    
-    
-    
-    
-    ########################################################
-    # funx_ <- paste0('xfuntransform2', resp_rev_)
-    
-    
     check_set_fun <- check_set_fun_transform(model = model, 
                                              which = 'xfuntransform2',
                                              dpar = dpar, 
@@ -346,15 +308,10 @@ modelbased_growthparameters_call.bgmfit <-
                                              transform = NULL,
                                              auto = FALSE, 
                                              verbose = verbose)
-    
     funx_ <- check_set_fun[['setfun']]
     if(check_set_fun[['was_null']]) {
       model$model_info[[check_set_fun[['setfunname']]]] <- funx_
     }
-    
-    
-    ########################################################
-    
     check_set_fun <- check_set_fun_transform(model = model, 
                                              which = 'ixfuntransform2',
                                              dpar = dpar, 
@@ -362,23 +319,11 @@ modelbased_growthparameters_call.bgmfit <-
                                              transform = itransform,
                                              auto = TRUE, 
                                              verbose = verbose)
-    
     ifunx_ <- check_set_fun[['setfun']]
     if(check_set_fun[['was_null']]) {
       model$model_info[[check_set_fun[['setfunname']]]] <- ifunx_
     }
-    
-    
-    
-    ########################################################
-    
-    
-    # Over ride 'ifunx_()' i.e, return xvar on scale used in model fit
-    # This is restricted to  when using 'pdrawsp' etc. 
-    # use cae ->  get_dv
-    # 6.03.205
-    # itransform_set <- get_itransform_call(itransform)
-    
+
     itransform_set <- get_itransform_call(itransform = itransform,
                                           model = model, 
                                           newdata = newdata,
@@ -386,7 +331,6 @@ modelbased_growthparameters_call.bgmfit <-
                                           resp = resp,
                                           auto = FALSE,
                                           verbose = verbose)
-    
     if(itransform_set == "") {
       if(!isFALSE(pdrawsp)) {
         if(!is.character(pdrawsp)) pdrawsp <- "return"
@@ -395,12 +339,8 @@ modelbased_growthparameters_call.bgmfit <-
         if(pdrawsp == 'return' | pdrawsp == 'add') {
           ifunx_ <- function(x)x
         } 
-      } # if(!isFALSE(pdrawsp)) {
-    } # if(itransform_set == "") {
-    ########################################################
-    
-    
-    
+      } 
+    } 
     if(is.null(model_deriv)) {
       if(is.null(deriv)) {
         model_deriv <- FALSE
@@ -418,59 +358,26 @@ modelbased_growthparameters_call.bgmfit <-
         model_deriv <- TRUE
       }
     }
-    
-    
-    # if(is.null(deriv) & is.null(model_deriv)) {
-    #   deriv <- 0
-    #   model_deriv <- FALSE
-    # } else if(deriv == 0 & is.null(model_deriv)) {
-    #   deriv <- 0
-    #   model_deriv <- FALSE
-    # } else if(deriv == 1 & is.null(model_deriv)) {
-    #   deriv <- 1
-    #   model_deriv <- TRUE
-    # } else if(is.null(deriv) & !model_deriv) {
-    #   deriv <- 0
-    #   model_deriv <- FALSE
-    # } else if(is.null(deriv) & model_deriv) {
-    #   deriv <- 1
-    #   model_deriv <- TRUE
-    # }
-    
-    
-    
-    # 15 06 2025
     allowed_methods <- c('pkg', 'custom')
     if(!method %in% allowed_methods) 
       stop("Argument 'method' should be one of the following:",
            "\n ", 
            collapse_comma(allowed_methods)
       )
-    
-    
-    
     if(method == 'custom') {
       deriv <- 1
       model_deriv <- TRUE
       if(verbose) message("For method = 'custom', deriv is set to TRUE")
     }
-    
-    
-    
     if (is.null(idata_method)) {
       idata_method <- 'm2'
     }
-    
     if(idata_method == 'm1') {
       stop("For marginaleffects based functions, the " ,
            " \n",
            " 'idata_method' argument must be either NULL or 'm2'" )
     }
-    
     if (is.null(eps)) eps <- 1e-6
-    
-    
-    # Initiate non formalArgs()
     term <- NULL;
     contrast <- NULL;
     tmp_idx <- NULL;
@@ -483,59 +390,13 @@ modelbased_growthparameters_call.bgmfit <-
     `:=` <- NULL;
     `.` <- NULL;
     drawid <- NULL;
-    
     draw <- NULL;
     j <- NULL;
     i <- NULL;
-    
-    
-    
-    # allowed_parms <- c(
-    #   'apgv',
-    #   'pgv',
-    #   'atgv',
-    #   'tgv',
-    #   'acgv',
-    #   'cgv'
-    # )
-    # 
-    # if(is.null(parameter)) parameter <- c('apgv', 'pgv')
-    # 
-    # parameter <- base::tolower(parameter)
-    # 
-    # if (is.null(parameter)) {
-    #   parm <- 'apgv' 
-    # } else if(length(parameter) == 1 && parameter == 'all') {
-    #   parm <- allowed_parms 
-    # } else if(length(parameter) == 1) {
-    #   parm <- parameter
-    # } else if(length(parameter) > 1) {
-    #   # parameter <- base::tolower(parameter)
-    #   for (parameteri in parameter) {
-    #     if(!parameteri %in% allowed_parms) {
-    #       allowed_parms_err <- c(allowed_parms, 'all')
-    #       stop("Allowed parameter options are ", 
-    #            paste(paste0("'", allowed_parms_err, "'"), collapse = ", ")
-    #       )
-    #     }
-    #   }
-    #   parm <- parameter
-    # }
-    # parm <- base::tolower(parm)
-    # 
-    # 
-    # if(length(parm) > 1) {
-    #   if(plot) stop("Please specify only one parameter")
-    # }
-    
-    
     allowed_parms <- c(
       'apgv',
       'atgv',
-      'acgv'
-    )
-    
-    
+      'acgv')
     if(is.null(parameter)) {
       parameter <- c('apgv')
     } else if(is.numeric(parameter)) {
@@ -549,15 +410,9 @@ modelbased_growthparameters_call.bgmfit <-
     } else {
       stop("parameter must be a character string of a numeric value")
     }
-    
-    
-    
     if(length(parameter) > 1) {
       stop("'parameter' must a length one")
     }
-    
-    
-    
     parameter_numeric <- FALSE
     if(is.numeric(parameter)) {
       parameter_numeric <- TRUE
@@ -566,8 +421,6 @@ modelbased_growthparameters_call.bgmfit <-
         parameter_numeric <- TRUE
       }
     }
-    
-    
     if(is.character(parameter) & !parameter_numeric) {
       parameter <- base::tolower(parameter)
       for (parameteri in parameter) {
@@ -578,28 +431,15 @@ modelbased_growthparameters_call.bgmfit <-
           )
         }
       }
-    } # if(is.character(parameter)) {
-    
-    
-    
+    } 
     parm <- parameter
-    
-    
     conf <- conf_level
     probs <- c((1 - conf) / 2, 1 - (1 - conf) / 2)
     probtitles <- probs[order(probs)] * 100
     probtitles <- paste("Q", probtitles, sep = "")
     set_names_  <- c('Estimate', probtitles)
-    
-    # if(!is.null(model$model_info$decomp)) {
-    #   if(model$model_info$decomp == "QR") model_deriv<- FALSE
-    # }
-    
     expose_method_set <- model$model_info[['expose_method']]
-    
-    model$model_info[['expose_method']] <- 'NA' # Over ride 'R'
-    
-    
+    model$model_info[['expose_method']] <- 'NA' 
     setxcall_   <- match.call()
     post_processing_checks_args <- list()
     post_processing_checks_args[['model']]    <- model
@@ -612,33 +452,10 @@ modelbased_growthparameters_call.bgmfit <-
     post_processing_checks_args[['check_d0']] <- FALSE
     post_processing_checks_args[['check_d1']] <- TRUE
     post_processing_checks_args[['check_d2']] <- FALSE
-    
     o    <- CustomDoCall(post_processing_checks, post_processing_checks_args)
-    
     post_processing_checks_args[['all']]      <- TRUE
     oall <- CustomDoCall(post_processing_checks, post_processing_checks_args)
     post_processing_checks_args[['all']]      <- FALSE
-    
-    # o <- post_processing_checks(model = model,
-    #                             xcall = match.call(),
-    #                             resp = resp,
-    #                             envir = envir,
-    #                             deriv = deriv, 
-    #                             all = FALSE,
-    #                             verbose = verbose, 
-    #                             check_d1 = T)
-    # 
-    # oall <- post_processing_checks(model = model,
-    #                                xcall = match.call(),
-    #                                resp = resp,
-    #                                envir = envir,
-    #                                deriv = deriv, 
-    #                                all = TRUE,
-    #                                verbose = FALSE)
-    
-    
-    
-    
     if(!is.null(funlist)) {
       if(!is.list(funlist)) {
         stop("funlist must be a list")
@@ -646,63 +463,15 @@ modelbased_growthparameters_call.bgmfit <-
         o <- funlist
       }
     }
-    
-    
     test <- setupfuns(model = model, resp = resp,
                       o = o, oall = oall,
                       usesavedfuns = usesavedfuns,
                       deriv = deriv, envir = envir,
                       model_deriv = model_deriv,
                       ...)
-    
     if(is.null(test)) return(invisible(NULL))
-    
-    
-    
-    ########################################################
-    # method = 'pkg' uses 'y <- (hi - lo)...' approach for deriv = 0 or deriv > 0
-    # see gparms_fun call_comparison_gparms_fun
-    # So it work when assigned d0 or d1
-    # However, for method = 'custom', need to switch between
-    # marginaleffects::predictions /  marginaleffects::slopes
-    ########################################################
-    
-    ########################################################
-    # Decide here -> no 'x', 'log' or 'sqrt'
-    # Then need 'model_deriv = FALSE' and 'deriv = 0'
-    # This because print(o[[2]]) function d1 is not reliable- see prepare_function
-    # This has already been taken care off in prepare_function by excluding d1
-    ########################################################
-    # This been moved to post_processing_checks
-    
-    # available_fund1 <- FALSE
-    # for (i in names(model$model_info$exefuns)) {
-    #   check_funds <- ifelse(grepl("\\d$", i), sub(".*?(\\d+)$", "\\1", i), "")
-    #   if(grepl("1", check_funds)) {
-    #     available_fund1 <- TRUE
-    #   }
-    # }
-    
-    ########################################################
-    # If no d1, override and and deriv arguments 
-    ########################################################
-    # This been moved to post_processing_checks
-    # if(!available_fund1) {
-    #   deriv       <- 0
-    #   model_deriv <- FALSE
-    #   if(verbose) {
-    #     message("Since no 'd1' found, setting 'model_deriv = FALSE', 'deriv = 0'")
-    #   }
-    # }
-    ########################################################
-    
-    
-    # Below deriv/model_deriv will be over riddent for both 'pkg' and 'custom'
-    
-    # This borrowed from get_predictions
     call_predictions <- TRUE
     call_slopes      <- FALSE
-    
     available_d1 <- o[['available_d1']]
     o_org <- o
     if(!available_d1) {
@@ -710,16 +479,11 @@ modelbased_growthparameters_call.bgmfit <-
       model_deriv <- FALSE
       call_predictions <- FALSE
       call_slopes      <- TRUE
-      # re-get o[[2]] as _do
       post_processing_checks_args[['deriv']]    <- 0
       o    <- CustomDoCall(post_processing_checks, post_processing_checks_args)
       o_available_d1_F <- o
     }
-    
     post_processing_checks_args[['deriv']]    <- deriv
-    
-    
-    # 20.03.2025
     if(!is.null(model$model_info[['sigma_fun_mode']])) {
       sigma_fun_mode <- model$model_info[['sigma_fun_mode']]
       if(dpar == "sigma") {
@@ -733,20 +497,6 @@ modelbased_growthparameters_call.bgmfit <-
         }
       }
     }
-    
-    
-    
-    # test <- setupfuns(model = model, resp = resp,
-    #                   o = o, oall = oall, 
-    #                   usesavedfuns = usesavedfuns, 
-    #                   deriv = post_processing_checks_args[['deriv']], 
-    #                   envir = envir, 
-    #                   model_deriv = model_deriv, 
-    #                   ...)
-    # 
-    # if(is.null(test)) return(invisible(NULL))
-    # 
-    
     if(!isTRUE(
       check_pkg_version_exists('brms', 
                                minimum_version = get_package_minversion('brms'), 
@@ -758,93 +508,30 @@ modelbased_growthparameters_call.bgmfit <-
         return(invisible(NULL))
       }
     }
-    
-    
-    
-    # xcall <- strsplit(deparse(sys.calls()[[1]]), "\\(")[[1]][1]
-    # scall <- sys.calls()
-    # 
-    # get_xcall <- function(xcall, scall) {
-    #   scall <- scall[[length(scall)]]
-    #   if(any(grepl("modelbased_growthparameters_call", scall, fixed = T)) |
-    #      any(grepl("modelbased_growthparameters_call.bgmfit", scall, fixed = T))) {
-    #     xcall <- "modelbased_growthparameters_call"
-    #   } else {
-    #     xcall <- xcall
-    #   }
-    # }
-    # 
-    # 
-    # 
-    # if(xcall == "do.call" | xcall == "CustomDoCall") {
-    #   zzz <- gsub_space(paste(deparse(sys.calls()[[1]]), collapse = ""))
-    #   zzz <- regmatches(zzz, gregexpr("(?<=\\().*?(?=\\))", zzz, perl=T))[[1]]
-    #   zzz <- strsplit(zzz, ",")[[1]][1]
-    #   xcall <- strsplit(zzz, "\\.")[[1]][1]
-    # } else {
-    #   if(!is.null(model$xcall)) {
-    #     if(model$xcall == "modelbased_growthparameters_call") {
-    #       xcall <- "modelbased_growthparameters_call"
-    #     }
-    #   } else {
-    #     scall <- sys.calls()
-    #     xcall <- get_xcall(xcall, scall)
-    #   }
-    # }
-    
-    
-    # if(!is.null(model$xcall)) {
-    #   if(model$xcall == "modelbased_growthparameters_call") {
-    #     xcall <- "modelbased_growthparameters_call"
-    #   }
-    # } else {
-    #   scall <- sys.calls()
-    #   xcall <- get_xcall(xcall, scall)
-    # }
-    
-    
-    # xcall <- xcall
-    
-    # for first TRUE, use min(which(lv == TRUE))
-    
     rlang_trace_back <- rlang::trace_back()
     check_trace_back.bgmfit <- grepl(".bgmfit", rlang_trace_back[[1]])
     if(all(!check_trace_back.bgmfit)) {
-      # nothing
+      # 
     } else {
-      rlang_trace_back.bgmfit_i <- min(which(check_trace_back.bgmfit == TRUE))
-      rlang_trace_back.bgmfit <- rlang_trace_back[[1]][[rlang_trace_back.bgmfit_i]]
+      rlang_trace_back.bgmfit_i <- 
+        min(which(check_trace_back.bgmfit == TRUE))
+      rlang_trace_back.bgmfit <- 
+        rlang_trace_back[[1]][[rlang_trace_back.bgmfit_i]]
       rlang_call_name <- rlang::call_name(rlang_trace_back.bgmfit)
       xcall <- rlang_call_name
     }
-    
-    
-      
-    
-    
-    
-    
     check_if_package_installed(model, xcall = xcall)
-    
     model$xcall <- xcall
-    
-    
     arguments <- get_args_(as.list(match.call())[-1], xcall)
     arguments$model <- model
     arguments$usesavedfuns <- usesavedfuns
-    
-    
     get.cores_ <- get.cores(arguments$cores)
-    
-    # 28.09.2024
     if(is.null(get.cores_[['max.cores']])) {
       if(is.null(arguments$cores)) 
         get.cores_[['max.cores']] <- future::availableCores() - 1
     }
-    
     arguments$cores <- setincores <-  get.cores_[['max.cores']]
     .cores_ps <- get.cores_[['.cores_ps']]
-    
     if (future) {
       getfutureplan <- future::plan()
       if (future_session == 'multisession') {
@@ -854,7 +541,6 @@ modelbased_growthparameters_call.bgmfit <-
       } else if (future_session == 'sequential') {
         set_future_session <- future_session
       }
-      
       setplanis <- set_future_session
       if(set_future_session == 'sequential') {
         future::plan(setplanis)
@@ -862,7 +548,6 @@ modelbased_growthparameters_call.bgmfit <-
         future::plan(setplanis, workers = setincores)
       }
       on.exit(future::plan(getfutureplan), add = TRUE)
-      
       if (future_session == 'multicore') {
         multthreadplan <- getOption("future.fork.multithreading.enable")
         options(future.fork.multithreading.enable = TRUE)
@@ -870,10 +555,6 @@ modelbased_growthparameters_call.bgmfit <-
                 add = TRUE)
       }
     }
-    
-    
-    
-    
     draw_ids_org <- draw_ids
     draw_ids_exe <- FALSE
     if(!is.null(draw_ids)) {
@@ -883,12 +564,9 @@ modelbased_growthparameters_call.bgmfit <-
     } else if(is.null(draw_ids)) {
       eval_draw_ids <- seq(1, ndraws, 1)
     }
-    
-    
     future_splits_exe <- FALSE
     if(!is.null(future_splits)) {
       future_splits_exe <- TRUE
-      
       if(is.logical(future_splits)) {
         if(future_splits) {
           if(ndraws_exe) {
@@ -910,10 +588,8 @@ modelbased_growthparameters_call.bgmfit <-
           future_splits_exe <- FALSE
           future_splits <- future_splits
         }
-        
       } else if(is.list(future_splits)) {
         future_splits_at <- future_splits
-        
       } else if(is.vector(future_splits)) {
         if(!is.numeric(future_splits)) {
           stop("future_splits must be a numeric vector of lenghth 2")
@@ -956,8 +632,6 @@ modelbased_growthparameters_call.bgmfit <-
         }
       }
     }
-    
-    
     if(future_splits_exe) {
       if(plot) {
         stop("future_splits can not be used when plot = TRUE")
@@ -966,10 +640,6 @@ modelbased_growthparameters_call.bgmfit <-
         stop("future_splits can not be used when method = 'pkg'")
       }
     }
-    
-    
-    
-    
     if(!future_splits_exe) {
       future_splits_exe_future <- FALSE
       future_splits_exe_dofuture <- FALSE
@@ -983,12 +653,6 @@ modelbased_growthparameters_call.bgmfit <-
         future_splits_exe_dofuture <- TRUE
       }
     }
-    
-    
-    
-    
-    
-    
     re_expose <- FALSE
     if (future) {
       need_future_re_expose_cpp <- FALSE
@@ -996,17 +660,18 @@ modelbased_growthparameters_call.bgmfit <-
                    deparse(model$model_info$exefuns[[1]])))) {
         need_future_re_expose_cpp <- TRUE
       }
-      
       if(is.null(future_re_expose)) {
         if(setplanis == "multisession") {
           if(need_future_re_expose_cpp) {
             re_expose <- TRUE
             if(verbose) {
-              message("For multisession plan, argument 'future_re_expose' has been set as TRUE")
+              message2c("For multisession plan, argument 'future_re_expose' 
+                        has been set as TRUE")
             }
           } else if(!need_future_re_expose_cpp) {
             if(verbose) {
-              message("To speed up the calulations, it is advised to set future_re_expose = TRUE")
+              message2c("To speed up the calulations, it is advised 
+                        to set future_re_expose = TRUE")
             }
           }
         }
@@ -1015,46 +680,31 @@ modelbased_growthparameters_call.bgmfit <-
           re_expose <- TRUE
         } else if(!future_re_expose) {
           if(!need_future_re_expose_cpp) {
-            # if(expose_method_set == "R") {
             if(verbose) {
               message("To speed up the calulations, it is advised ",
                       "to set 'future_re_expose = TRUE'")
             }
           } 
           if(need_future_re_expose_cpp & setplanis == "multisession") {
-            # if(expose_method_set != "R") {
             stop("For plan 'multisession', the functions need to be ",
                  "\n ",
                  "re_exposed by setting 'future_re_expose = TRUE'")
           }
         }
       }
-    } # if (future) {
-    
-    
-    
-    
+    } 
     if (!future) {
       future_splits_at <- NULL
       future_splits_exe <- FALSE
       future_splits_exe_future <- FALSE
       future_splits_exe_dofuture <- FALSE
     }
-    
-    
-    
-    
-    
-    
     full.args <- evaluate_call_args(cargs = as.list(match.call())[-1], 
                                     fargs = arguments, 
                                     dargs = list(...), 
                                     verbose = verbose)
-    
     full.args$model <- model
     full.args$model_deriv <- model_deriv
-    
-    
     if(is.null(full.args$hypothesis) & is.null(full.args$equivalence)) {
       plot <- plot
     } else {
@@ -1066,10 +716,7 @@ modelbased_growthparameters_call.bgmfit <-
                 "Therefor, setting 'plot = FALSE'") 
       }
     }
-    
-    
     full.args$newdata <- newdata
-    
     full.args <- 
       sanitize_CustomDoCall_args(what = "CustomDoCall", 
                                  arguments = full.args, 
@@ -1077,9 +724,6 @@ modelbased_growthparameters_call.bgmfit <-
                                  check_formalArgs_exceptions = NULL,
                                  check_trace_back = NULL,
                                  envir = parent.frame())
-    
-   
-    # Interpolation points
     if(!exists('check_fun')) check_fun <- FALSE
     if(!exists('available_d1')) available_d1 <- FALSE
     full.args$ipts <- ipts <- check_ipts(ipts = full.args$ipts, 
@@ -1087,19 +731,12 @@ modelbased_growthparameters_call.bgmfit <-
                                          check_fun  = check_fun, 
                                          available_d1 = available_d1, 
                                          xcall = NULL, verbose = verbose)
-    
     full.args$dpar <- dpar
-    
     get.newdata_args <- list()
     for (i in methods::formalArgs(get.newdata)) {
       get.newdata_args[[i]] <- full.args[[i]]
     }
-    
     newdata        <- CustomDoCall(get.newdata, get.newdata_args)
-    
-    
-
-    
     if(!is.na(uvarby)) {
       uvarby_ind <- paste0(uvarby, resp)
       varne <- paste0(uvarby, resp)
@@ -1113,16 +750,11 @@ modelbased_growthparameters_call.bgmfit <-
     }
     full.args$newdata <- newdata
     full.args[["..."]] <- NULL
-    
     if(!is.null(full.args[['transform_draws']])) {
       full.args[['transform']] <- full.args[['transform_draws']]
       if(verbose) message("'transform' set based on 'transform_draws'")
     }
-    
-    
     comparisons_arguments <- full.args
-    
-    # Drop that not required for marginaleffects::
     exclude_args <- as.character(quote(
       c(
         parameter,
@@ -1182,19 +814,13 @@ modelbased_growthparameters_call.bgmfit <-
     if(plot) {
       exclude_args <- c(exclude_args, "cross")
     }
-    
     for (exclude_argsi in exclude_args) {
       comparisons_arguments[[exclude_argsi]] <- NULL
     }
-    
-    
-    
     if(deriv == 0 & model_deriv) 
       stop("If argument 'model_deriv = TRUE', then 'deriv' should be '1'")
     if(deriv == 1 & !model_deriv) 
       stop("If argument 'model_deriv' = FALSE, then 'deriv' should be '0'")
-    
-    
     if (!is.null(variables)) {
       if (!is.list(variables)) {
         if(!model_deriv) {
@@ -1228,18 +854,12 @@ modelbased_growthparameters_call.bgmfit <-
       if(deriv > 0)  set_variables <- list(0)
       names(set_variables) <- xvar
     } 
-    
-    
-    
     allowed_comparison <- c('difference', 'differenceavg')
-    
     if(!comparison %in% allowed_comparison) {
       stop("Allowed comparison options are ", 
            paste(paste0("'", allowed_comparison, "'"), collapse = ", ")
       )
     }
-    
-    
     if(comparison == 'differenceavg') {
       if(!average) {
         stop("For comparison = 'differenceavg' ", 
@@ -1265,8 +885,6 @@ modelbased_growthparameters_call.bgmfit <-
         )
       }
     }
-    
-    
     set_group <- setup_by_var(model = model, 
                               by = by, 
                               cov = cov, 
@@ -1281,21 +899,18 @@ modelbased_growthparameters_call.bgmfit <-
                               xvar_strict = TRUE,
                               switch_plot = FALSE,
                               verbose = verbose)
-    
-    
     if (acg_velocity >= 1 | acg_velocity <= 0) {
       stop("The acg_velocity should be set between 0.01 and 0.99")
     }
-    
     call_comparison_gparms_fun <- function(parm, 
                                            eps, 
                                            by, 
                                            aggregate_by, 
                                            newdata, ...) {
       gparms_fun = function(hi, lo, x, ...) {
+        insight::check_if_installed('sitar', minimum_version = '1.5.0')
         if(deriv == 0) y <- (hi - lo) / eps
         if(deriv > 0)  y <- (hi + lo) / 2
-        # Here need to aggregate based on by argument
         if(aggregate_by) {
           try(insight::check_if_installed(c("grDevices", "stats"), stop = FALSE, 
                                           prompt = FALSE))
@@ -1313,47 +928,39 @@ modelbased_growthparameters_call.bgmfit <-
           }
           x <- xy$x
           y <- xy$y
-        } # if(aggregate_by) {
-        
-        
-        
+        } 
+        insight::check_if_installed('sitar', minimum_version = '1.5.0')
         if (parm == 'apgv') {
           out <- sitar::getPeak(x = x, y = y)[1]
-          out <- ifunx_(out) # prepare_data2
+          out <- ifunx_(out) 
         } else if (parm == 'pgv') {
           out <- sitar::getPeak(x = x, y = y)[2]
         } else if (parm == 'atgv') {
           out <- sitar::getTakeoff(x = x, y = y)[1]
-          out <- ifunx_(out) # prepare_data2
+          out <- ifunx_(out) 
         } else if (parm == 'tgv') {
           out <- sitar::getTakeoff(x = x, y = y)[2]
         } else if (parm == 'acgv') {
           cgv  <- acg_velocity * sitar::getPeak(x = x, y = y)[2]
           vcgi <- which(abs(y - cgv) == min(abs(y - cgv)))[1]
           out <-  x[vcgi]
-          out <- ifunx_(out) # prepare_data2
+          out <- ifunx_(out) 
         } else if (parm == 'cgv') {
           cgv  <- acg_velocity * sitar::getPeak(x = x, y = y)[2]
           vcgi <- which(abs(y - cgv) == min(abs(y - cgv)))[1]
           out <-  y[vcgi]
         } else if (parm == 'xxxx') {
-          
+          #
         } else {
           stop('parm not valid')
         }
         out <- round(out, digits = digits)
         out
-      } # gparms_fun
-      
+      } 
       comparisons_arguments$variables  <- set_variables
       comparisons_arguments$by         <- set_group
       comparisons_arguments$comparison <- gparms_fun
-      
-      
-      # This is for method = 'pkg' - does't matter call_predictions/call_slopes?
       assign(o[[1]], model$model_info[['exefuns']][[o[[2]]]], envir = envir)
-      
-      
       if(is.null(showlegends)) {
         if(is.null(comparisons_arguments$re_formula)) {
           showlegends <- FALSE
@@ -1361,10 +968,6 @@ modelbased_growthparameters_call.bgmfit <-
           showlegends <- TRUE
         }
       }
-      
-      
-      # Set up datagrid
-      
       if(!is.null(datagrid)) {
         if(is.data.frame(datagrid)) {
           set_datagrid <- datagrid
@@ -1386,7 +989,6 @@ modelbased_growthparameters_call.bgmfit <-
             setgrid_by <- NULL
           else
             setgrid_by <- datagrid$by
-          
           if (is.null(datagrid[['FUN_character']]))
             setgrid_FUN_character <- NULL
           else
@@ -1415,12 +1017,10 @@ modelbased_growthparameters_call.bgmfit <-
             setgrid_FUN_other <- NULL
           else
             setgrid_FUN_other <- datagrid$FUN_other
-          
           if(is.null(datagrid[[xvar]])) 
             setxvar <- newdata[[xvar]] 
           else 
             setxvar <- datagrid$newdata[[xvar]]
-          
           datagrid_arguments <- list(model = setmodel,
                                      newdata = setnewdata,
                                      by = setgrid_by,
@@ -1448,10 +1048,7 @@ modelbased_growthparameters_call.bgmfit <-
       } else if(is.null(datagrid)) {
         comparisons_arguments$newdata <- comparisons_arguments$newdata
       }
-      
       comparisons_arguments[['datagrid']] <- NULL
-      
-      # Somehow draw_ids not passed correctly if not specified explicitly as arg
       get_draw_ids <- comparisons_arguments[['draw_ids']]
       if(is.null(eval(get_draw_ids))) {
         set_draw_ids <- NULL
@@ -1461,24 +1058,13 @@ modelbased_growthparameters_call.bgmfit <-
         set_draw_ids <- NULL
       }
       comparisons_arguments[['draw_ids']] <- set_draw_ids
-      
-      
-      # 19.09.2024
-      # For get_predictions(...,  plot = T), either condition or by allowed
-      # Therefore, when plot = T, condition is kept and by dropped, 
-      # otherwise by is kept and condition dropped
-      
       exclude_args_con_by <- exclude_args
-      
-      # Need to move belwo in outer_call_comparison_gparms_fun
       if(plot) {
         if(!is.null(comparisons_arguments[['condition']]))
           comparisons_arguments[['by']] <- NULL
       } else {
         comparisons_arguments[['condition']] <- NULL
       }
-      
-      
       if(!plot) {
         if(!average) {
           if(callfuns) out <- do.call(marginaleffects::comparisons, 
@@ -1502,13 +1088,8 @@ modelbased_growthparameters_call.bgmfit <-
         if(!showlegends) outp <- outp + ggplot2::theme(legend.position = 'none')
         return(outp)
       }
-      
       return(out)
-    } # call_comparison_gparms_fun
-    
-    
-    
-    #################
+    } 
     enverr. <- environment()
     outer_call_comparison_gparms_fun <- function(parm, 
                                                  eps,
@@ -1516,12 +1097,9 @@ modelbased_growthparameters_call.bgmfit <-
                                                  aggregate_by,
                                                  newdata,
                                                  ...) {
-      
       assign('err.', FALSE, envir = enverr.)
-      
       tryCatch(
         expr = {
-          # 13 03 2024
           gout <- call_comparison_gparms_fun(parm = parm, eps = eps,
                                              by = by,
                                              aggregate_by = aggregate_by,
@@ -1533,24 +1111,16 @@ modelbased_growthparameters_call.bgmfit <-
         }
       )
       err. <- get('err.', envir = enverr.)
-      
-      # This happen when NA in one factor for hypothesis
       if(!exists('gout')) return(invisible(NULL))
-      
       if(length(gout) == 0) err. <- TRUE
-      
       if (err.) {
         gout <- NULL
       } else if (!err.) {
         gout <- gout
       }
-      
-      
       if(plot) {
         return(gout)
       }
-      
-      # If results not available for all factor, theN add NA it
       if(!is.null(gout)) {
         if(!isFALSE(by)) {
           if(is.null(hypothesis) && is.null(equivalence)) {
@@ -1558,7 +1128,8 @@ modelbased_growthparameters_call.bgmfit <-
             groupvars <-  eval(by)
             newdatajoin <- newdata %>% dplyr::group_by_at(groupvars) %>%
               dplyr::filter(dplyr::row_number() == 1) %>% dplyr::ungroup()
-            gout <- newdatajoin %>% dplyr::left_join(., gout, by = groupvars) %>%
+            gout <- newdatajoin %>% 
+              dplyr::left_join(., gout, by = groupvars) %>%
               dplyr::select(dplyr::all_of(goutnames)) %>%
               dplyr::select(-dplyr::any_of(c('predicted_lo', 'predicted_hi',
                                              'predicted', 'tmp_idx'))) %>%
@@ -1570,21 +1141,13 @@ modelbased_growthparameters_call.bgmfit <-
       }
       return(gout)
     }
-    
-    
-    
-    
-    
-    ###############
+
     eval_re_formula <- eval(comparisons_arguments$re_formula)
     if(is.null(eval_re_formula)) {
       aggregate_by <- TRUE
     } else if(is.na(eval_re_formula)) {
       aggregate_by <- FALSE
     }
-    
-    
-    #######################################
     out_sf_hy <- NULL
     allowed_methods <- c('pkg', 'custom')
     if(!method %in% allowed_methods) 
@@ -1592,19 +1155,7 @@ modelbased_growthparameters_call.bgmfit <-
            "\n ", 
            collapse_comma(allowed_methods)
       )
-    
-    # if(!is.null(comparisons_arguments[['by']])) {
-    #   checbyx <- comparisons_arguments[['by']]
-    #   if(all(checbyx == "")) method <- 'pkg'
-    #   if(is.logical(checbyx)) {
-    #     if(!checbyx) method <- 'pkg'
-    #   }
-    # }
-    
-    
-    
     if(method == 'pkg') {
-      
       if(plot) {
         out_sf <- outer_call_comparison_gparms_fun(
           parm = parm, eps = eps, 
@@ -1614,8 +1165,6 @@ modelbased_growthparameters_call.bgmfit <-
         ) 
         return(out_sf)
       }
-      
-      
       if (length(parm) == 1) {
         out_sf <- outer_call_comparison_gparms_fun(
           parm = parm, eps = eps, 
@@ -1625,7 +1174,8 @@ modelbased_growthparameters_call.bgmfit <-
         ) 
         if(is.null(out_sf)) return(invisible(NULL))
         if(!"parameter" %in% colnames(out_sf)) {
-          out_sf <- out_sf %>% dplyr::mutate(!!as.symbol('parameter') := parm) %>%
+          out_sf <- out_sf %>% 
+            dplyr::mutate(!!as.symbol('parameter') := parm) %>%
             dplyr::relocate(!!as.symbol('parameter')) %>% data.frame() 
         }
       } else if (length(parm) > 1) {
@@ -1638,52 +1188,32 @@ modelbased_growthparameters_call.bgmfit <-
             newdata = newdata
           )
         }
-        
         out_sf <- do.call(rbind, list_cout) %>% data.frame() 
         if(!"parameter" %in% colnames(out_sf)) {
           out_sf <- out_sf %>% tibble::rownames_to_column(., "parameter")
         }
         out_sf <- out_sf %>% 
           dplyr::mutate(!!as.symbol('parameter') := sub("*\\.[0-9]", "", 
-                                                        !!as.symbol('parameter')))
+                                                    !!as.symbol('parameter')))
       }
-    } # if(method == 'pkg') {
-    
-    
-    # Start method = 'custom'
+    } 
     
     pdrawsp_est <- NULL
     pdrawsh_est <- NULL
     pdraws_est <- NULL
-    
     if(method == 'custom') {
       predictions_arguments                 <- comparisons_arguments
       predictions_arguments[['cross']]      <- NULL
       predictions_arguments[['method']]     <- NULL
-      predictions_arguments[['hypothesis']] <- NULL # hypothesis evaluated later
-      # From get_predictions
-      #################################################
+      predictions_arguments[['hypothesis']] <- NULL 
       if(call_slopes) {
         predictions_arguments[['transform']]      <- NULL
         predictions_arguments[['byfun']]          <- NULL
         
       }
-      
-      
-      ##########################################################
-      # start new layer of parameter_numeric
-      ##########################################################
-      if(!parameter_numeric) { # start parameter_numeric
-        
-        
-        ########################################################################
-        ########################################################################
-        ########################################################################
-        # This if(call_slopes) { borrowed from get_predictions
-        # needed when no d1 and slopes function used to get deriv from distance
+      if(!parameter_numeric) { 
         if(call_slopes) {
           predictions_arguments[['comparison']]     <- NULL
-          
           if(call_slopes) {
             if (!is.null(variables)) {
               if (!is.character(variables)) {
@@ -1702,10 +1232,7 @@ modelbased_growthparameters_call.bgmfit <-
             } else if (is.null(variables)) {
               set_variables <- xvar
             } 
-          } # if(call_slopes) {
-          
-          
-          # Decide if set by = NULL and then here pick and replace 'by' set_group 
+          }
           if(is.null(by)) {
             if(is.null(cov)) {
               set_group <- FALSE
@@ -1722,74 +1249,46 @@ modelbased_growthparameters_call.bgmfit <-
               set_group <- FALSE
             }
           }
-          
           if(call_slopes) predictions_arguments$variables  <- set_variables
           predictions_arguments$by         <- set_group
-          
           if(is.null(predictions_arguments$by)) predictions_arguments$by < 'NULL'
-          
           assign(o[[1]], model$model_info[['exefuns']][[o[[2]]]], envir = envir)
-          
-        } # end if(call_slopes)  borrowed from get_predictions
-        
-        ########################################################################
-        ########################################################################
-        ########################################################################
-        ########################################################################
-        
-        if(!is.null(predictions_arguments[['variables']])) {
-          if(!is.list(eval(predictions_arguments[['variables']]))) {
-            # 21.09.2024
-            # In fact list does not work, variables = c('class') works
-            # stop("Argument 'variables' must be a named list")
-          }
-        }
-        
-        # Imp, add xvar to the by if missing
+        } 
+  
         by <- predictions_arguments[['by']]
-        
-        # if(!any(grepl(xvar, by)))  by <- c(xvar, eval(by))
-        
         if(isFALSE(by)) {
           by <- xvar
         } else if(!any(grepl(xvar, by))) {
           by <- c(xvar, eval(by))
         }
-        
         by                            <- eval(by)
         predictions_arguments[['by']] <- by 
-        
-        
         if(future_splits_exe) {
-          # Note that since predictions_arguments are passed to multisession, 
-          # evaluate each argument
           for (i in names(predictions_arguments)) {
             predictions_arguments[[i]] <- eval(predictions_arguments[[i]])
           }
         }
-        
-        
         if(!future_splits_exe & callfuns) {
           if(!average) {
             if(call_predictions) {
-              out <- do.call(marginaleffects::predictions, predictions_arguments)
+              out <- do.call(marginaleffects::predictions, 
+                             predictions_arguments)
             } 
             if(call_slopes) {
-              out <- do.call(marginaleffects::slopes, predictions_arguments)
+              out <- do.call(marginaleffects::slopes, 
+                             predictions_arguments)
             }
           } else if(average) {
             if(call_predictions) {
-              out <- do.call(marginaleffects::avg_predictions, predictions_arguments)
+              out <- do.call(marginaleffects::avg_predictions, 
+                             predictions_arguments)
             } 
             if(call_slopes) {
-              out <- do.call(marginaleffects::avg_slopes, predictions_arguments)
+              out <- do.call(marginaleffects::avg_slopes, 
+                             predictions_arguments)
             }
           }
-          
-        } # if(!future_splits_exe) {
-        
-        
-        
+        } 
         if(future_splits_exe_future & callfuns) {
           if(!average) {
             myzfun <- function(x) {
@@ -1797,13 +1296,13 @@ modelbased_growthparameters_call.bgmfit <-
               predictions_arguments[['ndraws']]   <- NULL
               `%>%` <- bsitar::`%>%`
               if(re_expose) {
-                if(verbose) message("need to expose functions for 'multisession'")
+                if(verbose) {
+                  message("need to expose functions for 'multisession'")
+                }
                 predictions_arguments[['model']] <- 
                   bsitar::expose_model_functions(predictions_arguments[['model']])
               }
-              # Re-assign appropriate function
               setenv <- predictions_arguments[['model']]$model_info$envir
-              
               assign(
                 o[[1]],
                 predictions_arguments[['model']]$model_info[['exefuns']][[o[[2]]]], 
@@ -1815,7 +1314,6 @@ modelbased_growthparameters_call.bgmfit <-
               if(call_slopes) {
                 do.call(marginaleffects::slopes, predictions_arguments)
               }
-              # do.call(marginaleffects::predictions, predictions_arguments)
             }
             out <-  future.apply::future_lapply(future_splits_at,
                                                 future.envir = parent.frame(),
@@ -1832,9 +1330,7 @@ modelbased_growthparameters_call.bgmfit <-
                 predictions_arguments[['model']] <- 
                   bsitar::expose_model_functions(predictions_arguments[['model']])
               }
-              # Re-assign appropriate function
               setenv <- predictions_arguments[['model']]$model_info$envir
-              
               assign(
                 o[[1]],
                 predictions_arguments[['model']]$model_info[['exefuns']][[o[[2]]]], 
@@ -1846,7 +1342,6 @@ modelbased_growthparameters_call.bgmfit <-
               if(call_slopes) {
                 do.call(marginaleffects::avg_slopes, predictions_arguments)
               }
-              # do.call(marginaleffects::avg_predictions, predictions_arguments)
             }
             out <-  future.apply::future_lapply(future_splits_at,
                                                 future.envir = parent.frame(),
@@ -1854,14 +1349,10 @@ modelbased_growthparameters_call.bgmfit <-
                                                 future.seed = TRUE,
                                                 FUN = myzfun)      
           }
-        } # if(future_splits_exe_future) {
-        
-        
-        
+        } 
         
         if(future_splits_exe_dofuture & callfuns) {
           `%doFuture_function%` <- doFuture::`%dofuture%`
-          # somehow .options.future = list(seed = TRUE) not working, so set below
           dofutureplan <- getOption("doFuture.rng.onMisuse")
           options(doFuture.rng.onMisuse = "ignore")
           on.exit(options("doFuture.rng.onMisuse" = dofutureplan), add = TRUE)
@@ -1883,9 +1374,7 @@ modelbased_growthparameters_call.bgmfit <-
                 predictions_arguments[['model']] <- 
                   bsitar::expose_model_functions(predictions_arguments[['model']])
               }
-              # Re-assign appropriate function
               setenv <- predictions_arguments[['model']]$model_info$envir
-              
               assign(
                 o[[1]],
                 predictions_arguments[['model']]$model_info[['exefuns']][[o[[2]]]],
@@ -1897,7 +1386,6 @@ modelbased_growthparameters_call.bgmfit <-
               if(call_slopes) {
                 do.call(marginaleffects::slopes, predictions_arguments)
               }
-              # do.call(marginaleffects::predictions, predictions_arguments)
             }
           } else if(average) {
             out <- foreach::foreach(x = 1:length(future_splits_at),
@@ -1917,9 +1405,7 @@ modelbased_growthparameters_call.bgmfit <-
                 predictions_arguments[['model']] <- 
                   bsitar::expose_model_functions(predictions_arguments[['model']])
               }
-              # Re-assign appropriate function
               setenv <- predictions_arguments[['model']]$model_info$envir
-              
               assign(
                 o[[1]],
                 predictions_arguments[['model']]$model_info[['exefuns']][[o[[2]]]], 
@@ -1931,14 +1417,9 @@ modelbased_growthparameters_call.bgmfit <-
               if(call_slopes) {
                 do.call(marginaleffects::avg_slopes, predictions_arguments)
               }
-              # do.call(marginaleffects::avg_predictions, predictions_arguments)
             }
           } 
-        } # if(future_splits_exe_dofuture) {
-        
-        
-        
-        
+        } 
         posterior_draws_function <- function(x, ...) {
           out[[x]] %>% 
             marginaleffects:: posterior_draws(shape = "long") %>% 
@@ -1947,8 +1428,6 @@ modelbased_growthparameters_call.bgmfit <-
             dplyr::mutate(drawid = as.factor(drawid)) %>% 
             dplyr::relocate(drawid, .before = 'draw')
         }
-        
-        
         consecutive_drawid_function <- function(x, ...) {
           x %>% 
             dplyr::group_by(drawid) %>% 
@@ -1956,10 +1435,6 @@ modelbased_growthparameters_call.bgmfit <-
             dplyr::mutate(drawid = as.factor(drawid)) %>% 
             dplyr::ungroup()
         }
-        
-        
-        
-        # somehow this need consequence number
         if(!future_splits_exe) {
           if(callfuns) {
             if(pdrawso) return(out)
@@ -1975,14 +1450,9 @@ modelbased_growthparameters_call.bgmfit <-
                               FUN = posterior_draws_function)
             
             zxdraws <- zxdraws %>% do.call(rbind, .)
-            # Note that above zxdraws has drawid exact same as splits
-            # but somehow, we need consecutive drawid for summarising
             zxdraws <- consecutive_drawid_function(zxdraws)
           }
         }
-        
-        
-        
         marginals_list_consecutive_drawid_function <- function(x, ...) {
           if(x == 1) {
             oux <- out[[x]]
@@ -1994,9 +1464,6 @@ modelbased_growthparameters_call.bgmfit <-
           }
           oux
         }
-        
-        
-        
         if(setmarginals) {
           if(inherits(marginals, 'list')) {
             zxdraws <-
@@ -2010,27 +1477,10 @@ modelbased_growthparameters_call.bgmfit <-
           }
         }
         
-        
-        
-        
-        
-        
-        
-        
-        
-        
         by_pdraws <- by
-        
-        # Imp, remove xvar from the by
         by <- base::setdiff(eval(by), eval(xvar)) 
-        
-        
-        
-        
-        
         getparmsx <- function(x, y, parm = NULL, xvar = NULL, draw = NULL,
                               aggregate_by = FALSE, ...) {
-          
           if(data.table::is.data.table(x) | is.data.frame(x)) {
             if(is.null(xvar)) {
               stop("please specify the 'xvar' argument")
@@ -2042,8 +1492,6 @@ modelbased_growthparameters_call.bgmfit <-
             x <- temx[[xvar]] %>% unlist() %>% as.numeric()
             y <- temx[[draw]] %>% unlist() %>% as.numeric()
           }
-          
-          # aggregate_by <- FALSE
           if(aggregate_by) {
             try(insight::check_if_installed(c("grDevices", "stats"), stop = FALSE, 
                                             prompt = FALSE))
@@ -2061,20 +1509,18 @@ modelbased_growthparameters_call.bgmfit <-
             }
             x <- xy$x
             y <- xy$y
-          } # if(aggregate_by) {
-          
+          } 
           parm_c <- list()
           pgvx <- NULL
+          insight::check_if_installed('sitar', minimum_version = '1.5.0')
           for (parmi in parm) {
             if('apgv' %in% parmi) {
-              # prepare_data2
               parm_c[[parmi]] <- sitar::getPeak(x, y)[1] %>% ifunx_() 
             }
             if('pgv' %in% parmi) {
               parm_c[[parmi]] <- pgvx <- sitar::getPeak(x, y)[2]
             }
             if('atgv' %in% parmi) {
-              # prepare_data2
               parm_c[[parmi]] <- sitar::getTakeoff(x, y)[1] %>% ifunx_()
             }
             if('tgv' %in% parmi) {
@@ -2085,15 +1531,13 @@ modelbased_growthparameters_call.bgmfit <-
               cgv  <- acg_velocity * pgvx
               vcgi <- which(abs(y - cgv) == min(abs(y - cgv)))[1]
             }
-            # prepare_data2
             if('acgv' %in% parmi) parm_c[[parmi]] <- x[vcgi] %>% ifunx_()
             if('cgv' %in% parmi)  parm_c[[parmi]] <- y[vcgi]
           }
           out <- parm_c %>% do.call(cbind, .) %>% data.frame()
           out
         }
-        
-        
+
         if(usedtplyr) {
           getparmsx2                     <- getparmsx
           hypothesisargs                 <- formals(getparmsx2)
@@ -2111,15 +1555,12 @@ modelbased_growthparameters_call.bgmfit <-
           drawidby  <- c('drawid', by)
           drawidby_ <- c(drawidby, 'parameter', 'estimate')
           parmest   <- 'draw'
-          
           if(any(c('apgv', 'pgv') %in% parm)) getpest <- TRUE else getpest <- FALSE
           if(any(c('atgv', 'tgv') %in% parm)) gettest <- TRUE else gettest <- FALSE
           if(any(c('acgv', 'cgv') %in% parm)) getcest <- TRUE else getcest <- FALSE
-          
           if(getpest) namesp <- cbind('apgv', 'pgv') else namesp <- NULL
           if(gettest) namest <- cbind('atgv', 'tgv') else namest <- NULL
           if(getcest) namesc <- cbind('acgv', 'cgv') else namesc <- NULL
-          
           getcgvfunc <- function(x, y, p = NULL, ...) {
             if(is.null(p)) {
               cgv <- acg_velocity * sitar::getPeak(x, y)[2] 
@@ -2129,29 +1570,28 @@ modelbased_growthparameters_call.bgmfit <-
             vcgi <- which(abs(y - cgv) == min(abs(y - cgv)))[1]
             return(c(x = x[vcgi], y = y[vcgi]))
           }
-          
           funx <- function(x,...) {
+            insight::check_if_installed('sitar', minimum_version = '1.5.0')
             if(getpest) {
               dfp <- sitar::getPeak(x[,1], x[,2]) 
-              dfp[1] <- ifunx_(dfp[1]) # prepare_data2
+              dfp[1] <- ifunx_(dfp[1]) 
             } else {
               dfp <- NULL
             }
             if(gettest) {
               dft <- sitar::getTakeoff(x[,1], x[,2]) 
-              dft[1] <- ifunx_(dft[1]) # prepare_data2
+              dft[1] <- ifunx_(dft[1]) 
             } else {
               dft <- NULL
             }
             if(getcest) {
               dfc <- getcgvfunc(x[,1], x[,2]) 
-              dfc[1] <- ifunx_(dfc[1]) # prepare_data2
+              dfc[1] <- ifunx_(dfc[1]) 
             } else {
               dfc <- NULL
             }
             cbind(c(namesp, namest, namesc), matrix(c(dfp, dft, dfc)))
           }
-          
           onex0 <- zxdraws %>% 
             collapse::fgroup_by(drawidby) %>% 
             collapse::fsummarise(collapse::mctl(funx(cbind(.data[[xvar]], 
@@ -2160,9 +1600,6 @@ modelbased_growthparameters_call.bgmfit <-
             collapse::ftransformv(., 'V2', as.numeric) %>% 
             collapse::frename(., drawidby_) %>% 
             collapse::fsubset(., parameter %in% parm)
-          
-        
-          
         } else {
           drawid_c <- list()
           for (drawidi in 1:nlevels(zxdraws$drawid)) {
@@ -2174,12 +1611,6 @@ modelbased_growthparameters_call.bgmfit <-
           }
           onex0 <- drawid_c %>% do.call(rbind, .) %>% data.frame()
         }
-        
-        
-        #######################################################
-        
-        # This from marginaleffects does not allow na.rm
-        # So use stats::quantile instead
         get_etix <- utils::getFromNamespace("get_eti", "marginaleffects")
         get_etix <- stats::quantile
         get_hdix <- utils::getFromNamespace("get_hdi", "marginaleffects")
@@ -2199,78 +1630,28 @@ modelbased_growthparameters_call.bgmfit <-
             estimate = estimate, conf.low = luci[1],conf.high = luci[2]
           )
         }
-        
-        
-        get_pe_ci_collapse <- function(x, na.rm = TRUE,...) {
-          if(ec_agg == "mean")  estimate <- 
-              collapse::fmean(x, 
-                              na.rm = na.rm, 
-                              nthreads = arguments$cores) 
-          
-          if(ec_agg == "median") estimate <- 
-              collapse::fmedian(x, 
-                                na.rm = na.rm, 
-                                nthreads = arguments$cores)
-          
-          if(ei_agg == "eti") luci = collapse::fquantile(x, probs = probs, 
-                                                         na.rm = na.rm)
-          if(ei_agg == "hdi") luci = get_hdix(x, credMass = conf)
-          cbind(estimate, luci[1], luci[2]) 
-        }
-        
-        
-      } # end if(!parameter_numeric) {
-      ##########################################################
-      # end new layer of parameter_numeric
-      ##########################################################
+      } 
       
-      
-      #################################################################
-      #################################################################
-      #################################################################
-      #################################################################
-      #################################################################
-      #################################################################
-      
-      # "marginaleffects"  "get_predictions" "fitted_draws"
-      # Using "marginaleffects" because it gives consiatent result future T/F
       
       call_marginaleffects_get_predictions <- "marginaleffects" 
-      
-      
-      # progressr::handlers(global = TRUE)
-      # progressr::handlers("progress", "beepr")
-      
       xyadj_xyv_warp_fun <- function(ApvX0, newdata, ...) {
         xmin <- NULL;
         xmax <- NULL;
-        
-        # p <- progressor(ApvX0 = xs)
-        
         newdata.in <- newdata
         newdata <- newdata%>% 
           fastplyr::f_group_by(!!as.name(idvar)) %>% 
           fastplyr::f_slice(1) %>% fastplyr::f_ungroup()
-        
-        # For storing results in my_matrix returned from analyze_data()
         nlevels_idvar <- nlevels(newdata [[idvar]])
-        
-        # Here nrow  is the number of rows - xyadj, yyadj and vyadj
         my_matrix <- matrix(NA, nrow = 3, ncol = nlevels_idvar)
-        
-        
         ApvX0[['drawid']] <- eval_draw_ids
-        
         ApvX0_for_list_c <- tibble::as_tibble(ApvX0) %>% 
           fastplyr::f_select(-'parameter') %>% 
           fastplyr::f_rename('age' = 'estimate') %>% 
           dplyr::mutate(tempjoinby = 'tempjoinby') %>% 
           dplyr::relocate('age') 
-        
         newdata_for_list_c <-tibble::as_tibble(newdata) %>%
           fastplyr::f_select(-'age') %>% 
           dplyr::mutate(tempjoinby = 'tempjoinby') 
-        
         newdata_list_c <- list()
         for (i in 1:nrow(ApvX0)) {
           newdata_list_c[[i]] <- fastplyr::f_left_join(newdata_for_list_c, 
@@ -2278,15 +1659,11 @@ modelbased_growthparameters_call.bgmfit <-
                                                        by = "tempjoinby") %>% 
             fastplyr::f_select(-'tempjoinby') 
         }
-        
-        
         xyadj_curves_args <- list()
         xyadj_curves_args[['model']]  <- model
         xyadj_curves_args[['ndraws']] <- ndraws
         xyadj_curves_args[['tomean']] <- FALSE
         xyadj_curves_args[['get_dv']] <- TRUE
-        
-        
         fitted_draws_args <- list()
         fitted_draws_args[['model']] <- model
         fitted_draws_args[['ndraws']] <- ndraws
@@ -2298,8 +1675,6 @@ modelbased_growthparameters_call.bgmfit <-
         fitted_draws_args_d1 <- fitted_draws_args
         fitted_draws_args_d0[['deriv']] <- 0
         fitted_draws_args_d1[['deriv']] <- 1
-        
-        
         get_predictions_args <- predictions_arguments
         get_predictions_args[['re_formula']] <- NULL
         get_predictions_args[['peak']] <- NULL
@@ -2309,41 +1684,31 @@ modelbased_growthparameters_call.bgmfit <-
         get_predictions_args[['newdata_fixed']] <- 0
         get_predictions_args[['pdrawsp']] <-  "return"
         get_predictions_args[['newdata']] <- newdata 
-        
         get_predictions_args[['comparison']] <- NULL
-        
         if(call_marginaleffects_get_predictions == "marginaleffects") {
           get_predictions_args[['by']] <- xvar
           get_predictions_args[['newdata_fixed']] <- NULL
           get_predictions_args[['pdrawsp']] <- NULL
           get_predictions_args[['deriv']] <- NULL
-        } # if(call_marginaleffects_get_predictions == "marginaleffects") {
-        
-        
+        } 
         if(call_marginaleffects_get_predictions == "fitted_draws") {
           get_predictions_args[['summary']] <- FALSE
         }
-        
         get_predictions_args_d0 <- get_predictions_args
         get_predictions_args_d1 <- get_predictions_args
         get_predictions_args_d0[['deriv']] <- 0
         get_predictions_args_d1[['deriv']] <- 1
-        
-        
         if(call_marginaleffects_get_predictions == "marginaleffects") {
           get_predictions_args_d0[['deriv']] <- NULL
           get_predictions_args_d1[['deriv']] <- NULL 
           get_predictions_args_d0[['by']] <- NULL
           get_predictions_args_d0[['variables']] <- NULL
         }
-        
         if(call_marginaleffects_get_predictions == "get_predictions") {
           get_predictions_args_d0[['by']] <- NULL
           get_predictions_args_d0[['variables']] <- NULL
           get_predictions_args_d1[['by']] <- NULL
-        } # if(call_marginaleffects_get_predictions == "get_predictions") {
-        
-        
+        } 
         if(call_marginaleffects_get_predictions == "marginaleffects" |
            call_marginaleffects_get_predictions == "get_predictions") {
           call_predictions2 <- TRUE
@@ -2364,33 +1729,28 @@ modelbased_growthparameters_call.bgmfit <-
             o.2 <- o.2.0 <- do.call(post_processing_checks, 
                                     post_processing_checks_args)
           }
-        } # if(call_marginaleffects_get_predictions == "marginaleffects") {
-        
-        
-        
+        } 
         
         analyze_data <- function(data, ...) {
           xyadj_curves_args[['newdata']] <- data
           xyadj_curves_args[['draw_ids']] <- data[['drawid']] [1]
-          xyadj_dv <- CustomDoCall(xyadj_curves, xyadj_curves_args)
-          
+          if(is.na(mean(xyadj_curves_args[['newdata']] [[xvar]]))) {
+            xyadj_dv <- t(as.matrix(1:nrow(xyadj_curves_args[['newdata']])))
+          } else {
+            xyadj_dv <- CustomDoCall(xyadj_curves, xyadj_curves_args)
+            
+          }
           xyadj_dv <- 
             apply(xyadj_dv, 2, 
                   xyadj_curves_args$model$model_info$xfuntransform2) 
-          
-          # i <-  data[['loopcounter']] [1]
-          
           fitted_draws_args_d0[['draw_ids']] <- data[['drawid']] [1]
           fitted_draws_args_d1[['draw_ids']] <- data[['drawid']] [1]
           fitted_draws_args_d0[['newdata']] [['age']]  <- xyadj_dv 
           fitted_draws_args_d1[['newdata']] [['age']]  <- xyadj_dv 
-          
           get_predictions_args_d0[['draw_ids']] <- data[['drawid']] [1]
           get_predictions_args_d1[['draw_ids']] <- data[['drawid']] [1]
           get_predictions_args_d0[['newdata']] [['age']]  <- xyadj_dv 
           get_predictions_args_d1[['newdata']] [['age']]  <- xyadj_dv 
-          
-          
           if(call_marginaleffects_get_predictions == "marginaleffects") {
             if(!average) {
               if(call_predictions2) {
@@ -2445,12 +1805,7 @@ modelbased_growthparameters_call.bgmfit <-
                                     get_predictions_args_d1)
               }
             }
-          } # if(call_marginaleffects_get_predictions == "marginaleffects") {
-          
-          
-          
-          
-          
+          } 
           if(call_marginaleffects_get_predictions == "get_predictions") {
             if(call_predictions2) {
               assign(o[[1]], model$model_info[['exefuns']][[o.2.0[[2]]]], 
@@ -2474,22 +1829,11 @@ modelbased_growthparameters_call.bgmfit <-
               vyadj_dv <- do.call(get_predictions, 
                                   get_predictions_args_d1)
             }
-          } # if(call_marginaleffects_get_predictions == "get_predictions") {
-          
-          
-          
-          # if(call_marginaleffects_get_predictions == "get_predictions") {
-          #   yyadj_dv <- CustomDoCall(get_predictions, get_predictions_args_d0)
-          #   vyadj_dv <- CustomDoCall(get_predictions, get_predictions_args_d1)
-          # } # if(call_marginaleffects_get_predictions == "get_predictions") {
-          # 
-          
+          } 
           if(call_marginaleffects_get_predictions == "fitted_draws") {
             yyadj_dv <- CustomDoCall(fitted_draws, get_predictions_args_d0)
             vyadj_dv <- CustomDoCall(fitted_draws, get_predictions_args_d1)
           }
-          
-          
           if(call_marginaleffects_get_predictions == "marginaleffects") {
             yyadj_dv <- yyadj_dv[["estimate"]]
             vyadj_dv <- vyadj_dv[["estimate"]]
@@ -2498,14 +1842,11 @@ modelbased_growthparameters_call.bgmfit <-
             yyadj_dv <- yyadj_dv[["estimate"]]
             vyadj_dv <- vyadj_dv[["estimate"]]
           }
-          
-          
-          
           my_matrix[1, ] <- xyadj_dv
           my_matrix[2, ] <- yyadj_dv
           my_matrix[3, ] <- vyadj_dv
           my_matrix
-        } # end analyze_data
+        } 
         
         if(future) {
           results_list <- 
@@ -2515,42 +1856,26 @@ modelbased_growthparameters_call.bgmfit <-
                                         # future.packages = 'bsitar',
                                         future.seed = TRUE,
                                         FUN = analyze_data) 
-          
         } else {
           results_list <- lapply(newdata_list_c, analyze_data) 
         }
-        
-        
         xyvyadj_rows <- do.call(cbind, results_list)
-        
-        
         xyadj_rows <- matrix(xyvyadj_rows[1,], nrow = length(results_list), 
                              byrow = T)
         yyadj_rows <- matrix(xyvyadj_rows[2,], nrow = length(results_list), 
                              byrow = T)
         vyadj_rows <- matrix(xyvyadj_rows[3,], nrow = length(results_list), 
                              byrow = T)
-        
         xyadj_rows <- apply(xyadj_rows, 2, model$model_info$ixfuntransform2)
-        
-        
-        # When only one draw, apply converts xyadj_rows to as vector
         if(length(eval_draw_ids) == 1) {
           xyadj_rows <- matrix(xyadj_rows, nrow = 1)
         }
-        
         xyadj_summary <- brms::posterior_summary(xyadj_rows)
         yyadj_summary <- brms::posterior_summary(yyadj_rows)
         vyadj_summary <- brms::posterior_summary(vyadj_rows)
-        
-        
-        
-        # data frame and add idavr
         xyadj_summary <- xyadj_summary %>% data.frame() %>% 
           dplyr::mutate(!! as.name(idvar) := newdata[[idvar]]) %>% 
           dplyr::relocate(!! as.name(idvar))
-        
-        # add missing xvar within the range
         xyadj_summary <- 
           dplyr::inner_join(xyadj_summary,
                             newdata.in %>%
@@ -2565,33 +1890,21 @@ modelbased_growthparameters_call.bgmfit <-
                                              dplyr::pull(), xmin, 
                                            xmax)) %>%
           dplyr::select(-c(xmin, xmax))
-        
-        
-        # data frame and add idavr
         yyadj_summary <- yyadj_summary %>% data.frame() %>% 
           dplyr::mutate(!! as.name(idvar) := newdata[[idvar]]) %>% 
           dplyr::relocate(!! as.name(idvar))
-        
         yyadj_summary$missing <- xyadj_summary$missing
-        
         vyadj_summary <- vyadj_summary %>% data.frame() %>% 
           dplyr::mutate(!! as.name(idvar) := newdata[[idvar]]) %>% 
           dplyr::relocate(!! as.name(idvar))
-        
         vyadj_summary$missing <- xyadj_summary$missing
-        
-        
         out <- list()
         out[['age']]      <- xyadj_summary
         out[['distance']] <- yyadj_summary
         out[['velocity']] <- vyadj_summary
-        
         return(out)
-      } # end xyadj_xyv_warp_fun
+      } 
       
-      
-      
-      # parameter_numeric
       if(parameter_numeric) {
         value <- NULL;
         onex0 <- tibble::as_tibble(1:length(eval_draw_ids)) %>% 
@@ -2600,24 +1913,10 @@ modelbased_growthparameters_call.bgmfit <-
           dplyr::rename(drawid = value) %>% 
           dplyr::relocate(drawid, parameter, estimate)
       }
-      
-      
-      
-      
+     
+      # onex0 <- onex0[!is.na(onex0$estimate), ]
       xyadj_xyv <- xyadj_xyv_warp_fun(onex0, model$model_info$bgmfit.data)
-      
       return(xyadj_xyv)
-      
-      
-      #################################################################
-      #################################################################
-      #################################################################
-      #################################################################
-      #################################################################
-      #################################################################
-      #################################################################
-      #################################################################
-      
       
       if(!isFALSE(pdrawsp)) {
         if(!is.character(pdrawsp)) pdrawsp <- "return"
@@ -2631,10 +1930,6 @@ modelbased_growthparameters_call.bgmfit <-
           
         }
       }
-      
-      
-      
-      
       if(!isFALSE(pdraws)) {
         selectchoicesr <- c("return", "add", "returns", "adds") 
         checkmate::assert_choice(pdraws, choices = selectchoicesr)
@@ -2646,24 +1941,6 @@ modelbased_growthparameters_call.bgmfit <-
           setdrawidparm <- c(by_pdraws)
           namesx <- c('estimate', 'conf.low', 'conf.high')
           setdrawidparm_ <- c(setdrawidparm, namesx)
-          # No need to summarise again because estimate already is summary
-          # if(usecollapse) {
-          #   what_summary <- 'draw' # 'estimate' 'draw'
-          #   setdrawidparm <- c(by_pdraws)
-          #   namesx <- c('estimate', 'conf.low', 'conf.high')
-          #   setdrawidparm_ <- c(setdrawidparm, namesx)
-          # 
-          #   zxdraws_summary <-
-          #     zxdraws %>% collapse::fgroup_by(setdrawidparm) %>%
-          #     collapse::fsummarise(collapse::mctl(
-          #       get_pe_ci_collapse(.data[[what_summary]]))
-          #     ) %>%
-          #     collapse::ftransformv(., 'V2', as.numeric) %>%
-          #     collapse::frename(., setdrawidparm_)
-          # 
-          #   row.names(zxdraws_summary) <- NULL
-          # }
-          
           if(usedtplyr) {
             zxdraws_summary <- zxdraws %>% dplyr::filter(., drawid == 1) %>%
               dplyr::select(., dplyr::all_of(setdrawidparm_))
@@ -2674,14 +1951,10 @@ modelbased_growthparameters_call.bgmfit <-
             zxdraws_summary <- zxdraws %>% dplyr::filter(., drawid == 1) %>%
               dplyr::select(., dplyr::all_of(setdrawidparm_))
           }
-          
-          
           if(pdraws == 'returns') return(zxdraws_summary)
           if(pdraws == 'adds') pdraws_est <- zxdraws_summary
         }
-      } # if(!isFALSE(pdraws)) {
-      
-      
+      } 
       if(isFALSE(constrats_by)) {
         constrats_by <- NULL
       } else if(!isFALSE(constrats_by)) {
@@ -2695,8 +1968,6 @@ modelbased_growthparameters_call.bgmfit <-
           constrats_by <- constrats_by
         }
       }
-      
-      
       if(!is.null(constrats_by)) {
         if(!is.character(constrats_by)) 
           stop("The 'constrats_by' argument should be a character string")
@@ -2718,8 +1989,6 @@ modelbased_growthparameters_call.bgmfit <-
           }
         }
       }
-      
-      
       if(isFALSE(constrats_at)) {
         constrats_at <- NULL
       } else if(!isFALSE(constrats_at)) {
@@ -2733,8 +2002,6 @@ modelbased_growthparameters_call.bgmfit <-
           if(length(constrats_at) == 0) constrats_at <- NULL
         }
       }
-      
-      # For hypothesis
       groupvarshyp1 <- c('drawid')
       groupvarshyp2 <- c('term')
       if(!is.null(constrats_at)) {
@@ -2768,16 +2035,14 @@ modelbased_growthparameters_call.bgmfit <-
             getatval<- paste0(constrats_at[[caxi]], "(", 
                               "onex0", "[['", caxi, "']]", ")" )
             getatval <- eval(parse(text = getatval))                
-          } # if(is.character(constrats_at[[caxi]])) {
-          
+          } 
           if(!is.character(constrats_at[[caxi]])) {
             getatval <- constrats_at[[caxi]]
           }
           constrats_at[[caxi]] <- getatval
           groupvarshyp1 <- c(caxi, groupvarshyp1)
           groupvarshyp2 <- c(caxi, groupvarshyp2)
-        } # for (caxi in names(constrats_at)) {
-        
+        } 
         for (caxi in names(constrats_at)) {
           onex1 <- base::subset(onex0, onex0[[caxi]] %in% constrats_at[[caxi]])
           if(nrow(onex1) == 0) {
@@ -2787,19 +2052,13 @@ modelbased_growthparameters_call.bgmfit <-
             )
           }
         }
-      } # if(!is.null(constrats_at)) {
-      
-      
+      } 
       if(is.null(constrats_at)) {
         onex1 <- onex0
       }
-      
-      #########################33
       if(isFALSE(constrats_subset)) {
         constrats_subset <- NULL
       } 
-      
-      
       if(!is.null(constrats_subset)) {
         for (caxi in names(constrats_subset)) {
           if(!caxi %in% names(onex0)) {
@@ -2817,9 +2076,7 @@ modelbased_growthparameters_call.bgmfit <-
           constrats_subset[[caxi]] <- getatval
           groupvarshyp1 <- c(caxi, groupvarshyp1)
           groupvarshyp2 <- c(caxi, groupvarshyp2)
-        } # for (caxi in names(constrats_subset)) {
-        
-        
+        } 
         for (caxi in names(constrats_subset)) {
           onex1 <- 
             base::subset(onex1, onex1[[caxi]] %in% constrats_subset[[caxi]])
@@ -2830,8 +2087,7 @@ modelbased_growthparameters_call.bgmfit <-
             )
           }
         }
-      } # if(!is.null(constrats_subset)) {
-      
+      } 
       if(usedtplyr) {
         get_pe_ci2 <- get_pe_ci
         hypothesisargs <- formals(get_pe_ci2)
@@ -2844,15 +2100,12 @@ modelbased_growthparameters_call.bgmfit <-
         names(hypothesisargs)[2] <- '...'
         formals(get_pe_ci2) <- hypothesisargs
         parmi_estimate <- 'estimate'
-        
         setdrawid     <- c('drawid', by)
         setdrawidparm <- c(by, 'parameter')
-        
         out_sf_and_later_hy <-
           onex1 %>% dtplyr::lazy_dt() %>% 
           tidyr::pivot_longer(!dplyr::all_of(setdrawid), names_to = 'parameter', 
                               values_to = "draw")
-        
         out_sf <- out_sf_and_later_hy %>% 
           dplyr::select(-dplyr::all_of('drawid')) %>% 
           dplyr::group_by_at(setdrawidparm) %>% 
@@ -2868,22 +2121,22 @@ modelbased_growthparameters_call.bgmfit <-
           setdrawid     <- c('drawid', bys)
           setdrawidparm <- c(bys, 'parameter')
         }
-        
-        
         namesx <- c('estimate', 'conf.low', 'conf.high')
         setdrawidparm_ <- c(setdrawidparm, namesx)
-        
         out3 <-
           onex1 %>% collapse::fgroup_by(setdrawidparm) %>% 
           collapse::fsummarise(collapse::mctl(
-            get_pe_ci_collapse(.data[['estimate']]))
+            get_pe_ci_collapse(.data[['estimate']],
+                               ec_agg = ec_agg, 
+                               ei_agg = ei_agg, na.rm = TRUE, 
+                               nthreads = arguments$cores, 
+                               conf = conf, digits = NULL,  
+                               probs = probs))
           ) %>% 
           collapse::ftransformv(., 'V2', as.numeric) %>% 
           collapse::frename(., setdrawidparm_) 
-        
         row.names(out3) <- NULL
         out_sf <- out3
-        
       } else {
         summary_c <- list()
         for (parmi in parm) {
@@ -2901,9 +2154,6 @@ modelbased_growthparameters_call.bgmfit <-
         row.names(out3) <- NULL
         out_sf <- out3
       }
-      
-      
-      # Hypothesis
       if(!is.null(hypothesis)) {
         get_hypothesis_x_modify <- function(.x, hypothesis, by, draws, ...) {
           get_hypothesis_x(x = .x, hypothesis = hypothesis, by = by, 
@@ -2921,9 +2171,6 @@ modelbased_growthparameters_call.bgmfit <-
             )
           }
         }
-        
-        
-        
         if(usedtplyr) {
           parmi_estimate <- 'estimate'
           get_hypothesis_x_modifyx2 <- get_hypothesis_x
@@ -2937,7 +2184,6 @@ modelbased_growthparameters_call.bgmfit <-
                                          after = 1)
           names(hypothesisargs)[2] <- '...'
           formals(get_hypothesis_x_modifyx2) <- hypothesisargs
-          
           get_pe_ci2 <- get_pe_ci
           hypothesisargs <- formals(get_pe_ci2)
           hypothesisargs[['x']]          <- as.name('x')
@@ -2948,12 +2194,9 @@ modelbased_growthparameters_call.bgmfit <-
                                          after = 1)
           names(hypothesisargs)[2] <- '...'
           formals(get_pe_ci2) <- hypothesisargs
-          
           groupvarshyp1 <- c("drawid", 'parameter')
           groupvarshyp2 <- c('term', 'parameter')
-          
           out_sf_hy <-
-            # onex1 %>% dtplyr::lazy_dt() %>%
             out_sf_and_later_hy %>% 
             dplyr::group_by_at(groupvarshyp1) %>% 
             dplyr::mutate(!! parmi_estimate := eval(parse(text = 'draw'))) %>% 
@@ -2974,9 +2217,6 @@ modelbased_growthparameters_call.bgmfit <-
                              draws = 'estimate'
             ) %>% as.matrix()
           }
-          
-          
-          
           setdrawidh     <- c('drawid', 'parameter')
           setdrawidh_  <- c(setdrawidh, 'term', 'estimate')
           temhyy <- 
@@ -2984,8 +2224,6 @@ modelbased_growthparameters_call.bgmfit <-
             collapse::fsummarise(collapse::mctl(get_hypothesis_x_fx(.data))) %>% 
             collapse::ftransformv(., 'V2', as.numeric) %>% 
             collapse::frename(., setdrawidh_)
-          
-          
           if(!isFALSE(pdrawsh)) {
             selectchoicesr <- c("return", 'add') 
             checkmate::assert_choice(pdrawsh, choices = selectchoicesr)
@@ -2993,26 +2231,23 @@ modelbased_growthparameters_call.bgmfit <-
               return(temhyy)
             } else if(pdrawsh == 'add') {
               pdrawsh_est <- temhyy
-            } else {
-              
-            }
+            } 
           }
-          
-          
-          
           setdrawidparmh <- c('term', 'parameter')
           namesx <- c('estimate', 'conf.low', 'conf.high')
           setdrawidparm_ <- c(setdrawidparmh, namesx)
-          
           out_sf_hy <-
             temhyy %>% collapse::fgroup_by(setdrawidparmh) %>% 
             collapse::fsummarise(collapse::mctl(
-              get_pe_ci_collapse(.data[['estimate']]))
+              get_pe_ci_collapse(.data[['estimate']],
+                                 ec_agg = ec_agg, 
+                                 ei_agg = ei_agg, na.rm = TRUE, 
+                                 nthreads = arguments$cores, 
+                                 conf = conf, digits = NULL,  
+                                 probs = probs))
             ) %>% 
             collapse::frename(., setdrawidparm_) 
-          
           row.names(out_sf_hy) <- NULL
-          
         } else {
           parmi_ci_c <- list()
           for (parmi in parm) {
@@ -3041,28 +2276,17 @@ modelbased_growthparameters_call.bgmfit <-
           }
           out_sf_hy <- parmi_ci_c %>% do.call(rbind, .) %>% data.frame()
         }
-        
-        
-      } # if(!is.null(hypothesis)) {
-    } # if(method == 'custom') {
-    
-    
-    
-    
-    #######################################
+      } 
+    } 
     
     if(!isFALSE(by)) {
       byarrange <- by 
     } else if(isFALSE(by)) {
       byarrange <- NULL
     } 
-    
     if(!is.null(byarrange)) {
       if(!is.null(bys)) byarrange <- bys else byarrange <- by
     }
-    
-    # if(!byarrange) byarrange <- NULL
-    
     if(length(byarrange) != 0) {
       out_sf <- out_sf %>% data.frame() %>% 
         dplyr::relocate(dplyr::all_of('parameter')) %>% 
@@ -3080,9 +2304,6 @@ modelbased_growthparameters_call.bgmfit <-
         dplyr::mutate(dplyr::across(dplyr::all_of('parameter'), toupper)) %>% 
         data.frame()
     }
-    
-    
-    
     if(!is.null(out_sf_hy)) {
       if(usecollapse) {
         out_sf_hy <- out_sf_hy %>% data.frame() %>% 
@@ -3098,9 +2319,6 @@ modelbased_growthparameters_call.bgmfit <-
                                       ~ round(., digits = digits)))
       }
     }
-    
-    
-    
     if(!is.null(pdraws_est)) {
       if(usecollapse) {
         pdraws_est <- pdraws_est %>% data.frame() %>% 
@@ -3112,8 +2330,6 @@ modelbased_growthparameters_call.bgmfit <-
                                       ~ round(., digits = digits)))
       }
     }
-    
-    
     if(!is.null(pdrawsp_est)) {
       if(usecollapse) {
         pdrawsp_est <- pdrawsp_est %>% data.frame() %>% 
@@ -3125,9 +2341,6 @@ modelbased_growthparameters_call.bgmfit <-
                                       ~ round(., digits = digits)))
       }
     }
-    
-    
-    
     if(!is.null(pdrawsh_est)) {
       if(usecollapse) {
         pdrawsh_est <- pdrawsh_est %>% data.frame() %>% 
@@ -3139,11 +2352,6 @@ modelbased_growthparameters_call.bgmfit <-
                                       ~ round(., digits = digits)))
       }
     }
-    
-    
-    ##############################################################
-    ##############################################################
-    # prepare_data2
     itransform_set <- get_itransform_call(itransform)
     if(any(itransform_set != "")) {
       if(!is.null(out_sf)) {
@@ -3162,19 +2370,11 @@ modelbased_growthparameters_call.bgmfit <-
         pdrawsh_est <- prepare_transformations(data = pdrawsh_est, model = model,
                                                itransform = itransform_set)
       }
-      # 'pdraws_est' is not threre for get_predictions and get_comparisons
       if(!is.null(pdraws_est)) {
         pdraws_est <- prepare_transformations(data = pdraws_est, model = model,
                                               itransform = itransform_set)
       }
-      
-    } # if(any(itransform_set != "")) {
-    
-    ##############################################################
-    ##############################################################
-    
-    
-    
+    } 
     if(is.null(reformat)) {
       if(is.null(hypothesis) && is.null(equivalence)) {
         reformat <- TRUE
@@ -3182,7 +2382,6 @@ modelbased_growthparameters_call.bgmfit <-
         reformat <- FALSE
       }
     }
-    
     if (reformat) {
       out_sf <- out_sf %>% 
         dplyr::rename(!!as.symbol(set_names_[1]) := 
@@ -3192,7 +2391,6 @@ modelbased_growthparameters_call.bgmfit <-
         dplyr::rename(!!as.symbol(set_names_[3]) := 
                         dplyr::all_of('conf.high')) %>% 
         data.frame()
-      
       remove_cols_ <- c('tmp_idx', 'predicted_lo', 
                         'predicted_hi', 'predicted')
       if(!is.null(full.args$hypothesis) | !is.null(full.args$equivalence)) {
@@ -3205,7 +2403,6 @@ modelbased_growthparameters_call.bgmfit <-
       colnames(out_sf) <- sub("(.)", "\\U\\1", colnames(out_sf), perl = TRUE)
       row.names(out_sf) <- NULL
       attr(out_sf$Parameter, "dimnames") <- NULL
-      
       if(!is.null(out_sf_hy)) {
         out_sf_hy <- out_sf_hy %>% 
           dplyr::mutate(dplyr::across(dplyr::all_of('parameter'), toupper)) %>% 
@@ -3217,56 +2414,33 @@ modelbased_growthparameters_call.bgmfit <-
                           dplyr::all_of('conf.high')) %>% 
           dplyr::rename_with(., ~ sub("(.)", "\\U\\1", .x, perl = TRUE)) %>% 
           data.frame()
-      } # if(!is.null(out_sf_hy)) {
-      
+      } 
       if(!is.null(pdraws_est)) {
         pdraws_est <- pdraws_est %>% 
-          # dplyr::mutate(dplyr::across(dplyr::all_of('parameter'), toupper)) %>% 
           dplyr::rename(!!as.symbol(set_names_[1]) := 
                           dplyr::all_of('estimate')) %>% 
-          # For pdrawsp_est/pdrawsh_est, there are no conf columns, only estimates
           dplyr::rename(!!as.symbol(set_names_[2]) :=
                           dplyr::all_of('conf.low')) %>%
           dplyr::rename(!!as.symbol(set_names_[3]) :=
                           dplyr::all_of('conf.high')) %>%
           dplyr::rename_with(., ~ sub("(.)", "\\U\\1", .x, perl = TRUE)) %>% 
           data.frame()
-      } # if(!is.null(pdraws_est)) {
-      
+      } 
       if(!is.null(pdrawsp_est)) {
         pdrawsp_est <- pdrawsp_est %>% 
-          # dplyr::mutate(dplyr::across(dplyr::all_of('parameter'), toupper)) %>% 
           dplyr::rename(!!as.symbol(set_names_[1]) := 
                           dplyr::all_of('estimate')) %>% 
-          # For pdrawsp_est/pdrawsh_est, there are no conf columns, only estimates
-          # dplyr::rename(!!as.symbol(set_names_[2]) := 
-          #                 dplyr::all_of('conf.low')) %>% 
-          # dplyr::rename(!!as.symbol(set_names_[3]) := 
-          #                 dplyr::all_of('conf.high')) %>% 
           dplyr::rename_with(., ~ sub("(.)", "\\U\\1", .x, perl = TRUE)) %>% 
           data.frame()
-      } # if(!is.null(pdrawsp_est)) {
-      
+      } 
       if(!is.null(pdrawsh_est)) {
         pdrawsh_est <- pdrawsh_est %>% 
-          # dplyr::mutate(dplyr::across(dplyr::all_of('parameter'), toupper)) %>% 
           dplyr::rename(!!as.symbol(set_names_[1]) := 
                           dplyr::all_of('estimate')) %>% 
-          # For pdrawsp_est/pdrawsh_est, there are no conf columns, only estimates
-          # dplyr::rename(!!as.symbol(set_names_[2]) := 
-          #                 dplyr::all_of('conf.low')) %>% 
-          # dplyr::rename(!!as.symbol(set_names_[3]) := 
-          #                 dplyr::all_of('conf.high')) %>% 
           dplyr::rename_with(., ~ sub("(.)", "\\U\\1", .x, perl = TRUE)) %>% 
           data.frame()
-      } # if(!is.null(pdrawsh_est)) {
-      
-    } # if (reformat) {
-    
-    
-    
-    ###########################################
-    # convert factor variable that do not carry attributes ...
+      } 
+    } 
     as_factor_as_character_factor_df <- function(df) {
       as_factor_as_character_factor <- function(x) {
         as.factor(as.character.factor(x))
@@ -3288,35 +2462,27 @@ modelbased_growthparameters_call.bgmfit <-
     if(!is.null(pdrawsh_est)) {
       pdrawsh_est <- as_factor_as_character_factor_df(pdrawsh_est)
     }
-    ###########################################
-    
-    
     out <- list()
     if(!is.null(out_sf)) {
       out[['estimate']] <- out_sf %>% dplyr::ungroup()
     }
-    
     if(!is.null(out_sf_hy)) {
       out[['contrast']] <- out_sf_hy %>% dplyr::ungroup()
     }
-    
     if(!is.null(pdraws_est)) {
       out[['pdraws_est']] <- pdraws_est %>% dplyr::ungroup()
     }
-    
     if(!is.null(pdrawsp_est)) {
       out[['pdrawsp_est']] <- pdrawsp_est %>% dplyr::ungroup()
     }
-    
     if(!is.null(pdrawsh_est)) {
       out[['pdrawsh_est']] <- pdrawsh_est %>% dplyr::ungroup()
     }
-    
     if(length(out) == 1) out <- out[[1]]
-    
     return(out)
-    
   }
+
+
 
 
 #' @noRd

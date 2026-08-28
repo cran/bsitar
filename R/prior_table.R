@@ -1,0 +1,209 @@
+
+
+#' Create a prior summary table for the bsitar model
+#'
+#' @description
+#' Builds a formatted summary table of user-specified prior distributions from a
+#' \code{bsitar} model. The table includes the prior distribution text, one or
+#' more simulated credible interval columns derived from draws from the parsed
+#' prior distributions, and a simulated empirical range column based on
+#' \code{base::range()}.
+#'
+#' @details
+#' The function parses priors returned by \code{priors_to_textdata()}, simulates
+#' draws from each parsed prior distribution, computes interval summaries with
+#' \code{ggdist::point_interval()}, and formats the result as a
+#' \code{flextable}. If a \code{tag} column is present but entirely empty, it is
+#' removed before the table is built.
+#'
+#' Optional transformations can be applied to selected combinations of
+#' \code{class} and \code{parameter}. Transformation targets are defined by the
+#' Cartesian product of all values supplied in \code{transform_class} and all
+#' values supplied in \code{transform_parameter}. This allows any number of
+#' available classes and any number of available parameters to be selected.
+#'
+#' More formally, if \code{transform_class} contains the selected classes and
+#' \code{transform_parameter} contains the selected parameters, then the
+#' transformation targets all combinations in \code{transform_class x
+#' transform_parameter}.
+#'
+#' The \code{transform_fun} argument controls which function is applied:
+#' \itemize{
+#'   \item If a single function is supplied, it is applied to every targeted
+#'   class/parameter combination.
+#'   \item If a list of functions with length equal to
+#'   \code{length(transform_parameter)} is supplied, the functions are matched
+#'   to parameters and recycled across all selected classes.
+#'   \item If a list of functions with length equal to
+#'   \code{length(transform_class) * length(transform_parameter)} is supplied,
+#'   the functions are matched directly to the fully expanded class/parameter
+#'   combinations in \code{expand.grid()} order.
+#' }
+#'
+#' Transformations are applied to simulated draws before the credible intervals
+#' and empirical ranges are computed. This means the reported summaries reflect
+#' the transformed scale directly.
+#'
+#' The function validates requested transformation classes and parameters
+#' against the values actually present in the parsed prior summary. If a user
+#' supplies a class or parameter that does not exist, the function stops with an
+#' informative error.
+#'
+#' Footnote markers are assigned dynamically in sequence. The first four markers
+#' are always used for Class, Parameter, Coefficient, and Prior distribution.
+#' Credible interval columns are assigned the next available letters, the Range
+#' column receives the next letter after the final CI column, and the
+#' transformation mapping note receives the next letter after the Range note.
+#'
+#' @param model A fitted \code{bsitar} model object.
+#' 
+#' @param set_width A numeric vector of interval masses to report, such as
+#'   \code{0.95} or \code{c(0.95, 0.99)}. Each value creates one CI column.
+#'   
+#' @param set_digits An integer giving the number of digits used when extracting
+#'   priors from \code{priors_to_textdata()}.
+#'   
+#' @param draw_samples Integer number of simulated draws used per prior
+#'   distribution to compute both the reported CI columns and the empirical
+#'   range column. Note that the default value is \code{100000} to approximate
+#'   the stabilized distribution. However, it make take some time (approximate
+#'   one minute).
+#'   
+#' @param add_range Logical indicating whether to include range column in the 
+#'  returned object.
+#'  
+#' @param transform_class Optional character vector of class values to transform.
+#'   These are expanded with \code{transform_parameter} using a Cartesian
+#'   product. Any supplied value must exist among the available classes in the
+#'   parsed priors.
+#'   
+#' @param transform_parameter Optional character vector of parameter values to
+#'   transform. These are expanded with \code{transform_class} using a Cartesian
+#'   product. Any supplied value must exist among the available parameters in
+#'   the parsed priors.
+#'   
+#' @param transform_fun Optional function or list of functions controlling the
+#'   transformation to apply. Accepted forms are:
+#'   \itemize{
+#'     \item A single function, recycled to all targeted combinations.
+#'     \item A list of functions of length \code{length(transform_parameter)},
+#'     matched to parameters and recycled across classes.
+#'     \item A list of functions of length
+#'     \code{length(transform_class) * length(transform_parameter)},
+#'     matched directly to all expanded combinations.
+#'   }
+#'   Each function must accept a numeric vector and return a numeric vector of
+#'   the same length.
+#'   
+#' @param range_method_arg An optional named list to pass arguments to the
+#'   \code{'range_method()'}.
+#'   
+#' @param seed Integer random seed used before drawing simulated values from the
+#'   parsed prior distributions.
+#'   
+#' @param verbose Logical. If \code{TRUE}, prints information.
+#' 
+#' @inheritParams prior_conflict.bgmfit
+#'
+#' @returns
+#' A \code{flextable} object when \code{return_table = TRUE}. Otherwise returns
+#' \code{invisible(NULL)} after optionally saving the table as \code{.docx} or
+#' \code{.xlsx}.
+#'
+#' @details
+#' The Range column is not an analytic support bound. It is a simulated empirical
+#' range computed from \code{draw_samples} draws from each parsed prior
+#' distribution. Consequently, the reported range depends slightly on the random
+#' seed, the number of simulated draws, and any transformation applied.
+#'
+#' Credible interval columns are also simulation-based. They are computed from
+#' the same simulated draws used for the range column, which ensures consistent
+#' row alignment between interval summaries and range summaries.
+#'
+#' Requested transformations are validated in two stages. First, every supplied
+#' class must exist among available classes and every supplied parameter must
+#' exist among available parameters. Second, every expanded class/parameter
+#' combination must exist in the parsed prior table; otherwise the function
+#' stops with an error.
+#'
+#' Transformations are applied to simulated draws before summary computation.
+#' This is generally preferable to transforming already-computed interval
+#' endpoints because the summaries then directly reflect the transformed
+#' distribution.
+#'
+#' If the resulting summary data contains a \code{tag} column and every entry is
+#' either \code{NA} or an empty string after trimming whitespace, that column is
+#' removed automatically before constructing the \code{flextable}.
+#' 
+#' 
+#' @rdname prior_table
+#' @export
+#' 
+#' @inherit berkeley author
+#'
+#' @examples
+#' \donttest{
+#' # Fit Bayesian SITAR model 
+#' 
+#' # To avoid model estimation which can take time, the Bayesian SITAR model fit
+#' # to the 'berkeley_exdata' has been saved as an example fit ('berkeley_exfit').
+#' # See 'bsitar' function for details on 'berkeley_exdata' and 'berkeley_exfit'.
+#' 
+#' model <- getNsObject(berkeley_exfit)
+#' 
+#' prior_table(
+#'   model = model,
+#'   print_table = TRUE
+#' )
+#'
+#' # Apply 'exp' transformation to the prior for 'c' parameter
+#' prior_table(
+#'   model = model,
+#'   transform_class = c("b"),
+#'   transform_parameter = c("c"),
+#'   transform_fun = function(x) exp(x),
+#'   print_table = TRUE
+#' )
+#' }
+#'
+#' 
+prior_table.bgmfit <- function(model,
+                               set_width = 0.95,
+                               set_digits = 1,
+                               empty = "-",
+                               print = FALSE,
+                               return_table = TRUE,
+                               tibble_table = FALSE,
+                               print_table = FALSE,
+                               return_file = NULL,
+                               flex_table = FALSE,
+                               path = NULL,
+                               title = NULL,
+                               align = "center",
+                               sheet_name = "table",
+                               draw_samples = 100000,
+                               add_range = FALSE,
+                               transform_class = NULL,
+                               transform_parameter = NULL,
+                               transform_fun = NULL,
+                               range_method_arg = NULL,
+                               seed = 123,
+                               verbose = FALSE,
+                               ...) {
+
+  do.call(prior_summary_table, 
+          build_args_call(as.list(match.call(expand.dots = FALSE)), 
+                          prior_table.bgmfit, verbose = FALSE))
+}
+
+
+
+
+
+#' @rdname prior_table
+#' @export
+prior_table <- function(model, ...) {
+  UseMethod("prior_table")
+}
+
+

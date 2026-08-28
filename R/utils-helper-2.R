@@ -1,6 +1,183 @@
 
 
 
+#' Export or return a flextable object
+#'
+#' Export a \code{flextable} object to Word, HTML, image, or Excel output, or
+#' return the input \code{flextable} unchanged when no file output is requested.
+#'
+#' This function is a lightweight wrapper around the \code{flextable} export
+#' helpers for Word, HTML, and image output. For Excel output, it uses the
+#' \code{openxlsx2} package to write the underlying tabular data to an
+#' \code{.xlsx} workbook, because spreadsheet export is handled differently from
+#' \code{flextable} document and image rendering.
+#'
+#' @param ft A \code{flextable} object to return or export.
+#' @param return_file Optional character string specifying the output type.
+#'   Supported values are \code{"word"}, \code{"docx"}, \code{"html"},
+#'   \code{"png"}, \code{"pdf"}, \code{"svg"}, and \code{"xlsx"}. If
+#'   \code{NULL}, the function returns \code{ft} unchanged.
+#' @param path Optional output file path. If \code{NULL}, a default file name is
+#'   created from \code{return_file}, such as \code{"table_output.docx"} or
+#'   \code{"table_output.xlsx"}.
+#' @param title Optional title used in exported output where supported. For Word
+#'   and HTML output, named flextable objects can be used as document titles or
+#'   section titles.
+#' @param align Alignment used for Word export. Must be one of \code{"left"},
+#'   \code{"center"}, or \code{"right"}. This argument is passed to
+#'   [flextable::save_as_docx()].
+#' @param sheet_name Character string giving the worksheet name for Excel
+#'   output. Default is \code{"table"}.
+#'
+#' @details
+#' \code{flextable} provides dedicated export functions for several output
+#' formats, including Word, HTML, and image rendering. These formats use
+#' the \code{flextable} object directly and preserve table styling in the
+#' rendered output.
+#'
+#' Excel output is handled separately through \code{openxlsx2}, which provides
+#' a workbook API based on [openxlsx2::wb_workbook()], worksheet creation,
+#' data insertion, and file saving. This makes it suitable for writing the
+#' underlying rectangular table data to \code{.xlsx} files in a modern
+#' spreadsheet workflow.
+#'
+#' The current \code{openxlsx2} API favors workbook-based workflows and newer
+#' helper functions such as [openxlsx2::wb_add_data()].
+#'
+#' @return
+#' If \code{return_file = NULL}, the input \code{flextable} object is returned.
+#'
+#' Otherwise, the function writes a file to disk and returns the normalized
+#' path to the generated file as a character string.
+#'
+#' @inherit berkeley author
+#'
+#' @keywords internal
+#' @noRd
+export_flextable <- function(
+    ft,
+    return_file = NULL,
+    path = NULL,
+    title = NULL,
+    align = "center",
+    data = NULL,
+    sheet_name = "table"
+) {
+  
+  
+  
+  if (is.null(return_file) & is.null(path)) {
+    return(ft)
+  } else if (!is.null(return_file) & is.null(path)) {
+    path <- "table_output"
+  } else if (is.null(return_file) & !is.null(path)) {
+    return_file <- "xlsx"
+  }
+  
+  return_file <- tolower(return_file)
+  
+  allowed_return_file <- c("docx", "html", "png", "svg", "xlsx")
+  
+  path_ext <-  strsplit(path, "\\.(?!.*\\.)", perl = TRUE)[[1]][2] # last .
+
+  set_ext_later <- FALSE
+  if(is.na(path_ext)) {
+    if(is.null(return_file)) {
+      path <- paste0(path, ".", "xlsx")
+    } else {
+      set_ext_later <- TRUE
+    }
+  } else if(!path_ext %in% allowed_return_file) {
+    stop2c("'", path_ext, "'", " is not supported file type. 
+          Allowed file types are: ",
+          collapse_comma(allowed_return_file))
+  }
+  
+  
+  return_file <- sub("\\.", "", return_file)
+  
+  ext <- switch(
+    return_file,
+    word = ".docx",
+    docx = ".docx",
+    html = ".html",
+    png  = ".png",
+    # pdf  = ".pdf",
+    svg  = ".svg",
+    xlsx = ".xlsx",
+    stop2c("Unsupported return_file. Use one of: word, 
+             docx, html, png, pdf, svg, xlsx")
+  )
+  
+  
+  if(!is.na(path_ext)) ext <- paste0(".", path_ext)
+  
+  if(set_ext_later) {
+    path <- paste0(path, "", ext)
+  }
+  
+  # print(ext)
+  # print(path)
+  # stop()
+  # 
+  
+  align <- match.arg(align, c("left", "center", "right"))
+
+  if (return_file %in% c("word", "docx")) {
+    vals <- list(ft)
+    if (!is.null(title)) names(vals) <- title
+    flextable::save_as_docx(values = vals, path = path, align = align)
+    return(normalizePath(path))
+  }
+  
+  if (return_file == "html") {
+    vals <- list(ft)
+    if (!is.null(title)) names(vals) <- title
+    flextable::save_as_html(
+      values = vals,
+      path = path,
+      title = if (is.null(title)) "Table" else title
+    )
+    return(normalizePath(path))
+  }
+  
+  if (return_file %in% c("png", "svg")) { # , "pdf"
+    flextable::save_as_image(ft, path = path)
+    return(normalizePath(path))
+  }
+  
+  if (return_file == "xlsx") {
+    wb <- openxlsx2::wb_workbook()$add_worksheet("table")
+    wb <- flexlsx::wb_add_flextable(wb, "table", ft)
+    openxlsx2::wb_save(wb, file = path, overwrite = TRUE)
+    return(normalizePath(path))
+  }
+  
+}
+
+
+
+
+
+# convert list_to_flextable
+
+list_to_flextable <- function(x, align = "left", empty = "-") {
+  align <- match.arg(align, c("left", "center", "right"))
+  tab <- as.data.frame(
+    lapply(x, function(z) {
+      if (is.null(z) || length(z) == 0) {
+        empty
+      } else {
+        paste(z, collapse = ", ")
+      }
+    }),
+    stringsAsFactors = FALSE
+  )
+  flextable::flextable(tab) %>% 
+    flextable::align(align = align, part = "all")
+}
+
+
 #' An internal function to edit stancode for tripple logistic model
 #' 
 #' @param stancode A string character of stan code
@@ -25,46 +202,33 @@ edit_scode_for_logistic3 <- function(stancode,
                                      set_positive_ordered = TRUE,
                                      constraint = TRUE,
                                      normalize = TRUE) {
-  
   setorder_d <- c(2, 3, 1)
   setorder_v <- c(3, 1, 2)
   setorder_t <- c(1, 2, 3)
-  
-  # Seems both set_positive_ordered and constraint should be TRUE
-  
   true_name_p      <- 'parameters'
   true_name_tp     <- 'transformed parameters'
   true_name_td     <- 'transformed data'
   true_name_model  <- 'model'
-  
   tempt_name_p  <- 'ppppppppp'
   tempt_name_tp <- 'tptptptpt'
   tempt_name_td <- 'tdtdtdtdt'
-  
   clines_tp <- get_par_names_from_stancode(stancode,
                                            section = true_name_tp,
                                            semicolan = TRUE,
                                            full = TRUE)
-  
   clines_p <- get_par_names_from_stancode(stancode,
                                           section = true_name_p,
                                           semicolan = TRUE,
                                           full = TRUE)
-  
   clines_m <- get_par_names_from_stancode(stancode,
                                           section = true_name_model,
                                           semicolan = TRUE,
                                           full = TRUE)
-  
-  
   editedcode    <- stancode 
   editedcode    <- gsub(true_name_tp, tempt_name_tp, editedcode, fixed = T)
   editedcode    <- gsub(true_name_p,  tempt_name_p,  editedcode, fixed = T)
   editedcode    <- gsub(true_name_td,  tempt_name_td,  editedcode, fixed = T)
-  
   editedcode2 <- editedcode
-  
-  
   clines_tp2 <- c()
   for (il in clines_tp) {
     il <- gsub(pattern = "//", replacement = "//", x = il, fixed = T)
@@ -77,10 +241,7 @@ edit_scode_for_logistic3 <- function(stancode,
       }
     }
   }
-  
   clines_tp <- clines_tp2
-  
-  
   clines_p2 <- c()
   for (il in clines_p) {
     il <- gsub(pattern = "//", replacement = "//", x = il, fixed = T)
@@ -93,12 +254,7 @@ edit_scode_for_logistic3 <- function(stancode,
       }
     }
   }
-  
   clines_p <- clines_p2
-  
-  
-  
-  
   b_what_by_pair <- matrix(NA, 9, 3)
   K_name <- "K"
   move_to_tp <- add_move_to_tp <- c()
@@ -119,21 +275,17 @@ edit_scode_for_logistic3 <- function(stancode,
         if(letters[igr] == 'a')  poparm <- paste0("raw_d[", setorder_d[1], "]")
         if(letters[igr] == 'd')  poparm <- paste0("raw_d[", setorder_d[2], "]")
         if(letters[igr] == 'g')  poparm <- paste0("raw_d[", setorder_d[3], "]")
-        
         if(letters[igr] == 'b')  poparm <- paste0("raw_v[", setorder_v[1], "]")
         if(letters[igr] == 'e')  poparm <- paste0("raw_v[", setorder_v[2], "]")
         if(letters[igr] == 'h')  poparm <- paste0("raw_v[", setorder_v[3], "]")
-        
         if(letters[igr] == 'c')  poparm <- paste0("raw_t[", setorder_t[1], "]")
         if(letters[igr] == 'f')  poparm <- paste0("raw_t[", setorder_t[2], "]")
         if(letters[igr] == 'i')  poparm <- paste0("raw_t[", setorder_t[3], "]")
-        
         add_move_to_tp_k_dim <- paste0(K_name, "_", letters[igr])
         add_move_to_tp_ <- paste0(" = ", poparm, " + ", "rep_vector(0.0, ",
                                   add_move_to_tp_k_dim, ")")
         add_move_to_tp_2 <- gsub(";", paste0(add_move_to_tp_, ";"),  
                                  clines_tpi, fixed = T)
-        
         add_move_to_tp <- c(add_move_to_tp, add_move_to_tp_2)
         parameter_name <- sub('.+](.+)', '\\1', clines_tpi)
         parameter_name <- gsub(";", "", parameter_name)
@@ -144,9 +296,7 @@ edit_scode_for_logistic3 <- function(stancode,
       } 
     }
   } 
-  
 
-  
   b_what_it_c <- b_what_by_c <- c()
   for (igr in 1:nrow(b_what_by_pair)) {
     set_check_bounds_y_n_cnt <- 0
@@ -167,30 +317,23 @@ edit_scode_for_logistic3 <- function(stancode,
           b_what_it_c <- c(b_what_it_c, b_what_it)
           b_what_by_c <- c(b_what_by_c, b_what_by)
         }
-      } # else if(check_bounds_y_n
+      }
     }
   }
-  
-  
-  
+
   set_b_a <- paste0("b_a = to_vector(raw_dx[", ",", setorder_d[1], "]);")
   set_b_d <- paste0("b_d = to_vector(raw_dx[", ",", setorder_d[2], "]);")
   set_b_g <- paste0("b_g = to_vector(raw_dx[", ",", setorder_d[3], "]);")
-  
   set_b_b <- paste0("b_b = to_vector(raw_vx[", ",", setorder_v[1], "]);")
   set_b_e <- paste0("b_e = to_vector(raw_vx[", ",", setorder_v[2], "]);")
   set_b_h <- paste0("b_h = to_vector(raw_vx[", ",", setorder_v[3], "]);")
-  
   set_b_c <- paste0("b_c = to_vector(raw_tx[", ",", setorder_t[1], "]);")
   set_b_f <- paste0("b_f = to_vector(raw_tx[", ",", setorder_t[2], "]);")
   set_b_i <- paste0("b_i = to_vector(raw_tx[", ",", setorder_t[3], "]);")
-  
   set_b_elements <- paste(set_b_a, set_b_b, set_b_c,
                           set_b_d, set_b_e, set_b_f,
                           set_b_g, set_b_h, set_b_i,
                           sep = "\n   ")
-  
-  
   if(!is.null(set_positive_ordered)) {
     if(set_positive_ordered) {
       move_to_tp_add_ordered_positive_ordered <- 
@@ -198,7 +341,6 @@ edit_scode_for_logistic3 <- function(stancode,
    array[Kedit] positive_ordered[Cedit] raw_vx;
    array[Kedit] positive_ordered[Cedit] raw_tx;"
     }
-    
     if(!set_positive_ordered) {
       move_to_tp_add_ordered_positive_ordered <- 
         "array[Kedit] ordered[Cedit] raw_dx;
@@ -211,9 +353,6 @@ edit_scode_for_logistic3 <- function(stancode,
    array[Kedit] vector[Cedit] raw_vx;
    array[Kedit] vector[Cedit] raw_tx;"
   }
-  
-  
-  
   if(constraint) {
     move_to_tp_add_constraint <- 
       " for(k in 1:Kedit) {
@@ -229,36 +368,24 @@ edit_scode_for_logistic3 <- function(stancode,
      raw_tx[k, ] = raw_t[k,];
     } "
   } 
-  
-  
   move_to_tp_add <- paste(move_to_tp_add_ordered_positive_ordered,
                           move_to_tp_add_constraint,
                           sep = "\n  ")
-  
-  
   move_to_tp_add <- paste(move_to_tp_add, 
                           set_b_elements, 
                           sep = "\n   ")
-  
-  
   move_to_tp2 <- c()
   for (move_to_tpi in move_to_tp) {
     move_to_tp2 <- c(move_to_tp2, paste0("   ", move_to_tpi))
   }
-  
   tpcode <- paste0(paste(move_to_tp2, collapse = "\n"), 
                    "\n    ", 
                    move_to_tp_add)
-  
-  
   pcode <- 
     "array[Kedit] vector[Cedit] raw_d;
   array[Kedit] vector[Cedit] raw_v;
   array[Kedit] vector[Cedit] raw_t;
   "
-  
-  
-  # parameter names - remove from the parameters block
   for (il in move_to_tp) {
     editedcode2 <- gsub(pattern = "//", replacement = "//", 
                         x = editedcode2, fixed = T)
@@ -267,10 +394,6 @@ edit_scode_for_logistic3 <- function(stancode,
     editedcode2 <- gsub(paste0(il, ""), "", editedcode2, fixed = T)
     
   }
-  
-  
-  
-  # Remove empty lines
   zz <- strsplit(editedcode2, "\n")[[1]]
   zz_c <- c()
   for (iz in 1:length(zz)) {
@@ -280,20 +403,13 @@ edit_scode_for_logistic3 <- function(stancode,
     }
   }
   editedcode2 <- paste(zz_c, collapse = '\n')
-  
-  
   p_block_syb_by <- paste0("", tempt_name_tp, " {")
   p_block_syb_it <- paste0(p_block_syb_by, "\n", tpcode)
   editedcode2 <- gsub(paste0("", p_block_syb_by), p_block_syb_it, 
                       editedcode2, fixed=T, perl=F)
-  
-  
   editedcode2 <- gsub(tempt_name_tp, true_name_tp, editedcode2, fixed = T)
   editedcode2 <- gsub(tempt_name_p,  true_name_p,  editedcode2, fixed = T)
   editedcode2 <- gsub(tempt_name_td,  true_name_td,  editedcode2, fixed = T)
-  
-  
-  # Replace parameters in priors
   for (igr in 1:length(b_what_it_c)) {
     parameter_name <- b_what_it_c[igr]
     poparm         <- b_what_by_c[igr]
@@ -301,8 +417,6 @@ edit_scode_for_logistic3 <- function(stancode,
                         paste0("(", poparm),
                         editedcode2, fixed = T)
   }
-  
-  # Remove empty lines
   zz <- strsplit(editedcode2, "\n")[[1]]
   zz_c <- c()
   for (iz in 1:length(zz)) {
@@ -311,10 +425,7 @@ edit_scode_for_logistic3 <- function(stancode,
       zz_c <- c(zz_c, zz_in)
     }
   }
-  
   editedcode2 <- paste(zz_c, collapse = '\n')
-  
-  # https://github.com/stan-dev/math/issues/2959
   fcode <- 
     "vector ordered_lb_ub_lp (vector y, real lb, real ub) {
     int N = rows(y);
@@ -328,9 +439,6 @@ edit_scode_for_logistic3 <- function(stancode,
     }
     return x;
   }"
-  
-  
-  
   out <- list(editedcode = editedcode2, 
               tpcode = tpcode, 
               pcode = pcode, 
@@ -388,23 +496,18 @@ outliers <-
             linearise = FALSE,
             remove = FALSE,
             verbose = TRUE) {
-    
     mcall <- match.call()
     if(is.symbol(x)) xx_ <- deparse(substitute(x)) else xx_ <- x
     if(is.symbol(y)) yy_ <- deparse(substitute(y)) else yy_ <- y
     if(is.symbol(id)) idid_ <- deparse(substitute(id)) else idid_ <- id
-    
     data <- data %>% dplyr::mutate(order = dplyr::row_number())
     data <- data %>% dplyr::arrange(idid_, xx_)
-    
     dc <- data %>% dplyr::select(!!as.symbol(xx_), 
                                  !!as.symbol(yy_),
                                  !!as.symbol(idid_))
-    
     colnames_data_ex <- colnames(data)
     colnames_dc_ex <- colnames(dc)
     data_ex <- data %>% dplyr::select(-colnames(dc))
-    
     nrow <- nrow(data)
     dc <- na.omit(cbind(dc, count = 1:nrow))
     dc <- dc[order(dc[, 3], dc[, 1]),]
@@ -457,10 +560,8 @@ outliers <-
       cat("code frequencies\n")
       print(summary(mat$code))
     }
-    
     mat <- cbind(mat, data_ex)
     mat <- mat %>% dplyr::relocate(dplyr::all_of(colnames_data_ex))
-    
     if (remove) {
       zap <- mat$code %in% icode
       if (verbose) {
@@ -518,18 +619,15 @@ evaluate_call_args <- function(cargs = NULL,
                             check_trace_back  = NULL,
                             envir = NULL,
                             verbose = FALSE) {
-  
   for (fargsi in names(dargs)) {
     if(is.null(cargs[[fargsi]])) cargs[[fargsi]] <- fargs[[fargsi]]
   }
   for (fargsi in names(fargs)) {
     if(is.null(cargs[[fargsi]])) cargs[[fargsi]] <- fargs[[fargsi]]
   }
-  
   if(is.null(envir)) {
     envir <- parent.frame()
   }
-  
   if(sanitize_CustomDoCall_args) {
     cargs <- sanitize_CustomDoCall_args(what = "CustomDoCall",
                                         arguments = cargs,
@@ -539,7 +637,6 @@ evaluate_call_args <- function(cargs = NULL,
                                         check_trace_back = check_trace_back,
                                         envir = envir)
   }
- 
   return(cargs)
 }
 
@@ -591,22 +688,16 @@ post_processing_args_sanitize <- function(model,
                                           misc = NULL,
                                           envir = NULL, 
                                           verbose = FALSE) {
-  
   if(is.null(envir)) envir <- parent.frame()
   if(is.null(deriv)) deriv <- 0
-  
   if(!'bgmfit' %in% class(model)) {
     stop2c("The class of model object should be 'bgmfit' ")
   }
-  
   allargs <- c(as.list(xcall), dots)
-  
   excall_ <- c("plot_ppc", "loo_validation")
   excall_ <- c(excall_, paste0(excall_, ".", "bgmfit"))
-  
   checkwhat_all <- c()
   if (strsplit(deparse((xcall[1])), "\\.")[[1]][1] %in% excall_) {
-    # Check deriv
     checkwhat <- ""
     checkwhat <- 'deriv'
     if(!is.null(allargs[[checkwhat]])) {
@@ -620,9 +711,7 @@ post_processing_args_sanitize <- function(model,
           "Therefore, it is set to i.e., deriv = NULL"
         )
       }
-    } # if(!is.null(allargs$idata_method)) {
-    
-    # Check idata_method
+    } 
     checkwhat <- ""
     checkwhat <- 'idata_method'
     if(!is.null(allargs[[checkwhat]])) {
@@ -636,9 +725,7 @@ post_processing_args_sanitize <- function(model,
           "Therefore, it is set to i.e., idata_method = NULL"
         )
       }
-    } # if(!is.null(allargs$idata_method)) {
-    
-    # Check re_formula
+    } 
     checkwhat <- ""
     checkwhat <- 're_formula'
     if(!is.null(allargs[[checkwhat]])) {
@@ -652,22 +739,15 @@ post_processing_args_sanitize <- function(model,
           "Therefore, it is set to i.e., idata_method = NULL"
         )
       }
-    } # if(!is.null(allargs$idata_method)) {
-    
-    
-  } # if (strsplit(deparse((xcall[1])), "\\.")[[1]][1] %in% excall_) {
-  
-  
+    } 
+  } 
   if(length(checkwhat_all) == 0) checkwhat_all <- NULL
   checkwhat_all <- c(checkwhat_all, misc)
-  
   if(!is.null(checkwhat_all)) {
     allargs[which(names(allargs)%in%checkwhat_all)] <- NULL
   }
-  
   allargs <- allargs[-1]
   names(allargs) <- gsub("model", "object", names(allargs))
- 
   return(allargs)
 }
 
@@ -696,29 +776,22 @@ setupfuns <- function(model,
                       model_deriv = NULL,
                       verbose = FALSE,
                       ...) {
-  
   if(is.null(envir)) {
     envir <- parent.frame()
   }
-  
   if (is.null(resp)) {
     resp_ <- resp
   } else if (!is.null(resp)) {
     resp_ <- paste0(resp, "_")
   }
-  
   if(is.null(model$xcall)) {
     xcall <- strsplit( deparse(sys.calls()[[sys.nframe()-1]]) , "\\(")[[1]][1]
   } else {
     xcall <- model$xcall
   }
-  
-  
   excall_ <- c("plot_ppc", "loo_validation")
-  
   check_it <- strsplit(deparse((xcall[1])), "\\.")[[1]][1] 
   check_it <- gsub("\"",  "", check_it)
-  
   if (check_it %in% excall_) {
     if(is.null(as.list(xcall)[['deriv']])) deriv <- ''
     if (!is.null(as.list(xcall)[['deriv']])) {
@@ -732,31 +805,26 @@ setupfuns <- function(model,
           "Therefore, it is set to missing i.e., deriv = ''"
         )
       }
-    } # if(!is.null(chcallls$idata_method)) {
+    } 
   }
-  
   if(!usesavedfuns) {
     if(is.null(check_if_functions_exists(model, o, xcall))) {
       return(invisible(NULL))
     }
   }
-  
   if(usesavedfuns) {
     if(is.null(check_if_functions_exists(model, o, xcall,
                                          verbose = F))) {
       envir <- envir
     } else {
-      #  envir <- getEnv(o[[1]], geteval = TRUE)
+      #
     }
-    # envir <- getEnv(o[[1]], geteval = TRUE)
-    
     oall <- model$model_info[['exefuns']]
     oalli_c <- names(oall)
     for (oalli in oalli_c) {
       assign(oalli, oall[[oalli]], envir = envir)
     }
   }
-  
   if(!is.null(deriv)) {
     if(deriv == 0) {
       assignfun <- paste0(model$model_info[['namesexefuns']], deriv)
@@ -773,7 +841,6 @@ setupfuns <- function(model,
       assign(o[[1]], model$model_info[['exefuns']][[assignfun]], envir = envir)
     }
   }
-  
   if(is.null(deriv)) {
     assignfun <- paste0(model$model_info[['namesexefuns']], "")
     assignfun <- paste0(resp_, assignfun)
@@ -825,13 +892,7 @@ set_default_priors <- function(select_model,
     if (grepl("^sd", get_suffix))
       class <- 'sd'
   }
-  
-  
-  ##############################################################
-  # class b
-  ##############################################################
-  
-  # parameter a class b
+
   if (parameter == 'a' & class == 'b') {
     if (prior == 'NA' | prior == '') {
       if (grepl('^sitar', select_model)) {
@@ -859,8 +920,6 @@ set_default_priors <- function(select_model,
     }
   }
   
-  
-  # parameter b class b
   if (parameter == 'b' & class == 'b') {
     if (prior == 'NA' | prior == '') {
       if (grepl('^sitar', select_model)) {
@@ -880,16 +939,14 @@ set_default_priors <- function(select_model,
           prior_out <- "normal(1.5, 0.5, autoscale = 1)"
         }
       } else {
-        
+        #
       }
       prior_out <- gsub_space(prior_out)
     } else {
       prior_out <- prior
     }
   }
-  
-  
-  # parameter c class b
+
   if (parameter == 'c' & class == 'b') {
     if (prior == 'NA' | prior == '') {
       if (grepl('^sitar', select_model)) {
@@ -909,16 +966,14 @@ set_default_priors <- function(select_model,
           prior_out <- "normal(0.1, 0.1, autoscale = 1)"
         }
       } else {
-        
+        #
       }
       prior_out <- gsub_space(prior_out)
     } else {
       prior_out <- prior
     }
   }
-  
-  
-  # parameter d class b
+
   if (parameter == 'd' & class == 'b') {
     if (prior == 'NA' | prior == '') {
       if (grepl('^sitar', select_model)) {
@@ -938,16 +993,14 @@ set_default_priors <- function(select_model,
           prior_out <- "normal(ymeanxmid, ysdxmid, autoscale = 2.5)"
         }
       } else {
-        
+        #
       }
       prior_out <- gsub_space(prior_out)
     } else {
       prior_out <- prior
     }
   }
-  
-  
-  # parameter e class b
+
   if (parameter == 'e' & class == 'b') {
     if (prior == 'NA' | prior == '') {
       if (grepl('^sitar', select_model)) {
@@ -967,16 +1020,14 @@ set_default_priors <- function(select_model,
           prior_out <- "normal(0.2, 0.1, autoscale = 1)"
         }
       } else {
-        
+        #
       }
       prior_out <- gsub_space(prior_out)
     } else {
       prior_out <- prior
     }
   }
-  
-  
-  # parameter f class b
+
   if (parameter == 'f' & class == 'b') {
     if (prior == 'NA' | prior == '') {
       if (grepl('^sitar', select_model)) {
@@ -996,16 +1047,14 @@ set_default_priors <- function(select_model,
           prior_out <- "normal(5, 3, autoscale = 1)"
         }
       } else {
-        
+        #
       }
       prior_out <- gsub_space(prior_out)
     } else {
       prior_out <- prior
     }
   }
-  
-  
-  # parameter g class b
+
   if (parameter == 'g' & class == 'b') {
     if (prior == 'NA' | prior == '') {
       if (grepl('^sitar', select_model)) {
@@ -1026,16 +1075,14 @@ set_default_priors <- function(select_model,
             "normal(ymeanxmidxmaxdiff, ysdxmidxmaxdiff, autoscale = 2.5)"
         }
       } else {
-        
+        #
       }
       prior_out <- gsub_space(prior_out)
     } else {
       prior_out <- prior
     }
   }
-  
-  
-  # parameter h class b
+
   if (parameter == 'h' & class == 'b') {
     if (prior == 'NA' | prior == '') {
       if (grepl('^sitar', select_model)) {
@@ -1055,16 +1102,14 @@ set_default_priors <- function(select_model,
           prior_out <- "normal(1.5, 0.25, autoscale = 1)"
         }
       } else {
-        
+        #
       }
       prior_out <- gsub_space(prior_out)
     } else {
       prior_out <- prior
     }
   }
-  
-  
-  # parameter i class b
+
   if (parameter == 'i' & class == 'b') {
     if (prior == 'NA' | prior == '') {
       if (grepl('^sitar', select_model)) {
@@ -1084,7 +1129,7 @@ set_default_priors <- function(select_model,
           prior_out <- "normal(14, 2, autoscale = 1)"
         }
       } else {
-        
+        #
       }
       prior_out <- gsub_space(prior_out)
     } else {
@@ -1092,15 +1137,6 @@ set_default_priors <- function(select_model,
     }
   }
   
-  
-  
-  
-  
-  ##############################################################
-  # class sd
-  ##############################################################
-  
-  # parameter a class sd
   if (parameter == 'a' & class == 'sd') {
     if (prior == 'NA' | prior == '') {
       if (grepl('^sitar', select_model)) {
@@ -1120,16 +1156,14 @@ set_default_priors <- function(select_model,
           prior_out <- "normal(0, ysdxmin, autoscale = 2.5)"
         }
       } else {
-        
+        #
       }
       prior_out <- gsub_space(prior_out)
     } else {
       prior_out <- prior
     }
   }
-  
-  
-  # parameter b class sd
+
   if (parameter == 'b' & class == 'sd') {
     if (prior == 'NA' | prior == '') {
       if (grepl('^sitar', select_model)) {
@@ -1149,16 +1183,14 @@ set_default_priors <- function(select_model,
           prior_out <- "normal(0, 1, autoscale = 1)"
         }
       } else {
-        
+        #
       }
       prior_out <- gsub_space(prior_out)
     } else {
       prior_out <- prior
     }
   }
-  
-  
-  # parameter c class sd
+
   if (parameter == 'c' & class == 'sd') {
     if (prior == 'NA' | prior == '') {
       if (grepl('^sitar', select_model)) {
@@ -1178,16 +1210,14 @@ set_default_priors <- function(select_model,
           prior_out <- "normal(0, 1, autoscale = 1)"
         }
       } else {
-        
+        #
       }
       prior_out <- gsub_space(prior_out)
     } else {
       prior_out <- prior
     }
   }
-  
-  
-  # parameter d class sd
+
   if (parameter == 'd' & class == 'sd') {
     if (prior == 'NA' | prior == '') {
       if (grepl('^sitar', select_model)) {
@@ -1207,16 +1237,14 @@ set_default_priors <- function(select_model,
           prior_out <- "normal(0, ysdxmid, autoscale = 2.5)"
         }
       } else {
-        
+        #
       }
       prior_out <- gsub_space(prior_out)
     } else {
       prior_out <- prior
     }
   }
-  
-  
-  # parameter e class sd
+
   if (parameter == 'e' & class == 'sd') {
     if (prior == 'NA' | prior == '') {
       if (grepl('^sitar', select_model)) {
@@ -1236,16 +1264,14 @@ set_default_priors <- function(select_model,
           prior_out <- "normal(0, 0.15, autoscale = 1)"
         }
       } else {
-        
+        #
       }
       prior_out <- gsub_space(prior_out)
     } else {
       prior_out <- prior
     }
   }
-  
-  
-  # parameter f class sd
+
   if (parameter == 'f' & class == 'sd') {
     if (prior == 'NA' | prior == '') {
       if (grepl('^sitar', select_model)) {
@@ -1265,16 +1291,14 @@ set_default_priors <- function(select_model,
           prior_out <- "normal(0, 2, autoscale = 1)"
         }
       } else {
-        
+        #
       }
       prior_out <- gsub_space(prior_out)
     } else {
       prior_out <- prior
     }
   }
-  
-  
-  # parameter g class sd
+
   if (parameter == 'g' & class == 'sd') {
     if (prior == 'NA' | prior == '') {
       if (grepl('^sitar', select_model)) {
@@ -1294,16 +1318,14 @@ set_default_priors <- function(select_model,
           prior_out <- "normal(0, ysdxmidxmaxdiff, autoscale = 1)"
         }
       } else {
-        
+        #
       }
       prior_out <- gsub_space(prior_out)
     } else {
       prior_out <- prior
     }
   }
-  
-  
-  # parameter h class sd
+
   if (parameter == 'h' & class == 'sd') {
     if (prior == 'NA' | prior == '') {
       if (grepl('^sitar', select_model)) {
@@ -1323,16 +1345,14 @@ set_default_priors <- function(select_model,
           prior_out <- "normal(0, 0.25, autoscale = 1)"
         }
       } else {
-        
+        #
       }
       prior_out <- gsub_space(prior_out)
     } else {
       prior_out <- prior
     }
   }
-  
-  
-  # parameter i class sd
+
   if (parameter == 'i' & class == 'sd') {
     if (prior == 'NA' | prior == '') {
       if (grepl('^sitar', select_model)) {
@@ -1352,14 +1372,13 @@ set_default_priors <- function(select_model,
           prior_out <- "normal(0, 2, autoscale = 1)"
         }
       } else {
-        
+        #
       }
       prior_out <- gsub_space(prior_out)
     } else {
       prior_out <- prior
     }
   }
-  
   return(prior_out)
 }
 
@@ -1406,13 +1425,7 @@ set_default_inits <- function(select_model,
     if (grepl("^sd", get_suffix))
       class <- 'sd'
   }
-  
-  
-  ##############################################################
-  # class b
-  ##############################################################
-  
-  # parameter a class b
+
   if (parameter == 'a' & class == 'b') {
     if (init == 'NA' | init == '') {
       if (grepl('^sitar', select_model)) {
@@ -1432,16 +1445,14 @@ set_default_inits <- function(select_model,
           init_out <- "ymin"
         }
       } else {
-        
+        #
       }
       init_out <- gsub_space(init_out)
     } else {
       init_out <- init
     }
   }
-  
-  
-  # parameter b class b
+
   if (parameter == 'b' & class == 'b') {
     if (init == 'NA' | init == '') {
       if (grepl('^sitar', select_model)) {
@@ -1461,16 +1472,14 @@ set_default_inits <- function(select_model,
           init_out <- 1.5
         }
       } else {
-        
+        #
       }
       init_out <- gsub_space(init_out)
     } else {
       init_out <- init
     }
   }
-  
-  
-  # parameter c class b
+
   if (parameter == 'c' & class == 'b') {
     if (init == 'NA' | init == '') {
       if (grepl('^sitar', select_model)) {
@@ -1490,16 +1499,14 @@ set_default_inits <- function(select_model,
           init_out <- 0.1
         }
       } else {
-        
+        #
       }
       init_out <- gsub_space(init_out)
     } else {
       init_out <- init
     }
   }
-  
-  
-  # parameter d class b
+
   if (parameter == 'd' & class == 'b') {
     if (init == 'NA' | init == '') {
       if (grepl('^sitar', select_model)) {
@@ -1519,16 +1526,14 @@ set_default_inits <- function(select_model,
           init_out <- "ymeanxmid"
         }
       } else {
-        
+        #
       }
       init_out <- gsub_space(init_out)
     } else {
       init_out <- init
     }
   }
-  
-  
-  # parameter e class b
+
   if (parameter == 'e' & class == 'b') {
     if (init == 'NA' | init == '') {
       if (grepl('^sitar', select_model)) {
@@ -1550,16 +1555,14 @@ set_default_inits <- function(select_model,
           init_out <- 0.15
         }
       } else {
-        
+        #
       }
       init_out <- gsub_space(init_out)
     } else {
       init_out <- init
     }
   }
-  
-  
-  # parameter f class b
+
   if (parameter == 'f' & class == 'b') {
     if (init == 'NA' | init == '') {
       if (grepl('^sitar', select_model)) {
@@ -1581,16 +1584,14 @@ set_default_inits <- function(select_model,
           init_out <- 5
         }
       } else {
-        
+        #
       }
       init_out <- gsub_space(init_out)
     } else {
       init_out <- init
     }
   }
-  
-  
-  # parameter g class b
+
   if (parameter == 'g' & class == 'b') {
     if (init == 'NA' | init == '') {
       if (grepl('^sitar', select_model)) {
@@ -1611,16 +1612,14 @@ set_default_inits <- function(select_model,
             "ymeanxmidxmaxdiff"
         }
       } else {
-        
+        #
       }
       init_out <- gsub_space(init_out)
     } else {
       init_out <- init
     }
   }
-  
-  
-  # parameter h class b
+
   if (parameter == 'h' & class == 'b') {
     if (init == 'NA' | init == '') {
       if (grepl('^sitar', select_model)) {
@@ -1640,16 +1639,14 @@ set_default_inits <- function(select_model,
           init_out <- 1.5
         }
       } else {
-        
+        #
       }
       init_out <- gsub_space(init_out)
     } else {
       init_out <- init
     }
   }
-  
-  
-  # parameter i class b
+
   if (parameter == 'i' & class == 'b') {
     if (init == 'NA' | init == '') {
       if (grepl('^sitar', select_model)) {
@@ -1669,23 +1666,14 @@ set_default_inits <- function(select_model,
           init_out <- 13
         }
       } else {
-        
+        #
       }
       init_out <- gsub_space(init_out)
     } else {
       init_out <- init
     }
   }
-  
-  
-  
-  
-  
-  ##############################################################
-  # class sd
-  ##############################################################
-  
-  # parameter a class sd
+
   if (parameter == 'a' & class == 'sd') {
     if (init == 'NA' | init == '') {
       if (grepl('^sitar', select_model)) {
@@ -1705,16 +1693,14 @@ set_default_inits <- function(select_model,
           init_out <- "normal(0, ysdxmin, autoscale = 2.5)"
         }
       } else {
-        
+        #
       }
       init_out <- gsub_space(init_out)
     } else {
       init_out <- init
     }
   }
-  
-  
-  # parameter b class sd
+
   if (parameter == 'b' & class == 'sd') {
     if (init == 'NA' | init == '') {
       if (grepl('^sitar', select_model)) {
@@ -1734,16 +1720,14 @@ set_default_inits <- function(select_model,
           init_out <- "normal(0, 1, autoscale = 1)"
         }
       } else {
-        
+        #
       }
       init_out <- gsub_space(init_out)
     } else {
       init_out <- init
     }
   }
-  
-  
-  # parameter c class sd
+
   if (parameter == 'c' & class == 'sd') {
     if (init == 'NA' | init == '') {
       if (grepl('^sitar', select_model)) {
@@ -1763,16 +1747,14 @@ set_default_inits <- function(select_model,
           init_out <- "normal(0, 1, autoscale = 1)"
         }
       } else {
-        
+        #
       }
       init_out <- gsub_space(init_out)
     } else {
       init_out <- init
     }
   }
-  
-  
-  # parameter d class sd
+
   if (parameter == 'd' & class == 'sd') {
     if (init == 'NA' | init == '') {
       if (grepl('^sitar', select_model)) {
@@ -1792,16 +1774,14 @@ set_default_inits <- function(select_model,
           init_out <- "normal(0, ysdxmid, autoscale = 2.5)"
         }
       } else {
-        
+        #
       }
       init_out <- gsub_space(init_out)
     } else {
       init_out <- init
     }
   }
-  
-  
-  # parameter e class sd
+
   if (parameter == 'e' & class == 'sd') {
     if (init == 'NA' | init == '') {
       if (grepl('^sitar', select_model)) {
@@ -1821,16 +1801,14 @@ set_default_inits <- function(select_model,
           init_out <- "normal(0, 0.15, autoscale = 1)"
         }
       } else {
-        
+        #
       }
       init_out <- gsub_space(init_out)
     } else {
       init_out <- init
     }
   }
-  
-  
-  # parameter f class sd
+
   if (parameter == 'f' & class == 'sd') {
     if (init == 'NA' | init == '') {
       if (grepl('^sitar', select_model)) {
@@ -1850,16 +1828,14 @@ set_default_inits <- function(select_model,
           init_out <- "normal(0, 2, autoscale = 1)"
         }
       } else {
-        
+        #
       }
       init_out <- gsub_space(init_out)
     } else {
       init_out <- init
     }
   }
-  
-  
-  # parameter g class sd
+
   if (parameter == 'g' & class == 'sd') {
     if (init == 'NA' | init == '') {
       if (grepl('^sitar', select_model)) {
@@ -1879,16 +1855,14 @@ set_default_inits <- function(select_model,
           init_out <- "normal(0, ysdxmidxmaxdiff, autoscale = 1)"
         }
       } else {
-        
+        #
       }
       init_out <- gsub_space(init_out)
     } else {
       init_out <- init
     }
   }
-  
-  
-  # parameter h class sd
+
   if (parameter == 'h' & class == 'sd') {
     if (init == 'NA' | init == '') {
       if (grepl('^sitar', select_model)) {
@@ -1908,16 +1882,14 @@ set_default_inits <- function(select_model,
           init_out <- "normal(0, 0.25, autoscale = 1)"
         }
       } else {
-        
+        #
       }
       init_out <- gsub_space(init_out)
     } else {
       init_out <- init
     }
   }
-  
-  
-  # parameter i class sd
+
   if (parameter == 'i' & class == 'sd') {
     if (init == 'NA' | init == '') {
       if (grepl('^sitar', select_model)) {
@@ -1937,14 +1909,13 @@ set_default_inits <- function(select_model,
           init_out <- "normal(0, 2, autoscale = 1)"
         }
       } else {
-        
+        #
       }
       init_out <- gsub_space(init_out)
     } else {
       init_out <- init
     }
   }
-  
   return(init_out)
 }
 
@@ -1996,9 +1967,7 @@ set_init_gr_effects <- function(xscode,
                                 z_value = 0,
                                 r_value = 0,
                                 L_value = 0) {
-  xscode <-
-    get_par_names_from_stancode(xscode, full = full, what = what)
-  
+  xscode <- get_par_names_from_stancode(xscode, full = full, what = what)
   sdi_c <- c()
   parm_c <- c()
   sd_init_list_c_ <- list()
@@ -2009,9 +1978,7 @@ set_init_gr_effects <- function(xscode,
     parm_c <- getparm # c(parm_c, getparm)
     sdi <- gsub("[", "(", sdi, fixed = T)
     sdi <- gsub("]", ")", sdi, fixed = T)
-    str_d <-
-      regmatches(sdi, gregexpr("(?=\\().*?(?<=\\))", sdi, perl = T))[[1]]
-    # this to remove dim after par name
+    str_d <- regmatches(sdi, gregexpr("(?=\\().*?(?<=\\))", sdi, perl = T))[[1]]
     parm_cm <- parm_c
     if (grepl("[", parm_cm, fixed = T)) {
       parm_cm <- gsub("[", "(", parm_cm, fixed = T)
@@ -2025,22 +1992,17 @@ set_init_gr_effects <- function(xscode,
       parm_c <- parm_c
     }
     parm_c <- parm_c
-    # sdi_c <- c(sdi_c, str_d)
     sdi <- str_d
     sdi <- gsub("(", "", sdi, fixed = T)
     sdi <- gsub(")", "", sdi, fixed = T)
     str_d <- sdi
-    #
     sdi <- gsub("(", "", sdi, fixed = T)
     sdi <- gsub(")", "", sdi, fixed = T)
     str_d <- gsub("[[:space:]]", "", sdi)
     str_d_ <- strsplit(str_d, ",") %>% unlist()
-    
-    # for student_nu distribution parameter
     if (grepl("sd_nu", parm_c, fixed = T)) {
       set_value <- 3
     }
-    
     if (grepl("sd", parm_c, fixed = T)) {
       set_value <- sd_value
     }
@@ -2050,10 +2012,7 @@ set_init_gr_effects <- function(xscode,
     if (grepl("L", parm_c, fixed = T)) {
       set_value <- L_value
     }
-    
-    # to exclude student_nu distribution parameter
     if (grepl("sd", parm_c, fixed = T)) {
-      # to exclude student_nu distribution parameter
       if (!grepl("sd_nu", parm_c, fixed = T)) {
         if (length(str_d_) == 1) {
           dim1 <- xsdata[[str_d_[1]]]
@@ -2066,9 +2025,8 @@ set_init_gr_effects <- function(xscode,
         if (is.vector(out)) {
           out <- array(out, dim = length(out))
         }
-      } # if(!grepl("sd_nu", parm_c, fixed = T)) {
-    } # if(grepl("sd", parm_c, fixed = T)) {
-    
+      } 
+    } 
     if (grepl("z", parm_c, fixed = T)) {
       if (length(str_d_) == 1) {
         dim1 <- xsdata[[str_d_[1]]]
@@ -2078,22 +2036,16 @@ set_init_gr_effects <- function(xscode,
         dim2 <- xsdata[[str_d_[2]]]
         out <- matrix(set_value, dim1, dim2)
       }
-      
       if (is.vector(out)) {
         out <- array(out, dim = length(out))
       }
-      
       if (ncol(out) == 1) {
         out <- t(out)
       }
-    } # if(grepl("z", parm_c, fixed = T)) {
-    
-    
+    } 
     if(parameterization == 'cp') {
-      # if (grepl("r", parm_c, fixed = T)) {
       if (grepl("r", parm_c, fixed = T) & 
           !grepl("Lrescor", parm_c, fixed = T)) {
-        
         if (length(str_d_) == 1) {
           dim1 <- xsdata[[str_d_[1]]]
           out <- rep(set_value, dim1)
@@ -2102,20 +2054,14 @@ set_init_gr_effects <- function(xscode,
           dim2 <- xsdata[[str_d_[2]]]
           out <- matrix(set_value, dim1, dim2)
         }
-       
         if (is.vector(out)) {
           out <- array(out, dim = length(out))
         }
-        
         if (ncol(out) == 1) {
           out <- t(out)
         }
-       
-      } # if(grepl("r", parm_c, fixed = T)) {
-    } # if(parameterization == 'cp') {
-    
-   
-    
+      } 
+    } 
     if (grepl("L", parm_c, fixed = T)) {
       if (length(str_d_) == 1) {
         dim1 <- xsdata[[str_d_[1]]]
@@ -2125,14 +2071,13 @@ set_init_gr_effects <- function(xscode,
       if (length(str_d_) == 2) {
         dim1 <- xsdata[[str_d_[1]]] 
         dim2 <- xsdata[[str_d_[2]]] 
-        # outxx <- array(0, dim = c(dim2, dim1, dim1))
         outxx <- array(0, dim = c(dim1, dim2, dim2)) # 13 12 23
         for (i in 1:dim(outxx)[2]) {
           outxx[, i, i] <- 1
         }
         out <- outxx
       }
-    } # if(grepl("L", parm_c, fixed = T)) {
+    } 
     sd_init_list_c_[[parm_c]] <- out
   }
   sd_init_list_c_
@@ -2163,12 +2108,10 @@ get_pathfinder_init <- function(pthf = NULL,
                                 model = NULL,
                                 compile_init_model_methods = NULL,
                                 verbose = FALSE) {
-  
   if(is.null(pthf) & is.null(model)) 
     stop2c('Specify at least pthf or model')
   if(!is.null(pthf) & !is.null(model)) 
     stop2c('Specify either least pthf or model')
-  
   if(!is.null(model)) {
     mod <- attr(model$fit, "CmdStanModel")
     dat <- brms::standata(model)
@@ -2184,19 +2127,15 @@ get_pathfinder_init <- function(pthf = NULL,
     if(is.null(compile_init_model_methods)) compile_init_model_methods <- FALSE
     pthf <- pthf
   }
-  
   if(compile_init_model_methods) {
     pth1$init_model_methods()
   }
-  
   lp__ <- NULL;
   lp_approx__ <- NULL;
   lw <- NULL;
   .draw <- NULL;
   lw.x <- NULL;
   lp__ <- NULL;
-  
-  
   as_inits <- function(draws, variable=NULL, ndraws=ndraws) {
     ndraws <- min(posterior::ndraws(draws),ndraws)
     if (is.null(draws)) {variable = variables(draws)}
@@ -2212,9 +2151,7 @@ get_pathfinder_init <- function(pthf = NULL,
                     })
     if (ndraws==1) { inits[[1]] } else { inits }
   }
-  
   if (is.null(variables)) {
-    # set variable names to be list of parameter names
     variables <- names(pthf$variable_skeleton(transformed_parameters = FALSE,
                                               generated_quantities = FALSE))
   }
@@ -2226,8 +2163,6 @@ get_pathfinder_init <- function(pthf = NULL,
     stop2c(paste0("Not enough distinct draws (", ndist, ") to create inits."))
   }
   if (ndist < 0.95*posterior::ndraws(draws)) {
-    # Resampling has been done in Stan, compute weights for distinct draws
-    #these are now non Pareto smoothed as we have lost the original information
     draws <- draws %>% 
       dplyr::group_by(lw) %>% 
       dplyr::summarise(.draw=min(.draw)) %>% 
@@ -2236,35 +2171,31 @@ get_pathfinder_init <- function(pthf = NULL,
       posterior::mutate_variables(lw = lw.x,
                                   w = exp(lw-max(lw)))
   } else {
-    # Resampling was not done in Stan, compute Pareto smoothed weights
     draws <- draws %>% 
       posterior::mutate_variables(w=posterior::pareto_smooth(exp(lw-max(lw)), 
                                                              tail="right"))
   }
-  
   out <- 
     draws %>% 
     posterior::weight_draws(weights=posterior::extract_variable(draws,"w"), 
                             log=FALSE) %>% 
     posterior::resample_draws(ndraws=ndraws, method = "simple_no_replace") %>% 
     as_inits(variable=variables, ndraws=ndraws)
-  
-  
   if(!is.null(init_structure)) {
-    path_inits <- out # inits_pathfinder
-    init_str_x <- init_structure # fit_m$stan_args$init[[1]]
+    path_inits <- out 
+    init_str_x <- init_structure 
     for (stri in names(init_str_x)) {
       if(is.array( init_str_x[[stri]] )) {
         if(!is.null(path_inits[[stri]])) {
-          path_inits[[stri]] <- array(path_inits[[stri]], dim = dim(init_str_x[[stri]]) )
+          path_inits[[stri]] <- array(path_inits[[stri]], 
+                                      dim = dim(init_str_x[[stri]]) )
         }
       } else if(is.vector( init_str_x[[stri]] )) {
       } else if(is.numeric( init_str_x[[stri]] )) {
       }
       out <- path_inits
     }
-  } # if(!is.null(init_structure)) {
-  
+  } 
   return(out)
 }
 
@@ -2302,7 +2233,6 @@ check_is_numeric_like <- function(x,
                             ){
   x = trimws(x,'both')
   x[x %in% na.strings] = NA
-  # https://stackoverflow.com/a/21154566/2292993
   result = grepl("^[\\-\\+]?[0-9]+[\\.]?[0-9]*$|^[\\-\\+]?[0-9]+[L]?$|^[\\-\\+]?[0-9]+[\\.]?[0-9]*[eE][0-9]+$",x,perl=TRUE)
   if (naAsTrue) result = result | is.na(x)
   return((result))
@@ -2391,8 +2321,7 @@ flattten_last_time <-
           ))
       }
     }
-    temdata2 <- temdata %>% dplyr::select(-c("occtemp",
-                                             "nocctemp"))
+    temdata2 <- temdata %>% dplyr::select(-c("occtemp", "nocctemp"))
     return(temdata2)
   }
 
@@ -2416,15 +2345,12 @@ flattten_last_time <-
 GG_save_pdf = function(list, filename, 
                        width = 10, height = 7,
                        onefile = TRUE, compress = TRUE) {
-  #start pdf
   filename <- paste0(filename, ".", "pdf")
   grDevices::pdf(filename, width = width, height = height,
       onefile = onefile, compress = compress)
-  #loop
   for (p in list) {
     print(p)
   }
-  #end pdf
   grDevices::dev.off()
   invisible(NULL)
 }
@@ -2512,8 +2438,6 @@ remove_between_first_last_parnth <- function(x, splitat = NULL) {
 #' @noRd
 #'
 inverse_transform <- function (expr, verbose = FALSE, envir = NULL) {
-  # 7.9.25 - if is.function such as zzz <- function(x)x
-  # then extract body
   if(is.function(expr)) {
     expr <- base::body(expr)
   }
@@ -2629,7 +2553,7 @@ check_if_any_varibale_all_NA <- function(data,
                ". ", "Please check data")
         }
       }
-    } # for (l in levels(data[[uvarby]])) {
+    } 
   } else if(is.null(factor_var)) {
     tempdata <- data
     for (i in names(tempdata)) {
@@ -2639,13 +2563,11 @@ check_if_any_varibale_all_NA <- function(data,
       }
     }
   }
-  
   if(return) {
     return(data)
   } else {
     return(invisible(NULL))
   }
-  
 }
 
 
@@ -2725,14 +2647,12 @@ check_and_rename_funs_args_to_x <- function(fun, checkname = "x") {
   if(!is.character(checkname)) {
     stop2c("'checkname' must be a character")
   }
-  # https://stackoverflow.com/questions/33850219/change-
-  # argument-names-inside-a-function
   rep_vars <- function(expr, keyvals) {
     if (!length(expr)) return()
     if(is.symbol(expr)) {
       expr <- deparse(expr)
       expr <- gsub("\"", "", expr)
-      expr <- str2expression(expr) # Imp, must be an expression
+      expr <- str2expression(expr) 
     }
     for (i in seq_along(expr)) {
       if (is.call(expr[[i]])) expr[[i]][-1L] <- Recall(expr[[i]][-1L], keyvals)
@@ -2741,46 +2661,32 @@ check_and_rename_funs_args_to_x <- function(fun, checkname = "x") {
     }
     return( expr )
   }
-  
   formalArgs_names_in <- methods::formalArgs(args(fun))
-  
   deparse_fun_str <- deparse(fun)
   deparse_fun_str <- gsub_space(paste(deparse_fun_str, collapse = ""))
-  
   if(length(formalArgs_names_in) > 1) {
     stop2c("Function '", deparse(fun) , "' must have only one argument")
   }
-  
-  if(grepl("\\{", deparse_fun_str) | grepl("}", deparse_fun_str)
-  ) {
+  if(grepl("\\{", deparse_fun_str) | grepl("}", deparse_fun_str)) {
     stop2c("'", deparse_fun_str, "' must be a simple function without",
          "curly braces '{}'.",
          "\n ",
          " Examples: 'function(x)x' 'function(x)log(x)' function(x)log(x+1)")
   }
-  
   if(grepl("return\\(", deparse_fun_str)) {
     stop2c("Function '", deparse_fun_str, "' must be a simple function without",
          "'return()'.",
          "\n ",
          " Examples: 'function(x)x' 'function(x)log(x)' function(x)log(x+1)")
   }
-  
-  ##############################################################
   if(formalArgs_names_in == checkname) {
     return(fun)
   } else {
-    # https://stackoverflow.com/questions/44097516/r-paste-two-
-    # string-with-an-equal-sign-between-it-stringa-stringb
-    # newvals <- c("z" = "x")
     newvals <- checkname
     names(newvals) <- formalArgs_names_in
     newbod <- rep_vars(body(fun), newvals)
-    # formals(fun) <- pairlist(x =bquote())
     formals(fun) <- ept(paste0("pairlist(", checkname, "=bquote())" ))
     body(fun) <- newbod
-    # formals(fun) <- pairlist(x=bquote())
-    # body(fun)    <- rep_vars(body(fun), newvals)
     return(fun)
   }
 } 
@@ -2799,20 +2705,16 @@ check_and_rename_funs_args_to_x <- function(fun, checkname = "x") {
 #' @noRd
 #'
 assign_function_to_environment <- function(fun, funname, envir = NULL) {
-  
   if(is.logical(fun)) {
     if(!fun) {
       fun <- "identity"
     }
   }
-  
-
   if(is.null(envir)) {
     envir <- parent.frame()
   } else {
     envir <- envir
   }
-  
   if(!is.null(fun)) {
     if(is.function(fun) & !is.primitive(fun)) {
       if(!is.primitive(fun)) {
@@ -2824,11 +2726,8 @@ assign_function_to_environment <- function(fun, funname, envir = NULL) {
                   "or a function such as function(x)log(x)"))
     }
   }
-  
   set_transform_draws      <- check_if_arg_set(fun)
-  
   allowedstrfun <- c("identity", "log", "sqrt")
-  
   if (!set_transform_draws) {
     fun_eval <- function(x)x
     assign(funname, fun_eval, envir = envir)
@@ -2879,7 +2778,6 @@ extract_names_from_call <- function(model = NULL,
   } else if(is.null(model)) {
     if(is.null(xcall)) stop2c("specify either 'model' or 'xcall'")
   }
-  
   if(is.null(arg)) {
     stop2c("specify 'arg'")
   } else if(!is.null(arg)) {
@@ -2893,8 +2791,7 @@ extract_names_from_call <- function(model = NULL,
   }
   extracted <- gsub_space(extracted)
   extracted
-} # end extract_names_from_mcall
-
+} 
 
 #' An internal function to get the inverse transformation call 
 #'
@@ -2948,16 +2845,13 @@ get_itransform_call <- function(itransform,
       if(dpar == "sigma") {
         itransform_set <- c(itransform_set, 'sigma')
       }
-      # itransform_set <- itransform
     }
-  } # if(is.null(itransform)) {
+  } 
   if(!is.character(itransform_set)) {
     stop2c("'get_itransform_call()' must return a character string or a vector: ",
          "\n  ", 
          collapse_comma(c('x', 'y', 'sigma')))
   }
-  
-  
   if(!is.null(model)) {
     sigma_model <- get_sigmamodel_info(model = model,
                                        newdata = newdata,
@@ -2967,14 +2861,12 @@ get_itransform_call <- function(itransform,
                                        cov = NULL, 
                                        all = FALSE, 
                                        verbose = verbose)
-    
     if(!is.null(sigma_model)) {
       if(sigma_model != "ls") {
         itransform_set <- "sigma"
       }
     }
-  } # if(!is.null(model)) {
-  
+  } 
   return(itransform_set)
 }
 
@@ -3001,13 +2893,10 @@ CustomDoCall <- function(what,
                          quote = 
                            FALSE, 
                          envir = NULL) {
-  
   if(is.null(envir))
     envir <-   parent.frame()
-  
   if (quote)
     args <- lapply(args, enquote)
-  
   if (is.null(names(args))){
     argn <- args
     args <- list()
@@ -3061,19 +2950,16 @@ sanitize_CustomDoCall_args <- function(what,
                                        check_formalArgs_exceptions = NULL,
                                        check_trace_back = NULL,
                                        envir = NULL) {
-  
   if(is.null(envir)) {
     envir <- parent.frame()
   } else {
     envir <- envir
   }
-  
   if(is.null(check_trace_back)) {
     set_trace_back <- rlang::trace_back() 
   } else {
     set_trace_back <- check_trace_back
   }
-  
   if(!is.null(check_formalArgs)) {
     if(is.function(check_formalArgs)) {
       ownargs <- methods::formalArgs(check_formalArgs)
@@ -3082,7 +2968,6 @@ sanitize_CustomDoCall_args <- function(what,
     } else {
       stop2c("'check_formalArgs' must be a function or a list")
     }
-    
     for (i in setdiff(names(arguments), ownargs)) {
       if(!is.null(check_formalArgs_exceptions)) {
         if(!i %in% check_formalArgs_exceptions) {
@@ -3091,15 +2976,12 @@ sanitize_CustomDoCall_args <- function(what,
       } else if(is.null(check_formalArgs_exceptions)) {
         arguments[[i]] <- NULL
       }
-    } # for (i in setdiff(names(arguments), ownargs)) {
-  } # if(!is.null(check_formalArgs)) {
-  
+    } 
+  } 
   eval_CustomDoCall <- FALSE
   if(any(grepl(what, set_trace_back))) {
     eval_CustomDoCall <- TRUE
   }
-  
-  # remove empty argument 
   if(eval_CustomDoCall) {
     for (i in names(arguments)) {
       if(is.symbol(arguments[[i]])) {
@@ -3108,20 +2990,16 @@ sanitize_CustomDoCall_args <- function(what,
         }
       }
     }
-    
     for (i in names(arguments)) {
       if(!is.null(arguments[[i]])) {
         arguments[[i]] <- eval(arguments[[i]], envir = envir)
       }
     }
-  } # if(eval_CustomDoCall) {
-  
+  } 
   return(arguments)
-} # sanitize_CustomDoCall_args
+} 
 
 
-
-# not using
 
 #' An internal function to work with CustomDoCall()
 #' 
@@ -3148,7 +3026,6 @@ check_CustomDoCall_fun <- function(scall,
                                               check_CustomDoCall, perl=T))[[1]]
     check_CustomDoCall <- strsplit(check_CustomDoCall[1], "\\(")[[1]][1]
   }
-  
   if(return_tf & return_str) {
     out <- list()
     out[['eval_CustomDoCall']]  <- eval_CustomDoCall
@@ -3191,7 +3068,6 @@ replace_string_part <- function(x,
                                 cat_str = FALSE,
                                 exclude_start = FALSE,
                                 exclude_end = FALSE) {
-  
   if(!is.character(x))       
     stop2c("Argument 'x' must be a character string")
   if(!is.character(start))   
@@ -3204,65 +3080,33 @@ replace_string_part <- function(x,
     stop2c("Argument 'extract' must be a logical (TRUE/FALSE)")
   if(!is.logical(cat_str))   
     stop2c("Argument 'cat_str' must be a logical (TRUE/FALSE)")
-  
   original_string  <- x
   start_pattern    <- start
   end_pattern      <- end
   replacement_text <- replace
   extract_pattern  <- extract
   catit            <- cat_str
-  
-  
-  
   start_pattern_raw <- start_pattern
   end_pattern_raw   <- end_pattern
-  # Helper function to escape special regex characters
-  # These are the common special regex characters that need escaping.
-  # Order matters for some, e.g., escape '\' before '['
-  
   special_chars <- c("\\", ".", "+", "*", "?", "^", "$", "(", ")", "[", "]", "{", "}", "|")
   escape_regex <- function(string, special_chars) {
-    # Use 'fixed = TRUE' to treat the search pattern as a literal string
-    # when replacing, so we don't accidentally escape the escapes themselves.
     for (char in special_chars) {
       string <- gsub(char, paste0("\\", char), string, fixed = TRUE)
     }
     return(string)
   }
-  
   start_pattern_escaped <- escape_regex(start_pattern_raw, special_chars)
   end_pattern_escaped   <- escape_regex(end_pattern_raw, special_chars)
-  # Construct the full regex pattern with (?s) flag for DOTALL mode
   regex_pattern <- paste0(
     start_pattern_escaped,
-    # (?s) makes the dot match newlines; .*? is non-greedy
     "(?s).*?", 
-    end_pattern_escaped
-  )
-  
-  
- 
-  # if(extract_pattern) {
-  #   export_pattern <- paste0(start_pattern_escaped, end_pattern_escaped)
-  #   clean_the_export_pattern <- function(string, special_chars) {
-  #     for (char in special_chars) {
-  #       string <- gsub(paste0("\\", char), char, string, fixed = TRUE)
-  #     }
-  #     return(string)
-  #   } # end clean_the_export_pattern
-  #   export_pattern <- clean_the_export_pattern(export_pattern, special_chars)
-  #   return(export_pattern)
-  # } # if(extract_pattern) {
-  
-  # Perform the replacement or extract
+    end_pattern_escaped)
   if(extract_pattern) {
     match_info <- regexpr(regex_pattern, original_string, perl = TRUE)
     out_str    <- regmatches(original_string, match_info)
   } else if(!extract_pattern) {
     out_str <- gsub(regex_pattern, replacement_text, original_string, perl = TRUE)
   }
-  
-  
   if(exclude_start) {
     if(start != "") {
       out_str <- gsub(start, "", out_str, fixed = TRUE)
@@ -3273,7 +3117,6 @@ replace_string_part <- function(x,
       out_str <- gsub(end, "", out_str, fixed = TRUE)
     }
   }
-  
   if(catit) {
     out_str <- cat(out_str)
   }
@@ -3309,7 +3152,6 @@ extract_r_fun_from_scode_sigma <- function(xstaring,
   if(is.null(xstaring)) {
     return(xstaring)
   }
-  
   dparm_part_of_SplQc <- NULL;
   smat_intercept <- NULL;
   QR_Xmat <- NULL;
@@ -3318,11 +3160,8 @@ extract_r_fun_from_scode_sigma <- function(xstaring,
   QR_flip <- NULL;
   QR_scale <- NULL;
   XR_inv_name <- NULL;
- 
-  
   add_separte_getknots_fun <- FALSE
   dparm_set_fixed_or_random <- FALSE
-  
   getfunnamestr <- deparse(substitute(xstaring))
   xstaring <- gsub("[[:space:]]" , "", xstaring)
   xstaring <- gsub(";" , ";\n", xstaring)
@@ -3349,7 +3188,6 @@ extract_r_fun_from_scode_sigma <- function(xstaring,
   xstaring <- gsub("Spl[,1]=rep(1.0,N);" , "", xstaring, fixed = T)
   xstaring <- gsub("Spl[,1]=rep(0.0,N);" , "", xstaring, fixed = T)
   xstaring <- remove_spaces_and_tabs(xstaring)
-  
   xstaring <- gsub("real" , "", xstaring, fixed = T)
   xstaring <- gsub(paste0("jp1;", "\n"), "", xstaring, fixed = T)
   xstaring <- gsub("rep_vector" , "rep", xstaring, fixed = T)
@@ -3359,8 +3197,7 @@ extract_r_fun_from_scode_sigma <- function(xstaring,
       "Xx[ia,ja]=(X[ia]-knots[ja]>0?X[ia]-knots[ja]:0);" ,
       "Xx[ia,ja]=ifelse(X[ia]-knots[ja]>0,X[ia]-knots[ja],0);",
       xstaring,
-      fixed = T
-    )
+      fixed = T)
   xstaring <- gsub("num_elements" , "length", xstaring, fixed = T)
   xstaring <-
     gsub("matrix[N,SbasisN]Spl" ,
@@ -3377,8 +3214,6 @@ extract_r_fun_from_scode_sigma <- function(xstaring,
          "Xx=matrix(0,N, SbasisN+1)",
          xstaring,
          fixed = T)
-  
-  
   xstaring <-
     gsub("for(iain1:N)" , "for(ia in 1:N)", xstaring, fixed = T)
   xstaring <- gsub("for(jain1:(SbasisN+1))" ,
@@ -3391,12 +3226,9 @@ extract_r_fun_from_scode_sigma <- function(xstaring,
   xstaring <- gsub(funame__ , paste0(funame__, "<-function"),
                    xstaring, fixed = T)
   xstaring <- sub("//[^//]+$", "", xstaring)
-  # To remove stanadlon ";
   xstaring <-
     gsub(paste0(";\n;\n", ""), ";\n", xstaring, fixed = T)
   xstaring <- gsub("[nknots]knots" , "knots", xstaring, fixed = T)
-  
-  
   if(dparm_set_fixed_or_random) {
     if(dparm_part_of_SplQc) {
       xstaring <- gsub("vector[N]dpredictor=Xm;" ,
@@ -3411,11 +3243,9 @@ extract_r_fun_from_scode_sigma <- function(xstaring,
       xstaring <- gsub("transpose" ,
                        "t",
                        xstaring, fixed = T)
-      
       xstaring <- gsub("[:" ,
                        "[",
                        xstaring, fixed = T)
-      
       xstaring <- gsub("matrix[N,ncol(XQ)]sfull_betas_temp" ,
                        "sfull_betas_temp=matrix(NA,N,ncol(XQ))",
                        xstaring, fixed = T)
@@ -3426,10 +3256,8 @@ extract_r_fun_from_scode_sigma <- function(xstaring,
       xstaring <- gsub("sfull_betas_temp=sfull_matrix_temp*" ,
                        "sfull_betas_temp=sfull_matrix_temp %*% ",
                        xstaring, fixed = T)
-    } # if(dparm_part_of_SplQc) {
-  } # if(dparm_set_fixed_or_random) {
-  
-  
+    } 
+  }
   if(dparm_set_fixed_or_random) {
     if(dparm_part_of_SplQc) {
       if(smat_intercept == 0) {
@@ -3453,21 +3281,15 @@ extract_r_fun_from_scode_sigma <- function(xstaring,
                          "",
                          xstaring, fixed = T)
       }
-    } # if(dparm_part_of_SplQc) {
-  } # if(dparm_set_fixed_or_random) {
-  
-  
+    } 
+  } 
   xstaring <- gsub("vector[N]QRdbeta=d" , "QRdbeta=d", xstaring, fixed = T)
-  
-  # add QR
-  # make QR chnages
   if (!is.null(decomp)) {
     if (decomp == 'QR') {
       if(getfunnamestr == "rcsfun_raw" |
          getfunnamestr == "spl_d0" |
          getfunnamestr == "spl_d1" |
          getfunnamestr == "spl_d2") {
-        
         set_QR_decomp_R <- paste0("QR_decomp_R(", 
                                   "X=",        QR_Xmat,     "," ,
                                   "center=",   QR_center, "," ,
@@ -3476,15 +3298,12 @@ extract_r_fun_from_scode_sigma <- function(xstaring,
                                   "scale=",    QR_scale, ")")
         set_QR_Xmat <- "QRRinv"
         set_QR_decomp_R <- paste0(set_QR_Xmat, "=", set_QR_decomp_R)
-        
         getQmat    <- paste0(set_QR_Xmat, "[[", "'Q'", "]]")
         getRmat    <- paste0(set_QR_Xmat, "[[", "'R'", "]]")
         getRinvmat <- paste0(set_QR_Xmat, "[[", "'Rinv'", "]]")
-        
         getQmat    <- paste0("XQ", "=", getQmat)
         getRmat    <- paste0("XR", "=", getRmat)
         getRinvmat <- paste0(XR_inv_name, "=", getRinvmat)
-        
         if(getfunnamestr == "rcsfun_raw") {
           Qc_str_name     <- paste0("Qc=Spl;", "\n")
           Qc_str_mat_name <- paste0("matrix[N,QK]Qc=Spl;", "\n")
@@ -3497,25 +3316,20 @@ extract_r_fun_from_scode_sigma <- function(xstaring,
         } else if(getfunnamestr == "spl_d2") {
           
         } 
-        
         set_QR_decomp_str <- paste0(Qc_str_name, 
                                     set_QR_decomp_R, "\n", 
                                     getQmat, "\n", 
                                     getRmat, "\n", 
                                     getRinvmat)
-        
         xstaring <- replace_string_part(x = xstaring, 
                                         start = Qc_str_mat_name,
                                         end =  "inverse(XR);", 
                                         replace = set_QR_decomp_str,
                                         extract = FALSE,
                                         cat_str = FALSE)
-        
-        
         xstaring <- gsub("sfull_betas=sfull_matrix*transpose(XR_inv)" ,
                          "sfull_betas=sfull_matrix %*% t(XR_inv)",
                          xstaring, fixed = T)
-        
         xstaring <- gsub("Spl=matrix(0,N,SbasisN)QRd0" ,
                          "QRd0=matrix(0,N,SbasisN)",
                          xstaring, fixed = T)
@@ -3528,55 +3342,37 @@ extract_r_fun_from_scode_sigma <- function(xstaring,
         xstaring <- gsub("matrix[N,SbasisN]R_tall" ,
                          "R_tall=matrix(0,N,SbasisN)",
                          xstaring, fixed = T)
-        
         xstaring <- gsub("matrix[N,SbasisN]sfull_betas" ,
                          "sfull_betas=matrix(0,N,SbasisN)",
                          xstaring, fixed = T)
-        
         xstaring <- gsub("(SplQRd1*sfull_betas)*rep(1.0,QK)" ,
                          "Matrix::rowSums(SplQRd1 %*% sfull_betas)",
                          xstaring, fixed = T)
-        
-      } # if(getfunnamestr == "rcsfun_raw" |....
-    } # if (decomp == 'QR') {
-  } # if (!is.null(decomp)) {
-  
+      } 
+    }
+  } 
   xstaring <- gsub("cols" , "ncol", xstaring, fixed = T)
-  
   xstaring <- gsub("matrixXp" , "Xp", xstaring, fixed = T) # spfnameX
-  
-  # This needed because \code{bsp}, \code{msp}, and \code{isp} may have NULL
-  # / numeric(0). This same approach based on the 
-  # function checkgetiknotsbknots() is used in bsitar and other funs
-  # Note that in Stan, when knots = NULL, the vector is empty []
   gsub_it <- "iknotsx=knots[2:(length(knots)-1)]"
   gsub_by <- "iknotsx=checkgetiknotsbknots(knots,'iknots')"
   xstaring <- gsub(gsub_it, gsub_by, xstaring, fixed = T)
   gsub_it <- "bknotsx=c(knots[1], knots[length(knots)])"
   gsub_by <- "bknotsx=checkgetiknotsbknots(knots,'bknots')"
   xstaring <- gsub(gsub_it, gsub_by, xstaring, fixed = T)
-  
-  # for sigma var func
   gsub_it <- "){"
   gsub_by <- ") {"
   xstaring <- gsub(gsub_it, gsub_by, xstaring, fixed = T)
-  
   gsub_it <- "N=size(x);"
   gsub_by <- "N=length(x);"
   xstaring <- gsub(gsub_it, gsub_by, xstaring, fixed = T)
-  
   gsub_it <- "out;"
   gsub_by <- "out=rep(NA,N);"
   xstaring <- gsub(gsub_it, gsub_by, xstaring, fixed = T)
-  
   gsub_it <- "for(iin1:N) {"
   gsub_by <- "for(i in 1:N) {"
   xstaring <- gsub(gsub_it, gsub_by, xstaring, fixed = T)
-  
   xstaring
-} # extract_r_fun_from_scode_sigma
-
-
+} 
 
 
 #' An internal function to inverse matrix 
@@ -3658,28 +3454,16 @@ QR_decomp_R <- function(X, center = FALSE, complete = FALSE,
   qr_result_R <- qr(X)
   Q_X_R <- qr.Q(qr_result_R, complete = complete) * scale
   R_X_R <- qr.R(qr_result_R, complete = complete) / scale
-  # Stan ensures diagonal elements of R are positive. R's qr() does not.
-  # We need to check if any diagonal elements of R_X_R are negative and flip signs.
   if(flip) {
     diag_R_R <- diag(R_X_R)
     sign_flips <- sign(diag_R_R)
     sign_flips[sign_flips == 0] <- 1 # Treat zero as positive (no flip)
-    # Apply sign flips to both Q and R from R
-    # Multiply columns of Q by sign_flips and rows of R by sign_flips
     Q <- Q_X_R %*% diag(sign_flips)
     R <- diag(sign_flips) %*% R_X_R
   } else {
     Q <- Q_X_R
     R <- R_X_R
   }
-  
-  # if(complete) {
-  #  # stop2c("use complete = 'FALSE' for Rinv")
-  #   Rinv <- NULL
-  # } else {
-  #   Rinv <- solve(R)
-  # }
-  # gemini https://gemini.google.com/app/1af6d967c1f4e5b9
   Rinv <- trysolveit(R)
   list(Q = Q, R = R, Rinv = Rinv)
 }
@@ -3719,11 +3503,9 @@ add_default_args_to_nlf_lf <- function(str,
                                        extract_nlpar = FALSE, 
                                        data_varnames = NULL,
                                        verbose = FALSE) {
-  
   if(extract_covar & extract_nlpar) {
     stop2c("specify either 'extract_covar' or 'extract_nlpar', not both")
   }
-  
   if(length(ysi) > 1) {
     if(verbose)
       message2c("The length of ysi is > 1, only the first element is used")
@@ -3748,16 +3530,14 @@ add_default_args_to_nlf_lf <- function(str,
         } else {
           split_result_ith <- split_result_ith
         }
-      } # if(check) {
+      } 
       if (grepl("lf\\(", split_result_ith) |
           grepl("nlf\\(", split_result_ith)) {
         if (!grepl("^lf\\(", split_result_ith) &
             grepl("nlf\\(", split_result_ith)) {
           lf_list <- c('flist',
-                       # 'dpar',
                        'resp',
                        'loop')
-          
           getnlparformx   <- ept(split_result_ith)
           formalnamesnlsf <- methods::formalArgs(brms::nlf)
           formalnamesnlsf <- formalnamesnlsf[formalnamesnlsf != "..."]
@@ -3777,21 +3557,17 @@ add_default_args_to_nlf_lf <- function(str,
                  "\n  ", 
                  split_result_ith)
           }
-          
           getnlpar <- getnlparformx [[1]][-2] %>% all.vars()
-          # getnlpar <- ept(split_result_ith) [[1]][-2] %>% all.vars()
           getnlpar <- setdiff(getnlpar, data_varnames)
           get_nlf_nlpars_c <- c(get_nlf_nlpars_c, getnlpar)
         } else if (grepl("^lf\\(", split_result_ith) &
                    !grepl("^nlf\\(", split_result_ith)) {
           lf_list <- c('flist',
-                       # 'dpar',
                        'resp',
                        'center',
                        'cmc',
                        'sparse',
                        'decomp')
-          # Start extraction of covariates from lf() 
           get_lf_part_sigma_formula_manualsi <- ept(split_result_ith)[[1]]
           nthtau <- length(get_lf_part_sigma_formula_manualsi)
           get_lf_part_sigma_formula_manualsi_form <- 
@@ -3811,8 +3587,7 @@ add_default_args_to_nlf_lf <- function(str,
             sigma_formulasi_covar <- NULL
           }
           get_lf_covars_c <- c(get_lf_covars_c, sigma_formulasi_covar)
-          # End extraction of covariates from lf() 
-        } # end else if (grepl("^lf\\(", split_result_ith) &
+        } 
         lf_list_c <- c()
         for (lf_listi in lf_list) {
           if (!grepl(lf_listi, split_result_ith)) {
@@ -3829,11 +3604,8 @@ add_default_args_to_nlf_lf <- function(str,
             } else if (lf_listi == 'decomp') {
               o. <- paste0(lf_listi, "=", 'NULL')
             } else if (lf_listi == 'resp') {
-              # Imp: even when nys > 1, ysi should be a single resp varible 
-              # That's why this is implemented at the level of _si
               if (nys > 1) {
                 o. <- paste0(lf_listi, "=", paste0("'", ysi[1], "'"))
-                # o. <- paste0(lf_listi, "=", 'NULL')
               } else {
                 o. <- paste0(lf_listi, "=", 'NULL')
               }
@@ -3851,10 +3623,10 @@ add_default_args_to_nlf_lf <- function(str,
         split_result_ith <- gsub(")$", lf_list_c, split_result_ith)
         split_result_ith <- paste0(split_result_ith, ")")
       }
-    } # if (!is.null(split_result_ith)) {
+    } 
     split_result_ith <- paste(gsub_space(split_result_ith), collapse = "")
     split_result_c <- c(split_result_c, split_result_ith)
-  } # for (i in 1:length(split_result)) {
+  } 
   out <- paste(split_result_c, collapse = "+")
   out <- paste(gsub_space(out), collapse = "")
   if(extract_covar) {
@@ -3863,9 +3635,7 @@ add_default_args_to_nlf_lf <- function(str,
     return(get_nlf_nlpars_c)
   }
   return(out)
-} # end add_default_args_to_nlf_lf <- function(str) {
-
-
+} 
 
 #' An internal function to extract portion of string between pair of characters
 #' 
@@ -3915,11 +3685,9 @@ extract_between_specl_chars <- function(str, start, end, verbose = FALSE) {
 #' @noRd
 #'
 all_inner_lengths_equal_in_list <- function(x) {
-  # Handle empty or single-element lists gracefully
   if (length(x) < 2) {
     return(TRUE)
   }
-  # Get lengths of all inner lists and check for uniqueness
   length(unique(sapply(x, length))) == 1
 }
 
@@ -3938,7 +3706,6 @@ all_elements_identical_in_list <- function(x) {
   if (length(x) < 2) {
     return(TRUE)
   }
-  # Compare every inner list to the first inner list
   all(sapply(x, identical, x[[1]]))
 }
 
@@ -3956,8 +3723,6 @@ all_elements_identical_in_list <- function(x) {
 remove_spaces_and_tabs <- function(x) {
   if(!is.null(x)) {
     x <- gsub("^ *|(?<= ) | *$", "", x, perl = TRUE)
-    # '\\L\\1' converts first letter beyoind .* to lower
-    # x <- gsub("(\\..*?[A-Z]|^[A-Z])", '\\L\\1', x, perl=T)
     x <- gsub("(\\..*?[A-Z]|^[A-Z])", '\\1', x, perl=T)
     x <- x[x != ""]
     x <- gsub("\\s*\n\\s*","\n",x) 
@@ -3996,67 +3761,51 @@ mean_curve_over_ids <- function(data,
                                 min_xvar = NULL, 
                                 max_xvar = NULL, 
                                 length.out = NULL) {
-  
-  
   if(is.null(length.out)) {
     set.length.out <- nrow(data)
   } else {
     set.length.out <- 100
   }
-  
   if(is.null(min_xvar)) {
     set.min_xvar <- min(data[[xvar]])
   } else {
     set.min_xvar <- min_xvar
   }
-  
   if(is.null(max_xvar)) {
     set.max_xvar <- max(data[[xvar]])
   } else {
     set.max_xvar <- max_xvar
   }
-  
   min_age <- set.min_xvar
   max_age <- set.max_xvar
-  
   if(xvar_orig) {
     common_age_x <- data[[xvar]] 
   } else {
     common_age_x <- seq(min_age, max_age, length.out = set.length.out) 
   }
-  
   if(is.null(name)) {
     yvar_name <- "avg_pred"
   } else {
     yvar_name <- name
   }
-  
   num_individuals <- length(unique(data[[idvar]]))
-  
-  interpolated_measurements <- matrix(NA, nrow = length(common_age_x), ncol = num_individuals)
-  
-  
+  interpolated_measurements <- matrix(NA, nrow = length(common_age_x), 
+                                      ncol = num_individuals)
   individual_data_list <- split(data, data[[idvar]])
-  
   for (i in 1:num_individuals) {
     current_individual_data <- individual_data_list[[i]]
-    # Use approx() for linear interpolation
-    # This function naturally handles uneven 'x' (age) points and different 'length' of data
     interpolated_measurements[, i] <- stats::approx(
       x = current_individual_data[[xvar]],
       y = current_individual_data[[yvar]],
       xout = common_age_x,
-      rule = 2 # Extrapolate with the closest known value if common_age_x goes beyond individual's observed age range
+      rule = 2 
     )$y
   }
-  
   mean_measurement_y <- rowMeans(interpolated_measurements, na.rm = TRUE)
-  
   if(nrow(data) == length(mean_measurement_y)) {
     mean_curve_df <- data
     mean_curve_df[[yvar_name]] <- mean_measurement_y
   } else {
-    # Create a data frame for the mean curve
     mean_curve_df <- data.frame(
       xvar = common_age_x,
       yvar_name = mean_measurement_y,
@@ -4109,35 +3858,28 @@ get_clean_data <- function(data,
     dplyr::arrange(z________idvar, z________xvar) %>%
     dplyr::group_by(z________idvar) %>%
     dplyr::mutate(
-      # Interval to previous
       y1_diff_prev = z________yvar - dplyr::lag(z________yvar),
       age_diff_prev = z________xvar - dplyr::lag(z________xvar),
       growth_rate_prev = y1_diff_prev / age_diff_prev,
       rate_extreme_prev = !is.na(growth_rate_prev) & 
         growth_rate_prev > max_growth_rate,
       is_decreasing_prev = !is.na(y1_diff_prev) & y1_diff_prev < 0,
-      # Interval to next
       y1_diff_next = dplyr::lead(z________yvar) - z________yvar,
       age_diff_next = dplyr::lead(z________xvar) - z________xvar,
       growth_rate_next = y1_diff_next / age_diff_next,
       rate_extreme_next = !is.na(growth_rate_next) & 
         growth_rate_next > max_growth_rate,
       is_decreasing_next = !is.na(y1_diff_next) & y1_diff_next < 0,
-      # Combine: if growth rate or decrease is outlier before or after
       is_outlier = rate_extreme_prev | is_decreasing_prev |
         rate_extreme_next | is_decreasing_next
     ) %>% dplyr::ungroup()
-  
-  ###################################################################
   zoo_na.locf.default_func <- function (object, 
                                         na.rm = TRUE, 
                                         fromLast, 
                                         rev, 
                                         maxgap = Inf, 
                                         rule = 2, ...) {
-    
     zoo_na.locf.default_func <- na.approx <- na.trim <- NULL;
-    ###
     zoo_na.locf0_fun <- function (object, 
                                   fromLast = FALSE, 
                                   maxgap = Inf, 
@@ -4154,11 +3896,10 @@ get_clean_data <- function(data,
         x[naok] <- fill[naok]
         return(x)
       }
-      
       if (is.null(coredata)) 
-        coredata <- inherits(object, "ts") || inherits(object, 
-                                                       "zoo") || inherits(object, "its") || inherits(object, 
-                                                                                                     "irts")
+          coredata <- inherits(object, "ts") || inherits(object, 
+          "zoo") || inherits(object, "its") || inherits(object, 
+          "irts")
       if (coredata) {
         x <- object
         object <- if (fromLast) 
@@ -4188,10 +3929,7 @@ get_clean_data <- function(data,
       else {
         return(object)
       }
-    } # end of zoo_na.locf0_fun
-    
-    ###
-    
+    } 
     L <- list(...)
     if ("x" %in% names(L) || "xout" %in% names(L)) {
       if (!missing(fromLast)) {
@@ -4208,7 +3946,6 @@ get_clean_data <- function(data,
     else if (missing(fromLast)) 
       fromLast <- FALSE
     rev <- base::rev
-    # na.locf0
     object[] <- if (length(dim(object)) == 0) 
       zoo_na.locf0_fun(object, fromLast = fromLast, maxgap = maxgap)
     else apply(object, length(dim(object)), zoo_na.locf0_fun, fromLast = fromLast, 
@@ -4216,22 +3953,15 @@ get_clean_data <- function(data,
     if (na.rm) 
       na.trim(object, is.na = "all")
     else object
-  } # end of zoo_na.locf.default_func
-  
-  ###################################################################
-  
-  if (carryforward) stop2c("carryforward = TRUE not working yet, set it as FALSE")
- 
+  } 
+  if (carryforward) 
+    stop2c("carryforward = TRUE not working yet, set it as FALSE")
   if (carryforward) {
     data_cleaned <- data_with_checks %>%
       dplyr::group_by(z________idvar) %>%
-      # Create a new column for the cleaned data
       dplyr::mutate(
-        # Temporarily set outliers to NA to prepare for imputation
         copod_cleaned = dplyr::if_else(is_outlier, NA_real_, z________yvar),
-        # Pass 1: Last Observation Carried Forward - zoo::na.locf
         copod_cleaned = zoo_na.locf.default_func(copod_cleaned, na.rm = FALSE),
-        # Pass 2: Next Observation Carried Backward (to fix any leading NAs)
         copod_cleaned = zoo_na.locf.default_func(copod_cleaned, fromLast = TRUE, 
                                                  na.rm = FALSE)
       ) %>% 
@@ -4239,7 +3969,6 @@ get_clean_data <- function(data,
       dplyr::select(-copod_cleaned) %>% 
       dplyr::ungroup()
   } else if (!carryforward) {
-    # Inspect flagged outliers
     flagged_obs <- data_with_checks %>% dplyr::filter(is_outlier == TRUE)
     data_cleaned <- data_with_checks %>% dplyr::filter(is_outlier == FALSE)
   }
@@ -4297,7 +4026,7 @@ get_clean_data_growthcleanr <- function(data,
                                         xvar, 
                                         yvar,
                                         xvar_unit = 'year',
-                                        param = "LENGTHCM",
+                                        param = "LENGTHCM", #‘HEIGHTCM’,‘WEIGHTKG’
                                         gender = NULL,
                                         recover.unit.error = FALSE,
                                         sd.extreme = 25,
@@ -4322,11 +4051,8 @@ get_clean_data_growthcleanr <- function(data,
                                         weight_cap = Inf,
                                         adult_columns_filename = "",
                                         prelim_infants = FALSE) {
-  # ‘HEIGHTCM’, ‘LENGTHCM’, or ‘WEIGHTKG’
-  
   try(insight::check_if_installed(c("growthcleanr"), stop = FALSE, 
                                   prompt = FALSE))
-  
   names_in        <- colnames(data)
   idvar           <- deparse(dplyr::ensym(idvar))
   xvar            <-  deparse(dplyr::ensym(xvar))
@@ -4338,8 +4064,6 @@ get_clean_data_growthcleanr <- function(data,
   z________param       <- z________sexvar      <- gcr_result  <- NULL;
   locf0_fun       <- fill_short_gaps      <- na.approx  <- NULL;
   na.trim  <- is_decreasing_prev <- rate_extreme_next <- NULL;
-  # is_decreasing_next <- is_outlier         <- NULL;
-  
   if(xvar_unit == 'year') {
     xvar_days_multi = 12 * 30.4375
   } else if(xvar_unit == 'month') {
@@ -4347,11 +4071,9 @@ get_clean_data_growthcleanr <- function(data,
   } else if(xvar_unit == 'day') {
     xvar_days_multi = 1 * 1
   }
-  
   if(is.null(gender)) {
     gender <- 0
   }
-  
   datafor_growthcleanr <- data %>%
     dplyr::mutate(z________idvar := ept(idvar)) %>%
     dplyr::mutate(z________xvar := ept(xvar)) %>% 
@@ -4359,17 +4081,11 @@ get_clean_data_growthcleanr <- function(data,
     dplyr::mutate(z________param = param) %>% 
     dplyr::mutate(z________xvar = z________xvar * xvar_days_multi) %>%
     dplyr::mutate(z________sexvar = gender) 
-  
-  # prepare data as a data.table
   datafor_growthcleanr <- data.table:: as.data.table(datafor_growthcleanr)
-  
-  # set the data.table key for better indexing
   data.table::setkey(datafor_growthcleanr, 
                      z________idvar, 
                      z________xvar,
                      z________param)
-  
-  # generate new exclusion flag field using function
   cleaned_data <- datafor_growthcleanr[, 
                                        gcr_result := growthcleanr::cleangrowth(
                                          subjid = z________idvar, 
@@ -4399,8 +4115,6 @@ get_clean_data_growthcleanr <- function(data,
                                          adult_columns_filename = adult_columns_filename,
                                          prelim_infants = prelim_infants
                                        )]
-  
-  
   if(adjustcarryforward) {
     cleaned_data <- growthcleanr::adjustcarryforward(subjid = cleaned_data$z________idvar,
                                                      param = cleaned_data$z________param,
@@ -4422,17 +4136,12 @@ get_clean_data_growthcleanr <- function(data,
                                                      max_ht.exp_under = 0.33,
                                                      max_ht.exp_over = 1.5)
   }
-  
-  # extract data limited only to values flagged for inclusion:
   only_included_data <- cleaned_data[gcr_result == "Include"]
-  
   only_included_data <- only_included_data %>% data.frame()
-  
   names_unwanted <- colnames(only_included_data)
   names_unwanted <- setdiff(names_unwanted, names_in)
   only_included_data <- only_included_data %>% 
     dplyr::select(-dplyr::all_of(names_unwanted))
-  
   return(only_included_data)
 }
 
@@ -4502,39 +4211,23 @@ apply_bknots_bounds <- function(bknots, bounds) {
 ensure_monotonic_yvar <- function(data, id = "id", xvar = "age", 
                                   yvar = "height", increment = 0.1,
                                   return_adjustments = FALSE) {
-  
   age <- NULL;
-  
   insight::check_if_installed('data.table')
-  
-  # Convert to data.table for efficient processing
   dt <- data.table::as.data.table(data)
   original_names <- names(dt)
-  
-  # Standardize column names for processing
   data.table::setnames(dt, old = c(id, xvar, yvar), 
                        new = c("id", "age", "height"))
-  
-  # Validate inputs
   if (!all(c("id", "age", "height") %in% names(dt))) {
     stop2c("Specified columns not found in data")
   }
-  
   if (any(is.na(dt$age) | is.na(dt$height))) {
     warning("Missing values in age or height detected. These will be preserved.")
   }
-  
-  # Sort by individual and age
   data.table::setorder(dt, id, age)
-  
-  # Track adjustments if requested
   adjustments <- list()
-  
-  # Function to process each individual
   process_individual <- function(individual_data) {
     n <- nrow(individual_data)
     if (n <= 1) return(individual_data)
-    
     adjusted_heights <- individual_data$height
     individual_adjustments <- data.frame(
       position = integer(0),
@@ -4542,13 +4235,8 @@ ensure_monotonic_yvar <- function(data, id = "id", xvar = "age",
       adjusted_height = numeric(0),
       age = numeric(0)
     )
-    
-    # Process each measurement after the first
     for (i in 2:n) {
-      # Skip if current height is missing
       if (is.na(adjusted_heights[i])) next
-      
-      # Find the last non-missing height before current position
       prev_height <- NA
       for (j in (i-1):1) {
         if (!is.na(adjusted_heights[j])) {
@@ -4556,13 +4244,9 @@ ensure_monotonic_yvar <- function(data, id = "id", xvar = "age",
           break
         }
       }
-      
-      # If we found a previous height and current is lower, adjust
       if (!is.na(prev_height) && adjusted_heights[i] < prev_height) {
         original_height <- adjusted_heights[i]
         adjusted_heights[i] <- prev_height + increment
-        
-        # Record adjustment
         individual_adjustments <- rbind(individual_adjustments, 
                                         data.frame(
                                           position = i,
@@ -4572,31 +4256,18 @@ ensure_monotonic_yvar <- function(data, id = "id", xvar = "age",
                                         ))
       }
     }
-    
-    # Update the data
     individual_data$height <- adjusted_heights
-    
-    # Store adjustments
     if (nrow(individual_adjustments) > 0) {
       individual_adjustments$id <- individual_data$id[1]
       adjustments[[length(adjustments) + 1]] <- individual_adjustments
     }
-    
     return(individual_data)
   }
-  
-  # Apply to each individual
+
   result <- dt[, process_individual(.SD), by = id]
-  
-  # Restore original column names
   data.table::setnames(result, old = c("id", "age", "height"), 
                        new = c(id, xvar, yvar))
-  
-  # Reorder columns to match original
   data.table::setcolorder(result, original_names, skip_absent = TRUE)
-  
-  
-  # Prepare return value
   if (return_adjustments) {
     all_adjustments <- if (length(adjustments) > 0) {
       do.call(rbind, adjustments)
@@ -4605,7 +4276,6 @@ ensure_monotonic_yvar <- function(data, id = "id", xvar = "age",
                  original_height = numeric(0), adjusted_height = numeric(0),
                  age = numeric(0))
     }
-    
     return(list(
       data = as.data.frame(result),
       adjustments = all_adjustments,
@@ -4632,40 +4302,23 @@ ensure_realistic_yvar <- function(data,
                                   min_increment = 0.1,
                                   max_increment = 10,
                                   return_adjustments = FALSE) {
-  
   age <- NULL;
-  
-  insight::check_if_installed('data.table')
-  
-  
-  # Convert to data.table for efficient processing
+  insight::check_if_installed('data.table', prompt = FALSE)
   dt <- data.table::as.data.table(data)
   original_names <- names(dt)
-  
-  # Standardize column names for processing
   data.table::setnames(dt, old = c(id, xvar, yvar), 
                        new = c("id", "age", "height"))
-  
-  # Validate inputs
   if (!all(c("id", "age", "height") %in% names(dt))) {
     stop2c("Specified columns not found in data")
   }
-  
   if (any(is.na(dt$age) | is.na(dt$height))) {
     warning("Missing values in age or height detected. These will be preserved.")
   }
-  
-  # Sort by individual and age
   data.table::setorder(dt, id, age)
-  
-  # Track adjustments if requested
   adjustments <- list()
-  
-  # Function to process each individual
   process_individual <- function(individual_data) {
     n <- nrow(individual_data)
     if (n <= 1) return(individual_data)
-    
     adjusted_heights <- individual_data$height
     individual_adjustments <- data.frame(
       position = integer(0),
@@ -4674,13 +4327,8 @@ ensure_realistic_yvar <- function(data,
       age = numeric(0),
       reason = character(0)
     )
-    
-    # Process each measurement after the first
     for (i in 2:n) {
-      # Skip if current height is missing
       if (is.na(adjusted_heights[i])) next
-      
-      # Find the last non-missing height and age before current position
       prev_height <- NA
       prev_age <- NA
       for (j in (i-1):1) {
@@ -4690,20 +4338,13 @@ ensure_realistic_yvar <- function(data,
           break
         }
       }
-      
-      # Skip if no valid previous measurement found
       if (is.na(prev_height) || is.na(prev_age)) next
-      
       current_age <- individual_data$age[i]
       current_height <- adjusted_heights[i]
       age_gap <- current_age - prev_age
-      
-      # Check for height decrease and fix
       if (current_height < prev_height) {
         original_height <- current_height
         adjusted_heights[i] <- prev_height + min_increment
-        
-        # Record adjustment
         individual_adjustments <- rbind(individual_adjustments, 
                                         data.frame(
                                           position = i,
@@ -4712,21 +4353,14 @@ ensure_realistic_yvar <- function(data,
                                           age = current_age,
                                           reason = "height_decrease"
                                         ))
-        
-        # Update current_height for the next check
         current_height <- adjusted_heights[i]
       }
-      
-      # Check for excessive increase
-      if (age_gap > 0) {  # Only check if there's a positive age gap
+      if (age_gap > 0) { 
         max_allowed_increase <- age_gap * max_increment
         max_allowed_height <- prev_height + max_allowed_increase
-        
         if (current_height > max_allowed_height) {
           original_height <- current_height
           adjusted_heights[i] <- max_allowed_height
-          
-          # Record adjustment
           individual_adjustments <- rbind(individual_adjustments, 
                                           data.frame(
                                             position = i,
@@ -4738,30 +4372,18 @@ ensure_realistic_yvar <- function(data,
         }
       }
     }
-    
-    # Update the data
     individual_data$height <- adjusted_heights
-    
-    # Store adjustments
     if (nrow(individual_adjustments) > 0) {
       individual_adjustments$id <- individual_data$id[1]
       adjustments[[length(adjustments) + 1]] <- individual_adjustments
     }
-    
     return(individual_data)
   }
-  
-  # Apply to each individual
+
   result <- dt[, process_individual(.SD), by = id]
-  
-  # Restore original column names
   data.table::setnames(result, old = c("id", "age", "height"), 
                        new = c(id, xvar, yvar))
-  
-  # Reorder columns to match original
   data.table::setcolorder(result, original_names, skip_absent = TRUE)
-  
-  # Prepare return value
   if (return_adjustments) {
     all_adjustments <- if (length(adjustments) > 0) {
       do.call(rbind, adjustments)
@@ -4770,7 +4392,6 @@ ensure_realistic_yvar <- function(data,
                  original_height = numeric(0), adjusted_height = numeric(0),
                  age = numeric(0), reason = character(0))
     }
-    
     return(list(
       data = as.data.frame(result),
       adjustments = all_adjustments,
@@ -4799,30 +4420,19 @@ shift_growth_peak_yvar <- function(data, id = "id",
                                    n_individuals = 6,
                                    intensity_preservation = 0.9,
                                    seed = NULL) {
-  
   age <- NULL;
-  
-  insight::check_if_installed('data.table')
-  
+  insight::check_if_installed('data.table', prompt = FALSE)
   if (!is.null(seed)) set.seed(seed)
-  
-  # Prepare data
   dt <- data.table::as.data.table(data)
   data.table::setnames(dt, old = c(id, xvar, yvar), 
                        new = c("id", "age", "height"))
   data.table::setorder(dt, id, age)
-  
-  # Step 1: Identify individuals with peak growth in target range
   find_peak_candidates <- function() {
     candidates <- c()
-    
     for (ind_id in unique(dt$id)) {
       ind_data <- dt[id == ind_id]
-      if (nrow(ind_data) < 4) next  # Need sufficient data
-      
-      # Calculate growth rates
+      if (nrow(ind_data) < 4) next 
       growth_rates <- data.frame(age_mid = numeric(0), rate = numeric(0))
-      
       for (i in 2:nrow(ind_data)) {
         if (!is.na(ind_data$height[i]) && !is.na(ind_data$height[i-1])) {
           age_gap <- ind_data$age[i] - ind_data$age[i-1]
@@ -4836,82 +4446,54 @@ shift_growth_peak_yvar <- function(data, id = "id",
           }
         }
       }
-      
       if (nrow(growth_rates) < 2) next
-      
-      # Find peak growth period
       max_rate_idx <- which.max(growth_rates$rate)
       peak_age <- growth_rates$age_mid[max_rate_idx]
       peak_rate <- growth_rates$rate[max_rate_idx]
-      
-      # Check if peak is in target range and substantial
       if (peak_age >= from_age_range[1] && 
           peak_age <= from_age_range[2] && 
-          peak_rate > 3) {  # At least 3 cm/year
+          peak_rate > 3) {
         candidates <- c(candidates, ind_id)
       }
     }
-    
     return(candidates)
   }
   
-  # Step 2: Randomly select individuals to shift
   peak_candidates <- find_peak_candidates()
   n_to_select <- min(n_individuals, length(peak_candidates))
-  
   if (n_to_select == 0) {
     warning("No suitable candidates found for peak shifting")
     return(data)
   }
-  
   selected_ids <- sample(peak_candidates, n_to_select, replace = FALSE)
-  
-  # Step 3: Apply the shift to selected individuals
   shift_individual <- function(ind_data) {
     if (nrow(ind_data) < 3) return(ind_data)
-    
     ind_data <- ind_data[order(age)]
     ages <- ind_data$age
     heights <- ind_data$height
     new_heights <- heights
-    
-    # Calculate original growth increments
     increments <- numeric(length(heights))
     for (i in 2:length(heights)) {
       increments[i] <- heights[i] - heights[i-1]
     }
-    
-    # Redistribute growth: move some from original peak to new peak
     for (i in 2:length(ages)) {
       age_mid <- (ages[i] + ages[i-1]) / 2
       age_gap <- ages[i] - ages[i-1]
-      
       if (age_gap <= 0) next
-      
       original_increment <- increments[i]
-      new_increment <- original_increment  # Start with original
-      
-      # If we're in the new peak range - boost growth
+      new_increment <- original_increment  
       if (age_mid >= to_age_range[1] && age_mid <= to_age_range[2]) {
-        # Calculate position within new peak range (0 to 1)
         peak_position <- (age_mid - to_age_range[1]) / (to_age_range[2] - to_age_range[1])
-        # Maximum boost at center of range
         boost_factor <- 1 + 0.8 * exp(-2 * (peak_position - 0.5)^2)
         new_increment <- original_increment * boost_factor
       }
-      
-      # If we're in the original peak range - reduce growth
       else if (age_mid >= from_age_range[1] && age_mid <= from_age_range[2]) {
-        # Calculate how much to reduce
         reduction_factor <- 0.3 + 0.5 * intensity_preservation
         new_increment <- original_increment * reduction_factor
       }
-      
-      # Apply the new increment
       new_heights[i] <- new_heights[i-1] + new_increment
     }
-    
-    # Smooth any abrupt changes
+
     if (length(new_heights) >= 3) {
       smoothed <- new_heights
       for (i in 2:(length(new_heights)-1)) {
@@ -4921,12 +4503,10 @@ shift_growth_peak_yvar <- function(data, id = "id",
       }
       new_heights <- smoothed
     }
-    
     ind_data$height <- new_heights
     return(ind_data)
   }
-  
-  # Apply shifts
+
   result_dt <- dt[, {
     if (.BY$id %in% selected_ids) {
       shift_individual(.SD)
@@ -4934,17 +4514,12 @@ shift_growth_peak_yvar <- function(data, id = "id",
       .SD
     }
   }, by = id]
-  
-  # Restore original column names
   data.table::setnames(result_dt, old = c("id", "age", "height"), 
                        new = c(id, xvar, yvar))
-  
-  # Add metadata
   attr(result_dt, "shifted_ids") <- selected_ids
   attr(result_dt, "peak_candidates") <- peak_candidates
   attr(result_dt, "from_range") <- from_age_range
   attr(result_dt, "to_range") <- to_age_range
-  
   return(as.data.frame(result_dt))
 }
 
@@ -4955,24 +4530,16 @@ shift_growth_peak_yvar <- function(data, id = "id",
 #' @keywords internal
 #' @noRd
 #' 
-increase_correlation <- function(variable_to_adjust, target_variable, beta = 0.5, noise_sd = 0.1) {
-  
-  # Center the target variable to preserve scale
+increase_correlation <- function(variable_to_adjust, 
+                                 target_variable, beta = 0.5, noise_sd = 0.1) {
   target_centered <- target_variable - mean(target_variable, na.rm = TRUE)
-  
-  # Add deterministic component + small noise
   noise <- rnorm(length(variable_to_adjust), mean = 0, sd = noise_sd)
-  
   adjusted_variable <- variable_to_adjust + beta * target_centered + noise
-  
-  # Show improvement
   original_cor <- stats::cor(variable_to_adjust, target_variable)
   new_cor <- stats::cor(adjusted_variable, target_variable)
-  
   cat("Original correlation:", round(original_cor, 3), "\n")
   cat("New correlation:", round(new_cor, 3), "\n")
   cat("Improvement:", round(abs(new_cor) - abs(original_cor), 3), "\n")
-  
   return(adjusted_variable)
 }
 
@@ -4984,28 +4551,18 @@ increase_correlation <- function(variable_to_adjust, target_variable, beta = 0.5
 #' @keywords internal
 #' @noRd
 #' 
-rank_based_adjustment <- function(variable_to_adjust, target_variable, strength = 0.7) {
-  
-  # Get ranks of both variables
+rank_based_adjustment <- function(variable_to_adjust, 
+                                  target_variable, strength = 0.7) {
   target_ranks <- rank(target_variable)
   var_ranks <- rank(variable_to_adjust)
-  
-  # Sort the variable to match target ranking
   sorted_values <- sort(variable_to_adjust)
-  
-  # Create weighted combination of original and rank-matched values
   rank_matched <- sorted_values[target_ranks]
-  
-  # Combine original and rank-matched (strength controls the influence)
-  adjusted_variable <- (1 - strength) * variable_to_adjust + strength * rank_matched
-  
-  # Show results
+  adjusted_variable <- (1 - strength) * variable_to_adjust + 
+    strength * rank_matched
   original_cor <- stats::cor(variable_to_adjust, target_variable)
   new_cor <- stats::cor(adjusted_variable, target_variable)
-  
   cat("Original correlation:", round(original_cor, 3), "\n")
   cat("New correlation:", round(new_cor, 3), "\n")
-  
   return(adjusted_variable)
 }
 
@@ -5016,44 +4573,32 @@ rank_based_adjustment <- function(variable_to_adjust, target_variable, strength 
 #' @keywords internal
 #' @noRd
 #' 
-quartile_adjustment <- function(variable_to_adjust, target_variable, replacement_rate = 0.3) {
-  
+quartile_adjustment <- function(variable_to_adjust, 
+                                target_variable, replacement_rate = 0.3) {
   adjusted_var <- variable_to_adjust
-  
-  # Define quartiles for target variable
   target_q1 <- quantile(target_variable, 0.25)
   target_q3 <- quantile(target_variable, 0.75)
-  
-  # Define quartiles for variable to adjust
   var_q1 <- quantile(variable_to_adjust, 0.25)
   var_q3 <- quantile(variable_to_adjust, 0.75)
-  
-  # When target is high, make variable high
   high_target_indices <- which(target_variable >= target_q3)
   n_replace_high <- round(length(high_target_indices) * replacement_rate)
   replace_high_indices <- sample(high_target_indices, n_replace_high)
-  
-  # Replace with high values from the variable's distribution
   high_values <- variable_to_adjust[variable_to_adjust >= var_q3]
-  adjusted_var[replace_high_indices] <- sample(high_values, n_replace_high, replace = TRUE)
-  
-  # When target is low, make variable low
+  adjusted_var[replace_high_indices] <- sample(high_values,
+                                               n_replace_high, replace = TRUE)
   low_target_indices <- which(target_variable <= target_q1)
   n_replace_low <- round(length(low_target_indices) * replacement_rate)
   replace_low_indices <- sample(low_target_indices, n_replace_low)
-  
-  # Replace with low values from the variable's distribution
   low_values <- variable_to_adjust[variable_to_adjust <= var_q1]
-  adjusted_var[replace_low_indices] <- sample(low_values, n_replace_low, replace = TRUE)
-  
-  # Show results
+  adjusted_var[replace_low_indices] <- sample(low_values, 
+                                              n_replace_low, replace = TRUE)
+
   original_cor <- stats::cor(variable_to_adjust, target_variable)
   new_cor <- stats::cor(adjusted_var, target_variable)
-  
   cat("Original correlation:", round(original_cor, 3), "\n")
   cat("New correlation:", round(new_cor, 3), "\n")
-  cat("Values replaced:", n_replace_high + n_replace_low, "out of", length(adjusted_var), "\n")
-  
+  cat("Values replaced:", n_replace_high + n_replace_low, "out of", 
+      length(adjusted_var), "\n")
   return(adjusted_var)
 }
 
@@ -5064,26 +4609,17 @@ quartile_adjustment <- function(variable_to_adjust, target_variable, replacement
 #' @keywords internal
 #' @noRd
 #' 
-percentile_matching <- function(variable_to_adjust, target_variable, strength = 0.6) {
-  
+percentile_matching <- function(variable_to_adjust, 
+                                target_variable, strength = 0.6) {
   n <- length(variable_to_adjust)
-  
-  # Calculate percentiles for target variable
   target_percentiles <- rank(target_variable) / n
-  
-  # Get corresponding values from variable_to_adjust distribution
   matched_values <- quantile(variable_to_adjust, target_percentiles)
-  
-  # Combine with original values
-  adjusted_var <- (1 - strength) * variable_to_adjust + strength * matched_values
-  
-  # Show results
+  adjusted_var <- (1 - strength) * variable_to_adjust +
+    strength * matched_values
   original_cor <- stats::cor(variable_to_adjust, target_variable)
   new_cor <- stats::cor(adjusted_var, target_variable)
-  
   cat("Original correlation:", round(original_cor, 3), "\n")
   cat("New correlation:", round(new_cor, 3), "\n")
-  
   return(adjusted_var)
 }
 
@@ -5095,35 +4631,25 @@ percentile_matching <- function(variable_to_adjust, target_variable, strength = 
 #' @noRd
 #' 
 selective_adjustment <- function(variable_to_adjust, target_variable, 
-                                 adjustment_strength = 0.5, proportion_to_adjust = 0.3) {
-  
+                                 adjustment_strength = 0.5,
+                                 proportion_to_adjust = 0.3) {
   adjusted_var <- variable_to_adjust
-  
-  # Standardize both variables for comparison
   target_std <- scale(target_variable)[,1]
   var_std <- scale(variable_to_adjust)[,1]
-  
-  # Calculate "ideal" adjustment (where variable should be relative to target)
   ideal_adjustment <- target_std - var_std
-  
-  # Select observations with largest discrepancies
   n_adjust <- round(length(adjusted_var) * proportion_to_adjust)
-  adjust_indices <- order(abs(ideal_adjustment), decreasing = TRUE)[1:n_adjust]
-  
-  # Apply adjustments
+  adjust_indices <- order(abs(ideal_adjustment), 
+                          decreasing = TRUE)[1:n_adjust]
   for (i in adjust_indices) {
-    adjustment <- ideal_adjustment[i] * adjustment_strength * sd(variable_to_adjust)
+    adjustment <- ideal_adjustment[i] * 
+      adjustment_strength * sd(variable_to_adjust)
     adjusted_var[i] <- adjusted_var[i] + adjustment
   }
-  
-  # Show results
   original_cor <- stats::cor(variable_to_adjust, target_variable)
   new_cor <- stats::cor(adjusted_var, target_variable)
-  
   cat("Original correlation:", round(original_cor, 3), "\n")
   cat("New correlation:", round(new_cor, 3), "\n")
   cat("Observations adjusted:", n_adjust, "\n")
-  
   return(adjusted_var)
 }
 
@@ -5138,7 +4664,6 @@ selective_adjustment <- function(variable_to_adjust, target_variable,
 #' @noRd
 #' 
 get_decimal_places <- function(frame, var = NULL) {
-  
   if(is.null(var)) {
     if(is.numeric(frame)) {
       x <- frame
@@ -5160,21 +4685,18 @@ get_decimal_places <- function(frame, var = NULL) {
       } else {
         x <- NULL
       }
-    } # if(is.data.frame(frame)) {
+    } 
     if(is.matrix(frame)) {
       if(var %in% colnames(frame)) {
         x <- frame[[var]]
       } else {
         x <- NULL
       }
-    } # if(is.data.frame(frame)) {
-  } # if(is.null(var)) { else if(!is.null(var)) {
-  
-  
+    } 
+  } 
   if(is.null(x)) {
     return(NA)
   }
-  
   x <- as.character(x)
   parts <- strsplit(x, "\\.")
   get_count <- function(p) {
@@ -5224,15 +4746,6 @@ setup_by_var <- function(model,
       set_group <- FALSE
     }
   }
-  
-  # New 22.11.2025
-  if(!is.null(cov)) {
-    # if (!set_group %in% cov) {
-    #   stop2c("'by' must be one of the ", cov)
-    # } 
-    # set_group <- cov
-  }
-  
   xvar_strict_msg <- 
     paste0("Argument 'by' need to be specified correctly",
        "\n  ", 
@@ -5246,8 +4759,7 @@ setup_by_var <- function(model,
        collapse_comma(set_group),
        "\n  ",
        "Please correct it and re-try calling the predictions")
-  
-  
+
   if(dpar == "mu") {
     if(is.logical(set_group)) {
       if(!set_group) set_group <- xvar
@@ -5258,13 +4770,11 @@ setup_by_var <- function(model,
       if (!xvar %in% set_group) {
         if(xvar_strict) {
           stop2c(xvar_strict_msg)
-        } # xvar_strict
-      } # if (!xvar %in% set_group) {
-    } # if(is.logical(set_group)) { else if(!is.logical(set_group)) {
-  } # if(dpar == "mu") {
+        } 
+      } 
+    } 
+  } 
   
-  
-  # See here, unlike dpar == "mu", the xvar is added if not already in set_group
   if(!switch_plot) {
     if(dpar == "sigma") {
       xvar_strict <- FALSE
@@ -5274,14 +4784,12 @@ setup_by_var <- function(model,
         if (!xvar %in% set_group) {
           if(xvar_strict) {
             stop2c(xvar_strict_msg)
-          } # xvar_strict
-        } # if (!xvar %in% set_group) {
-      } # if(is.logical(set_group)) { else if(!is.logical(set_group)) {
-    } # if(dpar == "sigma") {
+          } 
+        } 
+      } 
+    } 
   }
 
-  
-  ######## get_comparisons - looks same as get_predictions
   if(grepl("^get_comparisons", xcall)) {
     if(!is.null(condition)) {
       if(!is.null(by)) {
@@ -5304,11 +4812,6 @@ setup_by_var <- function(model,
         }
         if(is_emptyx(set_group)) set_group <- NULL # FALSE
       } else if(plot) {
-        # if(!is.null(by)) {
-        #   if(is.logical(by)) {
-        #     if(!by) by <- NULL
-        #   }
-        # }
         if(!is.null(condition) & !is.null(by)) {
           stop2c("One of the `condition` and `by` arguments must
                  be supplied, but not both.")
@@ -5317,12 +4820,10 @@ setup_by_var <- function(model,
         } else if(!is.null(condition)) {
           set_group <- NULL
         }
-      } # if(!plot) { else if(!plot) {
-    } # if(method == 'pkg') {
-  } # if(grepl("^get_comparisons", xcall)) {
-
+      } 
+    } 
+  } 
   
-  ######## get_predictions
   if(grepl("^get_predictions", xcall)) {
     if(method == 'pkg' | method == 'custom') {
       if(!plot) {
@@ -5338,11 +4839,6 @@ setup_by_var <- function(model,
         }
         if(is_emptyx(set_group)) set_group <- NULL # FALSE
       } else if(plot) {
-        # if(!is.null(by)) {
-        #   if(is.logical(by)) {
-        #     if(!by) by <- NULL
-        #   }
-        # }
         if(!is.null(condition) & !is.null(by)) {
           stop2c("One of the `condition` and `by` arguments must
                  be supplied, but not both.")
@@ -5351,18 +4847,9 @@ setup_by_var <- function(model,
         } else if(!is.null(condition)) {
           set_group <- NULL
         }
-      } # if(!plot) { else if(!plot) {
-    } # if(method == 'pkg') {
-  } # if(grepl("^get_predictions", xcall)) {
-  
-  
-  ######## modelbased_growthparameters_call
-  if(grepl("^modelbased_growthparameters_call", xcall)) {
-    
-  }
-  
-  
-  
+      } 
+    } 
+  } 
   return(set_group)
 }
 
@@ -5390,16 +4877,9 @@ setup_variables_var <- function(model,
                                 xvar_strict = TRUE,
                                 switch_plot = FALSE,
                                 verbose = FALSE) {
- 
-  # When setup_variables_var called from marginal_* via hypothesis_test()
-  # Then same setup_variables_var executed as get_growthparameters()
-  
   if(grepl("^get_growthparameters", xcall) | 
      grepl("^hypothesis_test", xcall) |
      grepl("^modelbased_growthparameters", xcall)) {
-    
-  # if(grepl("^get_growthparameters", xcall) |
-  #    grepl("^modelbased_growthparameters", xcall)) {
     if (!is.null(variables)) {
       if (!is.list(variables)) {
         if(is.character(variables)) {
@@ -5442,13 +4922,7 @@ setup_variables_var <- function(model,
         set_variables[[xvar]] <- eps
       }
     }
-  } # if(grepl("^get_growthparameters", xcall)) {
-  
-  
-  
-  
-  ######## get_comparisons
-  
+  } 
   if(grepl("^get_comparisons", xcall)) {
     if(method == 'custom') {
       if (!is.null(variables)) {
@@ -5479,21 +4953,13 @@ setup_variables_var <- function(model,
           } else if(!is.null(difx)) {
             names(set_variables) <- difx
           }
-          # names(set_variables) <- xvar
         }
       }
-    } # if(method == 'custom') {
-    
+    } 
     if(method == 'pkg') {
       set_variables <- variables
     }
-  } # if(grepl("^get_comparisons", xcall)) {
-  
-  
-  
-  
-  ######## get_predictions
-  
+  } 
   if(grepl("^get_predictions", xcall)) {
     if (!is.null(variables)) {
       if (!is.character(variables)) {
@@ -5509,9 +4975,8 @@ setup_variables_var <- function(model,
           } else if(!is.null(difx)) {
             set_variables <- difx
           }
-          # set_variables <- xvar
-        } else { # if(!is.null(set_variables[[xvar]])) {
-          
+        } else {
+          # 
         }
       }
     } else if (is.null(variables)) {
@@ -5520,11 +4985,7 @@ setup_variables_var <- function(model,
       } else if(!is.null(difx)) {
         set_variables <- difx
       }
-      # set_variables <- xvar
     } 
-    
-   
-    
     if(method == 'custom') {
       set_variables <- variables
       if(deriv > 0) {
@@ -5543,14 +5004,11 @@ setup_variables_var <- function(model,
             set_variables <- set_variables
           }
           if(is_emptyx(set_variables)) set_variables <- NULL # FALSE
-        } # if(model_deriv) {
-      } #if(deriv > 0) {
-    } # if(method == 'custom') {
-
-    
+        } 
+      } 
+    } 
     if(method == 'pkg') {
       set_variables <- variables
-      # Remove xvar as variable when model_deriv = TRUE for deriv > 0
       if(deriv > 0) {
         if(model_deriv) {
           if(!is.null(set_variables)) {
@@ -5567,14 +5025,10 @@ setup_variables_var <- function(model,
             set_variables <- set_variables
           }
           if(is_emptyx(set_variables)) set_variables <- NULL # FALSE
-        } # if(model_deriv) {
-      } #if(deriv > 0) {
-    } # if(method == 'pkg') {
-    
-    
-  } # if(grepl("^get_predictions", xcall)) {
-  
-  
+        } 
+      }
+    } 
+  } 
   if(grepl("^modelbased_growthparameters", xcall)) {
     if(method == 'pkg') {
       if(is.null(set_variables[[xvar]])) {
@@ -5582,9 +5036,6 @@ setup_variables_var <- function(model,
       }
     }
   }
-  
-  
-  
   if(grepl("^get_growthparameters", xcall)) {
     if(method == 'pkg') {
       if(deriv == 0) {
@@ -5595,9 +5046,6 @@ setup_variables_var <- function(model,
       }
     }
   }
-  
-  
-  
   return(set_variables)
 }
 
@@ -5629,19 +5077,19 @@ eval_xoffset_bstart_args <- function(x,
                                      arg = 'xoffset',
                                      dpar = "mu",
                                      verbose = FALSE) {
-  
   iknots <- checkgetiknotsbknots(knots, 'iknots')
   bknots <- checkgetiknotsbknots(knots, 'bknots')
-  
   if(check_is_numeric_like(eval_arg)) {
       zm <- as.numeric(eval_arg)
       if(check_for_nan_inf(offsetfunsi(zm))) {
-        if(verbose) message2c(collapse_comma(arg), " value ", collapse_comma(zm), 
+        if(verbose) message2c(collapse_comma(arg), " value ", 
+                              collapse_comma(zm), 
                             " can not be transformed to", 
                             " match the xfun based transformation of x " ,"")
       } else {
         zm <- offsetfunsi(zm)
-        if(verbose) message2c(collapse_comma(arg), " value ", collapse_comma(zm), 
+        if(verbose) message2c(collapse_comma(arg), " value ", 
+                              collapse_comma(zm), 
                             "' transformed to '",  zm ,"'")
       }
     out        <- as.numeric(zm)
@@ -5719,6 +5167,7 @@ eval_xoffset_bstart_args <- function(x,
       }
       lmform <- as.formula(paste0(y, "~1+", "mat_s"))
       lmfit <- lm(lmform, data = data)
+      insight::check_if_installed('sitar', minimum_version = '1.5.0')
       eval_arg.o <- sitar::getPeak(data[[x]],
                                    predict(smooth.spline(data[[x]],
                                                          fitted(lmfit)),
@@ -5764,24 +5213,24 @@ eval_xoffset_cstart_args <- function(x,
                                      verbose = FALSE) {
   iknots <- checkgetiknotsbknots(knots, 'iknots')
   bknots <- checkgetiknotsbknots(knots, 'bknots')
-
   if(check_is_numeric_like(eval_arg)) {
     csetfunsi <- function(x)x
     zm <- as.numeric(eval_arg)
     if(check_for_nan_inf(csetfunsi(zm))) {
-      if(verbose) message2c(collapse_comma(arg), " value ", collapse_comma(zm), 
+      if(verbose) message2c(collapse_comma(arg), " value ",
+                            collapse_comma(zm), 
                           " can not be transformed to", 
                           " match the xfun based transformation of x " ,"")
     } else {
       zm <- csetfunsi(zm)
-      if(verbose) message2c(collapse_comma(arg), " value ", collapse_comma(zm), 
+      if(verbose) message2c(collapse_comma(arg), " value ", 
+                            collapse_comma(zm), 
                           "' transformed to '",  zm ,"'")
     }
     out        <- as.numeric(zm)
     out        <- round(out, 3)
     return(out)
   }
-  
   if(eval_arg != "pv") {
     stop2c("For cstart, only 'pv' is allowed")
   }
@@ -5856,6 +5305,7 @@ eval_xoffset_cstart_args <- function(x,
       }
       lmform <- as.formula(paste0(y, "~1+", "mat_s"))
       lmfit <- lm(lmform, data = data)
+      insight::check_if_installed('sitar', minimum_version = '1.5.0')
       eval_arg.o <- sitar::getPeak(data[[x]],
                                    predict(smooth.spline(data[[x]],
                                                          fitted(lmfit)),
@@ -5917,15 +5367,13 @@ split_fullknots_knots_bknots <- function(fullknots) {
 #' @keywords internal
 #' @noRd
 #' 
-checkgetiknotsbknots <- function(knots, 
-                                 return = NULL) {
+checkgetiknotsbknots <- function(knots, return = NULL) {
   
   if(is.null(return)) {
     stop2c("Argument 'return' must be specified, iknots or bknots")
   } else if(is.symbol(return)) {
     stop2c("Argument 'return' must be a character string")
   }
-  
   if(length(knots) > 2) {
     iknots <- knots[2:(length(knots)-1)]
     bknots <- c(knots[1], knots[length(knots)])
@@ -5933,7 +5381,6 @@ checkgetiknotsbknots <- function(knots,
     iknots <- NULL
     bknots <- knots
   }
-  
   if(return == 'iknots') {
     out <- iknots
   } else if(return == 'bknots') {
@@ -6021,42 +5468,28 @@ edit_mapping_facet <- function(outp,
                                which_aes = NULL, 
                                print = FALSE,
                                verbose = FALSE) {
-  
   if(is.null(method)) {
     method <- 'pkg'
   }
-  
   if(is.null(funx_)) {
     funx_ <- function(x)x
   }
-  
   if(is.null(ifunx_)) {
     ifunx_ <- function(x)x
   }
-  
-  ###########################################################################
-  # mapping_facet
-  ###########################################################################
-  
   if(is.null(envir)) {
     envir <- outp@plot_env
   }
-  
-  
   if(is.null(mapping_facet)) {
     mapping_facet <- list()
   } else if(!is.null(mapping_facet)) {
-    # Importanat to set the environment for the mapping_facet
     environment(mapping_facet) <- envir
   }
-  
   p_layes <- names(outp$layers)
   grid_wrap <- c('facet_grid', 'facet_wrap')
   if(is.null(which_aes)) {
     which_aes <- setdiff(names(mapping_facet), grid_wrap)
   }
-  
-  # Remove layes - such as geom_ribbon, geom_line geom_line...3
   new_p_layes <- c()
   new_which_aes <- c()
   for (i in p_layes) {
@@ -6070,11 +5503,8 @@ edit_mapping_facet <- function(outp,
       }
     }
   }
-  
-  
   p_layes <- new_p_layes
   which_aes <- new_which_aes
-  
   for (i in p_layes) {
     for (j in which_aes) {
       if(!is.null(mapping_facet[[j]])) {
@@ -6082,24 +5512,15 @@ edit_mapping_facet <- function(outp,
         xx <- deparse(substitute(xx))
         calept <- paste0( "quote(factor(.data[[", xx, "]]))" )
         outp[['layers']][[i]][['mapping']][[j]] <- ept(calept, envir = envir)
-      } # if(!is.null(mapping_facet[[j]])) {
-    } # for (j in which_aes) {
-    # if()
-  } # for (i in p_layes) {
-  
-  
+      } 
+    } 
+  } 
   if(!is.null(mapping_facet$facet_grid)) {
     outp <- outp + ggplot2::facet_grid(mapping_facet$facet_grid)
   } else if(!is.null(mapping_facet$facet_wrap)) {
     outp <- outp + ggplot2::facet_wrap(mapping_facet$facet_wrap)
   } 
-  
-  
-  ###########################################################################
-  # call specific settings
-  ###########################################################################
-  
-  ######## get_predictions
+
   if(grepl("^get_predictions", xcall)) {
     if(method == 'pkg') {
       if(!is.null(by)) {
@@ -6108,32 +5529,9 @@ edit_mapping_facet <- function(outp,
       if(!is.null(condition)) {
         ifunx_ <- function(x)x
       }
-    } # if(method == 'pkg') {
-  } # if(grepl("^get_predictions", xcall)) {
+    } 
+  } 
   
-  ######## get_comparisons
-  if(grepl("^get_comparisons", xcall)) {
-    if(method == 'pkg') {
-      
-    } # if(method == 'pkg') {
-  } # if(grepl("^get_comparisons", xcall)) {
-
-  
-  ######## get_comparisons
-  if(grepl("^get_comparisons", xcall)) {
-    if(method == 'pkg') {
-      
-    } # if(method == 'pkg') {
-  } # if(grepl("^get_comparisons", xcall)) {
-  
-  
-  
-  
-  ###########################################################################
-  # construct - labels_ggfunx - labels_ggfunx_str
-  ###########################################################################
-  
-  # Define lables fun for x- axis
   labels_ggfunx <- function(...) {
     out <- ifunx_(list(...)[[1]]) 
     out <- scales::number(
@@ -6153,24 +5551,15 @@ edit_mapping_facet <- function(outp,
   }
   
   labels_ggfunx_str <- "ggplot2::scale_x_continuous(labels = labels_ggfunx)"
-  
-  
-  ###########################################################################
-  # showlegends - labels_ggfunx - labels_ggfunx_str
-  ###########################################################################
-  
-  
   if(!is.null(labels_ggfunx_str)) {
     suppressMessages({
       outp <- outp + ept(labels_ggfunx_str)
     })
   }
-  
   if(!showlegends) {
     outp <- outp + ggplot2::theme(legend.position = 'none') 
     outp <- outp + jtools::theme_apa(legend.pos = 'none')
   }
-  
   if(print) print(outp)
   return(outp)
 }
@@ -6240,12 +5629,7 @@ get_pe_ci_collapse <- function(x,
                                conf,
                                probs,
                                digits = NULL) {
- 
-  # get_etix <- utils::getFromNamespace("get_eti", "marginaleffects")
-  # get_etix <- stats::quantile
-  
   get_hdix <- utils::getFromNamespace("get_hdi", "marginaleffects")
-  
   if(ec_agg == "mean")  {
     estimate <- collapse::fmean(x, na.rm = na.rm, nthreads = nthreads) 
   } else if(ec_agg == "median") {
@@ -6253,7 +5637,6 @@ get_pe_ci_collapse <- function(x,
   } else {
     stop2c("Argument 'ec_agg' must be either 'mean' or 'median'")
   }
-  
   if(ei_agg == "eti") {
     luci = collapse::fquantile(x, probs = probs, na.rm = na.rm)
   } else if(ei_agg == "hdi") {
@@ -6288,7 +5671,6 @@ set_custom_comparison_method_call_d01 <- function(method,
                                                   use_d1,
                                                   model_deriv,
                                                   deriv) {
-  
   if(is.null(check_available_d1)) {
     check_available_d1 <- FALSE
   }
@@ -6319,12 +5701,9 @@ set_custom_comparison_method_call_d01 <- function(method,
         get_model_deriv <- model_deriv
         get_post_deriv  <- deriv
       }
-    } # if(deriv > 0) {
-  } # if(method == "custom") {
+    } 
+  } 
 
-  
-  # Imp to correctly call slopes to marginal effects, this below is must
-  # This will assign d0 and set call_slopes = TRUE
   if(method == "pkg") {
     if(deriv > 0) {
       method_call     <- 'predictions'
@@ -6336,7 +5715,7 @@ set_custom_comparison_method_call_d01 <- function(method,
       comparison      <- comparison
       get_model_deriv <- model_deriv
       get_post_deriv  <- deriv
-    } # else if(deriv == 0) {
+    } 
   }
   if(method == "custom") {
     if(deriv > 0) {
@@ -6415,8 +5794,6 @@ set_custom_comparison_method_call_d01 <- function(method,
               get_model_deriv <- FALSE
               get_post_deriv  <- 0
             }
-            # get_model_deriv <- model_deriv
-            # get_post_deriv <- 0
           } else if(grepl('comparisons', method_call) & 
                     grepl('difference', comparison)) {
             if(use_d1) {
@@ -6430,8 +5807,6 @@ set_custom_comparison_method_call_d01 <- function(method,
               get_model_deriv <- FALSE
               get_post_deriv  <- 0
             }
-            # get_model_deriv <- model_deriv
-            # get_post_deriv <- deriv
           } else if(grepl('comparisons', method_call) & 
                     grepl('dydx', comparison)) {
             if(use_d1) {
@@ -6445,10 +5820,8 @@ set_custom_comparison_method_call_d01 <- function(method,
               get_model_deriv <- FALSE
               get_post_deriv  <- 0
             }
-            # get_model_deriv <- model_deriv
-            # get_post_deriv <- 0
           }
-        } # else if(!is.null(method_call) & !is.null(comparison)) {
+        } 
       } else if(!model_deriv) {
         method_call     <- 'predictions'
         comparison      <- 'dydx'
@@ -6460,9 +5833,8 @@ set_custom_comparison_method_call_d01 <- function(method,
       comparison      <- comparison
       get_model_deriv <- model_deriv
       get_post_deriv  <- deriv
-    } # else if(deriv == 0) {
-  } # if(method == "custom") {
-  
+    } 
+  } 
   deriv <- get_post_deriv
   model_deriv <- get_model_deriv
   out <- list(method_call=method_call, comparison=comparison, 
@@ -6504,30 +5876,18 @@ check_set_comparison_method_call <- function(comparison,
                                              strict = FALSE,
                                              allowed_method_call_args = NULL,
                                              verbose = FALSE) {
-  
-  # Note: Even when average = TRUE, marginaleffrects does't internally call
-  # differenceavg / dydxavg for predictions or slopes
-  # switch_avg = FALSE ensures this marginaleffrects behavior
-  # switch_avg = TRUE, on the other hands, matches avg with average = T/F
-  # strict = FALSE will let pass on this marginaleffrects behaviors
-  # strict = TRUE will not let pass on this marginaleffrects behavious
-  
   if(is.null(use_d1)) {
     use_d1 <- FALSE
   }
-  
   if(is.null(allowed_method_call_args)) {
     allowed_method_call_args <- c("predictions", "comparisons")
   }
-  
   if(!is.null(args)) { 
-    # add_to_args <- setdiff(names(full.args), names(args))
     add_to_args <- c('deriv', 'average', 'method', 'method_call')
     for (i in add_to_args) {
       args[[i]] <-  full.args[[i]] 
     }
   }
-  
   if(!is.null(args)) {
     if(missing(comparison))  comparison  <- args[['comparison']]
     if(missing(deriv))       deriv       <- args[['deriv']]
@@ -6544,9 +5904,7 @@ check_set_comparison_method_call <- function(comparison,
     if(missing(method))      stop2c("Argument 'method' is missing")
     if(missing(method_call)) stop2c("Argument 'method_call' is missing")
   }
-  
   comparison_org <- comparison
-  
   msgstr_i0 <- paste0("For method = ", collapse_comma(method))
   msgstr_i1 <- paste0(msgstr_i0, 
                       ", deriv = ", collapse_comma(deriv), 
@@ -6555,8 +5913,6 @@ check_set_comparison_method_call <- function(comparison,
                       ", the default method_call was ", 
                       collapse_comma(deparse(method_call)),
                       " which has now been set as ")
-  
-  
   if(method == 'custom') {
     if(deriv == 0) {
       if(model_deriv) {
@@ -6575,7 +5931,7 @@ check_set_comparison_method_call <- function(comparison,
         } else if(!is.null(comparison)) {
           # 
         }
-      } # else if(!model_deriv) {
+      } 
     } else if(deriv > 0) {
       if(model_deriv) {
         if(is.null(comparison)) {
@@ -6628,10 +5984,9 @@ check_set_comparison_method_call <- function(comparison,
           msgstr_i1   <- paste0(msgstr_i1, collapse_comma(method_call))
           if(verbose) message2c(msgstr_i1)
         }
-      } # if(model_deriv) { else if(!model_deriv) {
-    } # if(deriv == 0) { else if(deriv > 0) {
-  } # if(method == 'custom') {
-  
+      } 
+    } 
+  } 
   
   if(method == 'pkg') {
     if(deriv == 0) {
@@ -6670,14 +6025,13 @@ check_set_comparison_method_call <- function(comparison,
         msgstr_i1   <- paste0(msgstr_i1, collapse_comma(method_call))
         if(verbose) message2c(msgstr_i1)
       }
-    } # if(deriv == 0) { else if(deriv > 0) {
-  } # if(method == 'pkg') {
+    } 
+  }
   
   msgstr <- paste0("For method = ", collapse_comma(method), 
                    " and method_call = ",
                    collapse_comma(method_call), 
                    ", ")
-  
   if(method == 'pkg') {
     if(is.null(comparison)) {
       if(deriv == 0) {
@@ -6852,7 +6206,7 @@ check_set_comparison_method_call <- function(comparison,
                                  "")
               stop2c(msgstr2x)
             }
-          } # else if(!model_deriv) {
+          } 
         }
       }
     } else if(method_call == 'predictions') {
@@ -6932,12 +6286,11 @@ check_set_comparison_method_call <- function(comparison,
                                  "")
               stop2c(msgstr2x)
             }
-          } # else if(!model_deriv) {
+          } 
         }
       }
-    } # if(method_call=='comparisons'){else if(method_call == 'predictions'){
-  } # if(method == 'pkg') { else if(method == 'custom') {
-  
+    } 
+  } 
   
   if(verbose) {
     msgstr_final <- paste0(msgstr, 
@@ -6949,9 +6302,7 @@ check_set_comparison_method_call <- function(comparison,
                            collapse_comma(comparison))
     message2c(msgstr_final)
   }
-  
-  
-  # Check correctly set average difference / dydx for average
+
   checkset_comparisons_arg <- comparison
   if(average) {
     if(!grepl("avg$", checkset_comparisons_arg) & switch_avg) {
@@ -6966,11 +6317,9 @@ check_set_comparison_method_call <- function(comparison,
              collapse_comma(checkset_comparisons_arg))
     }
   }
-  
   out <- list(comparison = comparison, method_call = method_call)
   return(out)
-} # end of check_set_comparison_method_call()
-
+} 
 
 
 
@@ -6996,12 +6345,9 @@ correct_comparison_method_call_fun <- function(method = 'custom',
                                                use_d1,
                                                correct_method_call = TRUE,
                                                correct_comparison = TRUE) {
-  
- 
   if(is.null(use_d1)) {
     use_d1 <- FALSE
   }
-  
   if(method == 'custom') {
     if(model_deriv) {
       if(deriv == 0) {
@@ -7011,7 +6357,7 @@ correct_comparison_method_call_fun <- function(method = 'custom',
         correct_comparison <- TRUE
         correct_method_call <- FALSE
       }
-    } # if(model_deriv) {
+    } 
     if(!model_deriv) {
       if(deriv == 0) {
         correct_comparison <- TRUE
@@ -7022,13 +6368,10 @@ correct_comparison_method_call_fun <- function(method = 'custom',
           correct_method_call <- TRUE
         } else if(!use_d1) {
           correct_method_call <- TRUE
-        } # else if(!use_d1) {
+        }
       }
-    } # if(model_deriv) {
-  } # if(method == 'custom') {
-  
-  
-  
+    } 
+  } 
   if(method == 'custom') {
     if(model_deriv) {
       if(deriv > 0) {
@@ -7037,9 +6380,9 @@ correct_comparison_method_call_fun <- function(method = 'custom',
           if(grepl('comparisons', method_call)) {
             method_call <- 'predictions'
           }
-        } # if(correct_method_call) {
-      } # if(deriv > 0) {
-    } # if(model_deriv) {
+        } 
+      } 
+    } 
     if(!model_deriv) {
       if(deriv > 0) {
         if(correct_method_call) {
@@ -7047,12 +6390,10 @@ correct_comparison_method_call_fun <- function(method = 'custom',
           if(grepl('predictions', method_call)) {
             method_call <- 'comparisons'
           }
-        } # if(correct_method_call) {
-      } # if(deriv > 0) {
-    } # if(model_deriv) {
-  } # if(method == 'custom') {
-  
-  
+        } 
+      } 
+    } 
+  } 
   msgstr_i0 <- paste0("For method = ", collapse_comma(method))
   msgstr_i1 <- paste0(msgstr_i0, 
                       ", deriv = ", collapse_comma(deriv), 
@@ -7083,7 +6424,6 @@ correct_comparison_method_call_fun <- function(method = 'custom',
               comparison <- gsub('dydx', 'difference', comparison)
             }
           } else if(method_call == 'comparisons') {
-            # stop2c(msgstr_i1)
             if(grepl('difference', comparison)) {
               comparison <- comparison
             }
@@ -7091,8 +6431,8 @@ correct_comparison_method_call_fun <- function(method = 'custom',
               comparison <- gsub('dydx', 'difference', comparison)
             }
           }
-        } # else if(correct_comparison) {
-      } # if(deriv == 0) {
+        } 
+      } 
       if(deriv > 0) {
         if(correct_comparison) {
           if(method_call == 'predictions') {
@@ -7110,9 +6450,9 @@ correct_comparison_method_call_fun <- function(method = 'custom',
               comparison <- comparison
             }
           }
-        } # else if(correct_comparison) {
-      } # if(deriv > 0) {
-    } # if(model_deriv) {
+        } 
+      } 
+    } 
     if(!model_deriv) {
       if(deriv == 0) {
         if(correct_comparison) {
@@ -7124,7 +6464,6 @@ correct_comparison_method_call_fun <- function(method = 'custom',
               comparison <- gsub('dydx', 'difference', comparison)
             }
           } else if(method_call == 'comparisons') {
-            # stop2c(msgstr_i1)
             if(grepl('difference', comparison)) {
               comparison <- comparison
             }
@@ -7132,8 +6471,8 @@ correct_comparison_method_call_fun <- function(method = 'custom',
               comparison <- gsub('dydx', 'difference', comparison)
             }
           }
-        } # else if(correct_comparison) {
-      } # if(deriv == 0) {
+        } 
+      } 
       if(deriv > 0) {
         if(correct_comparison) {
           if(method_call == 'predictions') {
@@ -7152,15 +6491,13 @@ correct_comparison_method_call_fun <- function(method = 'custom',
               comparison <- comparison
             }
           }
-        } # if(correct_comparison) {
-      } # if(deriv > 0) {
-    } # if(!model_deriv) {
-  } # if(method == 'custom') {
-  
+        } 
+      } 
+    } 
+  } 
   out <- list(comparison=comparison, method_call=method_call)
   return(out)
-} # end of correct_comparison_method_call_fun()
-
+} 
 
 
 
@@ -7173,10 +6510,8 @@ get_all_grby_vars_names <- function(elements = NULL, envir = NULL) {
   if(is.null(envir)) {
     envir <- parent.frame()
   }
-  
   abc_grby_vars_grsi_c <- abc_grby_vars_gr_strsi_c <- c()
   sigma_grby_vars_grsi_c <- sigma_grby_vars_gr_strsi_c <- c()
-  
   for (i in elements) {
     if(i != 'sigma') {
       if(exists(paste0(i, "_formula_grsi"), envir = envir)) {
@@ -7188,9 +6523,8 @@ get_all_grby_vars_names <- function(elements = NULL, envir = NULL) {
                                              mysr, perl = TRUE))[[1]]
           mysri <- mysri[mysri != "NULL"]
           abc_grby_vars_grsi_c <- c(abc_grby_vars_grsi_c, mysri)
-        } # if(is.null(mysr)) {
-      } # if(exists(paste0(i, "_formula_grsi"))) {
-      
+        } 
+      } 
       if(exists(paste0(i, "_formula_gr_strsi"), envir = envir)) {
         mysr <- get(paste0(i, "_formula_gr_strsi"), envir = envir)
         if(is.null(mysr)) {
@@ -7200,9 +6534,8 @@ get_all_grby_vars_names <- function(elements = NULL, envir = NULL) {
                                              mysr, perl = TRUE))[[1]]
           mysri <- mysri[mysri != "NULL"]
           abc_grby_vars_gr_strsi_c <- c(abc_grby_vars_gr_strsi_c, mysri)
-        } # if(is.null(mysr)) {
-      } # if(exists(paste0(i, "_formula_gr_strsi"))) {
-      
+        } 
+      } 
     } else if(i == 'sigma') {
       if(exists(paste0(i, "_formula_grsi"), envir = envir)) {
         mysr <- get(paste0(i, "_formula_grsi"), envir = envir)
@@ -7213,9 +6546,8 @@ get_all_grby_vars_names <- function(elements = NULL, envir = NULL) {
                                              mysr, perl = TRUE))[[1]]
           mysri <- mysri[mysri != "NULL"]
           sigma_grby_vars_grsi_c <- c(sigma_grby_vars_grsi_c, mysri)
-        } # if(is.null(mysr)) {
-      } # if(exists(paste0(i, "_formula_grsi"))) {
-      
+        } 
+      } 
       if(exists(paste0(i, "_formula_gr_strsi"), envir = envir)) {
         mysr <- get(paste0(i, "_formula_gr_strsi"), envir = envir)
         if(is.null(mysr)) {
@@ -7225,12 +6557,10 @@ get_all_grby_vars_names <- function(elements = NULL, envir = NULL) {
                                              mysr, perl = TRUE))[[1]]
           mysri <- mysri[mysri != "NULL"]
           sigma_grby_vars_gr_strsi_c <- c(sigma_grby_vars_gr_strsi_c, mysri)
-        } # if(is.null(mysr)) {
-      } # if(exists(paste0(i, "_formula_gr_strsi"))) {
-    } # if(i != 'sigma') { else if(i == 'sigma') {
-  } # for (i in elements) {
-  
-  
+        } 
+      } 
+    } 
+  } 
   out <- list()
   abc_grby   <- unique(abc_grby_vars_grsi_c, abc_grby_vars_gr_strsi_c)
   sigma_grby <- unique(sigma_grby_vars_grsi_c, sigma_grby_vars_gr_strsi_c)
@@ -7256,7 +6586,6 @@ check_set_parm <- function(parameter,
                            setpreparms = FALSE,
                            plot = FALSE,
                            verbose = FALSE) {
-  
   if(is.null(allowed_parms)) {
     allowed_parms <- c('apgv', 'pgv', 'atgv', 'tgv', 'acgv', 'cgv')
   }
@@ -7266,35 +6595,27 @@ check_set_parm <- function(parameter,
   if(is.null(default_parms)) {
     default_parms <- c('apgv', 'pgv')
   }
-  
   if(verbose) {
     if(setpreparms) {
       message2c(" For 'preparms', the argument 'parameter' is ignored.",
-                "\n All levels of parameter variable are summarised. To get ",
-                "\n summary of a single variable (such as 'apgv'), you can",
-                "\n subset the parameter variable before calling the function\n")
+                " Hence, all levels of parameter variable are summarised. ",
+                " To get summary of a single variable (such as 'apgv'), user ",
+                " can subset parameter variable before calling the function.")
     }
   }
-  
   allowed_parms_allowed_parms_size <- c(allowed_parms, allowed_parms_size)
-  
   parameter_arg <- parameter
   parameter     <- setdiff(parameter, allowed_parms_size)
   parameter_sat <- setdiff(parameter,c(allowed_parms_allowed_parms_size, 'all'))
   if(!is_emptyx(parameter_sat)) {
     parameter     <- parameter[parameter != parameter_sat]
   }
-  # parameter     <- parameter[parameter != parameter_sat]
   if(is_emptyx(parameter)) {
     parameter <- NULL
   }
   if(is_emptyx(parameter_arg)) {
     parameter_arg <- NULL
   }
-  
-  
-  
-  
   if(!is_emptyx(parameter_sat)) {
     if(length(parameter_sat) > 1) {
       stop2c("parameter 'sat' must be of length one")
@@ -7307,11 +6628,8 @@ check_set_parm <- function(parameter,
   } else if(is_emptyx(parameter_sat)) {
     parameter_sat <- string_sat <- numeric_sat <- string_numeric_sat <- NULL
   }
-  
-  
   numeric_sat_check_msg <- 
     "The size at parameter 'sat' must have a numeric part such as 'sat12'"
-  
   if(!is.null(string_sat)) {
     if(is.null(numeric_sat)) {
       stop2c(numeric_sat_check_msg)
@@ -7319,7 +6637,6 @@ check_set_parm <- function(parameter,
       stop2c(numeric_sat_check_msg)
     }
   } 
-  
   if(!is.null(string_sat)) {
     if(!is.na(string_sat)) {
       if(is.null(numeric_sat)) {
@@ -7329,26 +6646,8 @@ check_set_parm <- function(parameter,
       }
     }
   }
-  
-  
   sat_ptc <- intersect(allowed_parms_size, parameter_arg) 
   if(is_emptyx(sat_ptc)) sat_ptc <- NULL
-  
-  # Not possible, need at least one core parm
-  # Allow only sat paramete
-  # if(is.null(parameter)) {
-  #   if(!is.null(parameter_sat)) {
-  #     out <- list(parm = NULL, sat_ptc = sat_ptc,
-  #                 parameter = parameter, parameter_arg = parameter_arg,
-  #                 parameter_sat = parameter_sat, string_sat = string_sat,
-  #                 numeric_sat = numeric_sat, string_numeric_sat = string_numeric_sat)
-  #     
-  #     return(out)
-  #   }
-  # }
-  
-
-  # 01.07.2025
   if(is.null(parameter)) {
     parm <- default_parms
   } else if(!is.null(parameter)) {
@@ -7360,8 +6659,7 @@ check_set_parm <- function(parameter,
     } else {
       parm <- parameter
     }
-  } # if(is.null(parameter)) { if(!is.null(parameter)) {
-  
+  } 
   parm <- base::tolower(parm)
   for (parameteri in parm) {
     if(!parameteri %in% allowed_parms) {
@@ -7373,14 +6671,9 @@ check_set_parm <- function(parameter,
       )
     }
   }
-  
   if(length(parm) > 1) {
     if(plot) stop2c("Please specify only one parameter when plot = TRUE")
   }
-  
-  
-
-  
   out <- list(parm = parm, sat_ptc = sat_ptc,
        parameter = parameter, parameter_arg = parameter_arg,
        parameter_sat = parameter_sat, string_sat = string_sat,
@@ -7407,16 +6700,12 @@ rename_vector_in_column_dt <- function(dt, column, it, by) {
       stop2c("must be data table or data frame")
     }
   }
-  
   dt[get(column) == it, (column) := by]
   if(was_df) {
     dt <- DT_to_data_frames(dt)
   }
-  
   return(dt)
 }
-
-# rename_vector_in_column_dt(out_sfx, 'parameter', 'spgv', 'spgvxxxx')
 
 
 #' make_drawindex_df_dt
@@ -7434,7 +6723,6 @@ make_drawindex_df_dt <- function(dt,
                                  first = FALSE,
                                  last = FALSE,
                                  skip_absent=FALSE) {
-  
   was_df <- FALSE
   if(!data.table::is.data.table(dt)) {
     if(is.data.frame(dt)) {
@@ -7444,8 +6732,6 @@ make_drawindex_df_dt <- function(dt,
       stop2c("must be data table or data frame")
     }
   }
-  
-  
   if(is.null(draw_ids)) {
     data.table::alloc.col(dt, 1L)
     dt[, (drawindex_name) := get(drawid_name)]
@@ -7461,7 +6747,6 @@ make_drawindex_df_dt <- function(dt,
   } else if(is.null(before) & is.null(after)) {
     after_pos <- match(drawid_name, names(dt))
   }
-  
   if(first) {
     before_pos <- 1
     after_pos <- NULL
@@ -7470,45 +6755,28 @@ make_drawindex_df_dt <- function(dt,
     after_pos <- ncol(dt)
     before_pos <- NULL
   }
-  
   unique_drawid_name <- unique(sort(dt[[drawid_name]]))
   unique_draw_ids <- unique(sort(draw_ids))
-  
   if(is.factor(unique_drawid_name)) {
     unique_drawid_name <- levels(unique_drawid_name)
     if(is.character(unique_drawid_name)) {
       unique_drawid_name <- as.numeric(unique_drawid_name)
     }
   }
-  
-  
-  if(length(unique_drawid_name) != length(unique_draw_ids)) {
-    # stop2c("lengths of unique 'drawid' and new 'draw_ids' must be the same")
-  }
-  
   if(identical(unique_drawid_name, unique_draw_ids)) {
     data.table::alloc.col(dt, 1L)
     dt[, (drawindex_name) := get(drawid_name)]
     return(dt)
   }
-  
   data.table::alloc.col(dt, 1L)
   dt[, (drawindex_name) := draw_ids[as.integer(get(drawid_name))] ]
   data.table::setcolorder(dt, (drawindex_name) , before = before_pos,
                           after = after_pos, skip_absent = skip_absent)
-  
   if(was_df) {
     dt <- DT_to_data_frames(dt)
   }
-  
   return(dt)
-} # make_drawindex_df_dt
-
-
-# make_drawindex_df_dt(out_sfx, draw_ids = actual_indices, last = T)
-
-
-
+} 
 
 
 
@@ -7541,13 +6809,11 @@ get_size_from_age_draws <- function(age_draws_dt,
                                     last = TRUE,
                                     rbindsize = TRUE,
                                     skip_absent=FALSE) {
-  
   if(!is.null(by)) {
     if(is.logical(by)) {
       if(!by) by <- NULL
     }
   }
-  
   if(!data.table::is.data.table(age_draws_dt)) {
     if(is.data.frame(age_draws_dt)) {
       age_draws_dt <- data.table::setDT(age_draws_dt)
@@ -7555,9 +6821,7 @@ get_size_from_age_draws <- function(age_draws_dt,
       stop2c("'age_draws_dt' must be a data table or data frame")
     }
   }
-  
   age_draws_dt[, (parameter_name) := as.factor(get(parameter_name))]
-  
   sat_only <- FALSE
   if(is.null(parameter)) {
     if(is.null(sat)) {
@@ -7566,30 +6830,17 @@ get_size_from_age_draws <- function(age_draws_dt,
       sat_only <- TRUE
     }
   }
-  
-
-  # select only those size at for which age parameter available
-  # pull_age_p   <- unique(age_draws_dt[[parameter_name]])
-  # pull_age_p_s <- sub("^a", "s", pull_age_p)
-  # parameter <- intersect(parameter, pull_age_p_s)
-
-  
   if(!is.null(parameter)) {
     parameter <- sub("^s", "a", parameter)
   }
-  
   if(rbindsize) age_draws_dt_in <- age_draws_dt
-  
   age_draws_dt <- clean_draws(age_draws_dt, 
                               variable = NULL, 
                               group = 'parameter',
                               verbose = FALSE)
-  
-  # This for apgv.......
   if(!is.null(parameter)) {
     parameter_allowed <- c("spgv", "stgv", "scgv", "all_size", "all")
     if(any(parameter %in% parameter_allowed)) {
-    # if(parameter == 'all_size' | parameter == 'all') {
       parameter_loop_levels <- unique(droplevels(age_draws_dt[[parameter_name]]))
     } else {
       if(is.factor(parameter)) {
@@ -7600,18 +6851,10 @@ get_size_from_age_draws <- function(age_draws_dt,
       age_draws_dt <- age_draws_dt[age_draws_dt[[parameter_name]] 
                                    %in% parameter_loop_levels]
     }
-  } # if(!is.null(parameter)) {
-  
-  
+  } 
   if(is.null(parameter)) {
     parameter_loop_levels <- unique(droplevels(age_draws_dt[[parameter_name]]))
   }
-  
-  
-  
-  
-  # parameter_loop_levels <- 'apgv'
-  
   sat_name <- vat_name <- NULL
   if(!is.null(sat)) {
     if(!rlang::is_bare_numeric(sat)) stop2c('sat must be a single numeric')
@@ -7624,8 +6867,6 @@ get_size_from_age_draws <- function(age_draws_dt,
     age_draws_dt <- collapse::rowbind(age_draws_dt, sat_draws_dt)
     parameter_loop_levels <- unique(droplevels(age_draws_dt[[parameter_name]]))
   }
-  
-  
   if(!is.null(vat)) {
     if(!rlang::is_bare_numeric(vat)) stop2c('vat must be a single numeric')
     if(length(vat) != 1) stop2c('vat must be a single numeric')
@@ -7637,24 +6878,16 @@ get_size_from_age_draws <- function(age_draws_dt,
     age_draws_dt <- collapse::rowbind(age_draws_dt, vat_draws_dt)
     parameter_loop_levels <- unique(droplevels(age_draws_dt[[parameter_name]]))
   }
-  
-
   core_varibales_name <- c(parameter_name, drawid_name, draw_name)
   core_varibales_name <- c(core_varibales_name, by)
   core_varibales_name_drawindex <- c(core_varibales_name, drawindex_name)
-  
-  
   age_draws_dt <- age_draws_dt[age_draws_dt[[parameter_name]]
                                %in% c('apgv', 'atgv', 'acgv', sat_name)]
-  
   parameter_loop_levels <- unique(droplevels(age_draws_dt[[parameter_name]]))
-  
-
   if(sat_only) {
     parameter_loop_levels <- sat_name
     age_draws_dt <- age_draws_dt[parameter == sat_name ] %>% droplevels()
   }
- 
   age_draws_dt <- make_drawindex_df_dt(age_draws_dt,
                                        draw_ids = draw_ids,
                                        drawid_name = drawid_name,
@@ -7664,12 +6897,9 @@ get_size_from_age_draws <- function(age_draws_dt,
                                        first = FALSE,
                                        last = TRUE,
                                        skip_absent=FALSE)
-  
   age_draws_dt <- age_draws_dt[, mget(core_varibales_name_drawindex)]
   draw_name_pos <- match(draw_name, names(age_draws_dt))
   age_draws_dt <- data.table::setnames(age_draws_dt, draw_name, xvar)
-
-  
   get_size_draws_fun <- function(x, 
                                  model, 
                                  data, 
@@ -7682,7 +6912,6 @@ get_size_from_age_draws <- function(age_draws_dt,
     if(is.null(draw_ids)) {
       draw_ids <- unique(data[[drawindex_name]])
     }
-    
     get_size_draws_fun_draw_ids <- function(x, 
                                             model, 
                                             data, 
@@ -7690,9 +6919,6 @@ get_size_from_age_draws <- function(age_draws_dt,
                                             future,
                                             drawindex_name,
                                             verbose) {
-      # brms::posterior_epred / fitted_draws does't work with one row data
-      # Error in `predictor.bprepnl()`:
-      # ! Error in cbind(1, basis) %*% solve(cbind(1, kbasis)) :
       newdata <- data[get(drawindex_name) == x, with = TRUE]
       if(nrow(newdata) == 1) {
         fitted_draws(model, 
@@ -7709,14 +6935,12 @@ get_size_from_age_draws <- function(age_draws_dt,
                      summary = FALSE,
                      re_formula = re_formula)
       }
-    } # get_size_draws_fun_draw_ids <- function(x, 
-    
+    } 
     if(future) {
       set_lapply <- future.apply::future_lapply 
     } else {
       set_lapply <- lapply
     }
-    
     set_lapply(draw_ids, 
                get_size_draws_fun_draw_ids,
                model = model, 
@@ -7725,104 +6949,464 @@ get_size_from_age_draws <- function(age_draws_dt,
                future = future,
                drawindex_name = drawindex_name,
                verbose = verbose)
-  } # get_size_draws_fun <- function(x, 
-  
-  
+  } 
   if(future) {
     set_lapply <- future.apply::future_lapply 
   } else {
     set_lapply <- lapply
   }
-  
-  
   age_draws_dt[[draw_name]] <- unlist(set_lapply(parameter_loop_levels, 
                                                  get_size_draws_fun, 
                                                  model = model,
                                                  data = age_draws_dt, 
                                                  re_formula = NA,
-                                                 drawindex_name = drawindex_name,
+                                                 drawindex_name=drawindex_name,
                                                  draw_ids = NULL,
                                                  future = future,
                                                  verbose = verbose))
-  
-  
-  
   age_draws_dt[, parameter := data.table::fcase(
     parameter == 'apgv', 'spgv',
     parameter == 'atgv', 'stgv',
     parameter == 'acgv', 'scgv',
     parameter == sat_name, 'sat',
     parameter == vat_name, 'vat',
-    default = parameter  # Unchanged if neither
+    default = parameter  
   )]
-  
-  
   age_draws_dt <- age_draws_dt[, (xvar) := NULL]
-  
-  # New
   if(is_emptyx(age_draws_dt)) return(age_draws_dt)
-  
   age_draws_dt <- data.table::setcolorder(age_draws_dt, (draw_name) , 
                                           after = drawid_name,
                                           skip_absent = skip_absent)
-  
-  
   if(rbindsize) {
     age_draws_dt_in <- age_draws_dt_in[, mget(core_varibales_name)]
     age_draws_dt <- age_draws_dt[, mget(core_varibales_name)]
     age_draws_dt <- collapse::rowbind(age_draws_dt_in, age_draws_dt)
   }
-  
-  # Remove asat
   age_draws_dt <- age_draws_dt[!age_draws_dt[[parameter_name]] %in% sat_name]
-  
   return(age_draws_dt)
 }
 
 
 
 
-# 
-# # Check for location of U+2060 when error runnin -> system("R CMD Rd2pdf --no-clean .")
-# 
-# getwd()  # Should be package root (DESCRIPTION nearby)
-# dir("man", pattern = "\\.Rd$")  # List actual .Rd files
-# 
-# 
-# rd_files <- list.files("man", pattern = "\\.Rd$", full.names = TRUE, recursive = FALSE)
-# if(length(rd_files) == 0) {
-#   cat("No .Rd files found in man/ – nothing to scan.\n")
-# } else {
-#   invisible(lapply(rd_files, function(f) {
-#     txt <- readLines(f, encoding = "UTF-8", warn = FALSE)
-#     hits <- grepl("\u2060", txt)
-#     if (any(hits)) {
-#       cat("Found in:", basename(f), "\n")
-#       cat(txt[hits], sep = "\n")
-#       cat("\n")
-#     }
-#   }))
-# }
-# 
+
+#' A wrapper around \code{'match.arg'} function
+#' 
+#' @noRd
+#' 
+match_arg_custom <- function(arg, choices, several.ok = FALSE) {
+  arg_name <- deparse(substitute(arg))
+  tryCatch(
+    match.arg(arg, choices = choices, several.ok = several.ok),
+    error = function(e) {
+      stop(
+        sprintf(
+          "Argument '%s' should be one of %s",
+          arg_name,
+          paste(sprintf("\"%s\"", choices), collapse = ", ")
+        ),
+        call. = FALSE
+      )
+    }
+  )
+}
 
 
 
-# xxx <-
-#   get_size_from_age_draws (age_draws_dt = draws_list_dtx,
-#                            model = fit,
-#                            xvar = 'age',
-#                            by = 'sex',
-#                            draw_ids = NULL, # comparisons_arguments[['draw_ids']]
-#                            sat = 15,
-#                            re_formula = NA,
-#                            parameter = 'spgv',
-#                            parameter_name = 'parameter',
-#                            draw_name = 'draw',
-#                            drawid_name = 'drawid',
-#                            drawindex_name = 'drawindex',
-#                            before = NULL,
-#                            after = NULL,
-#                            first = FALSE,
-#                            last = TRUE,
-#                            skip_absent=FALSE)
+
+
+#' Evaluate data expression string used by brms
+#' @details
+#' This is inserted in the \code{"get.newdata"} function that create new
+#' variable matrix based on the data column such as \code{"splines::ns(logagem,
+#' df = 3)"} used in the \code{sigma_formual} argument.
+#' 
+#' @noRd
+#' 
+eval_data_exp <- function(newdata = NULL, 
+                          model = NULL, 
+                          data_exp = NULL, 
+                          verbose = FALSE) {
+  
+  if(!is.null(model)) {
+    model_data <-  model$data
+    if(is.null(newdata)) {
+      newdata <- model$model_info$bgmfit.data
+    }
+  } else if(is.null(model)) {
+    if(is.null(newdata)) newdata <- model$model_info$bgmfit.data
+    model_data <-  newdata
+  }
+  
+  if(is.null(newdata)) stop("newdata must be a specified")
+  
+  if(!is.null(data_exp)) {
+    if(is.logical(data_exp)) {
+      if(!data_exp) return(newdata)
+    }
+  }
+  
+  names1 <- names(model_data) 
+  names2 <- names(newdata)
+  
+  if(is.null(data_exp)) {
+    data_exp <- model$model_info$data_exp
+  }
+  
+  if(is.null(data_exp)) {
+    data_exp <- setdiff(names1, names2)
+    if(length(data_exp) == 0) data_exp <- NULL
+  }
+  
+  data_exp <- NULL
+  
+  if(is.null(data_exp)) return(newdata)
+  
+  if(!is.character(data_exp)) stop("'data_exp' must be a character vector")
+
+  enverr. <- environment()
+  for (set_exp_ci in data_exp) {
+    assign('err.', FALSE, envir = enverr.)
+    tryCatch(
+      expr = {
+        newdata_mat <- with(newdata, ept(set_exp_ci))
+      },
+      error = function(e) {
+        assign('err.', TRUE, envir = enverr.)
+      }
+    )
+    err. <- get('err.', envir = enverr.)
+    if (err.) {
+      message(set_exp_ci , " could not be evaluated using 'eval_data_exp'")
+    } else if (!err.) {
+      newdata[[set_exp_ci]] <- newdata_mat
+    }
+  } # for (set_exp_ci in data_exp) {
+  
+ 
+  return(newdata)
+}
+
+
+#' Check object class
+#' @description Used in [get_model_criterion()] and [compare_models()]
+#' @noRd
+is_brmsfit <- function(x) inherits(x, "brmsfit")
+
+
+#' Re-order elements of the list
+#' @description Used in [get_model_criterion()] 
+#' @noRd
+move_to_front_list <- function(x, names_to_move) {
+  c(x[names_to_move], x[!names(x) %in% names_to_move])
+}
+
+
+#' Evaluate and flatten the model list
+#' @description Used in [get_model_criterion()] and [compare_models()]
+#' @noRd
+flatten_models <- function(x) {
+  if (is.null(x)) 
+    return(list())
+  if (is_brmsfit(x)) 
+    return(list(x))
+  if (is.list(x)) 
+    return(unlist(lapply(x, flatten_models), recursive = FALSE))
+  stop("All inputs must be brmsfit object or lists of brmsfit objects.")
+}
+
+
+
+
+#' Evaluate and flatten the expression list
+#' @description Used in [get_model_criterion()] and [compare_models()]
+#' @noRd
+flatten_exprs <- function(expr, value) {
+  if (is.null(value)) 
+    return(character())
+  if (is_brmsfit(value)) 
+    return(deparse(expr, nlines = 1))
+  if (is.list(value)) {
+    out <- vector("list", length(value))
+    nm <- names(value)
+    for (i in seq_along(value)) {
+      child_expr <- if (!is.null(nm) && nzchar(nm[i])) {
+        as.name(nm[i])
+      }
+      else if (is.call(expr) && identical(expr[[1]], 
+                                          as.name("list"))) {
+        expr[[i + 1]]
+      }
+      else {
+        as.call(list(as.name("[["), expr, i))
+      }
+      out[[i]] <- flatten_exprs(child_expr, value[[i]])
+    }
+    return(unlist(out, use.names = FALSE))
+  }
+  stop("All inputs must be brmsfit objects or lists of brmsfit objects.")
+}
+
+
+#' Check if model object has pre computed fit criteria
+#' @description Used in [get_model_criterion()] and [compare_models()]
+#' @noRd
+has_criterion <- function(fit, criterion) {
+  !is.null(fit$criteria) && !is.null(fit$criteria[[criterion]])
+}
+
+
+
+#' #' Check if model object has pre computed multiple fit criteria
+#' @description Used in [get_model_criterion()]
+#' @noRd
+has_criterion_multiple <- function(fit, criterion) {
+  criterion <- as.character(criterion)
+  if (is.null(fit$criteria)) {
+    return(FALSE)
+  }
+  all(vapply(criterion, function(cr) {
+    !is.null(fit$criteria[[cr]])
+  }, logical(1)))
+}
+
+
+#' Evaluate the nested list
+#' @description Used in [get_model_criterion()]
+#' @noRd
+nested_to_df <- function(x, 
+                         model_names = NULL, 
+                         add_attr = FALSE,
+                         summary = TRUE,
+                         robust = FALSE,
+                         probs = c(0.025, 0.975),
+                         verbose = FALSE) {
+  
+  stopifnot(is.list(x))
+  `%||%` <- function(a, b) {
+    if (is.null(a) || length(a) == 0L || is.na(a) || a == "") {
+      b
+    } else {
+      a
+    }
+  }
+  
+  if (!is.null(model_names)) {
+    if (length(model_names) != length(x)) {
+      stop(
+        "`model_names` must have one element per model ",
+        "(i.e., per outer-list element)."
+      )
+    }
+    model_names <- as.character(model_names)
+  }
+  
+  outer_names <- names(x)
+  if (is.null(outer_names)) {
+    outer_names <- rep(NA_character_, length(x))
+  }
+  
+  rows <- list()
+  attr_object <- list()
+  k <- 0L
+
+  for (i in seq_along(x)) {
+    model_results <- x[[i]]
+    if (!is.list(model_results) || is.null(names(model_results))) {
+      stop(
+        "Each model must be a named list of criterion objects, ",
+        "such as `waic`, `loo`, or other criteria."
+      )
+    }
+
+    for (criterion in names(model_results)) {
+      obj <- model_results[[criterion]]
+      model_name <- if (!is.null(model_names)) {
+        model_names[i]
+      } else {
+        outer_names[i] %||%
+          attr(obj, "model_name") %||%
+          paste0("model_", i)
+      }
+
+      model_id <- outer_names[i] %||% paste0("", i)
+      
+      make_named_list <- function(obj) {
+        obj_colnames <- colnames(obj)
+        obj <- as.list(obj)
+        names(obj) <- obj_colnames
+        return(obj)
+      }
+      
+    
+      if(!is.list(obj)) {
+        if(criterion == "loo_R2") {
+          obj_summary <- brms::posterior_summary(obj, probs = probs, robust = robust)
+          obj_summary <- make_named_list(obj_summary)
+          obj_summary[['pointwise']] <- obj
+          obj <- obj_summary
+        }
+        if(criterion == "bayes_R2") {
+          if(!summary) {
+            obj_summary <- brms::posterior_summary(obj, probs = probs, robust = robust)
+            obj_summary <- make_named_list(obj_summary)
+            obj_summary[['pointwise']] <- obj
+            obj <- obj_summary
+          } else if(summary) {
+            obj <- make_named_list(obj)
+            add_attr <- FALSE # empty list()
+          }
+        }
+      }
+
+      
+      is_scalar <- vapply(obj, function(z) {
+        !is.null(z) &&
+          is.atomic(z) &&
+          is.null(dim(z)) &&
+          length(z) == 1L
+      }, logical(1))
+      
+      scalar_part <- obj[is_scalar]
+      complex_part <- obj[!is_scalar]
+ 
+      k <- k + 1L
+
+      rows[[k]] <- c(
+        list(
+          model = model_name,
+          criterion = criterion
+        ),
+        scalar_part
+      )
+
+      model_name_model_id_criterion <- paste0(model_name, "", "")
+      
+      attr_object[[k]] <- complex_part
+      names(attr_object)[k] <- paste(model_name_model_id_criterion, 
+                                     criterion, sep = "_")
+    }
+  }
+
+  all_columns <- unique(
+    unlist(lapply(rows, names), use.names = FALSE)
+  )
+
+  rows <- lapply(rows, function(row) {
+    missing_columns <- setdiff(all_columns, names(row))
+    for (nm in missing_columns) {
+      row[[nm]] <- NA
+    }
+    row[all_columns]
+  })
+
+  out <- do.call(
+    rbind,
+    lapply(rows, function(row) {
+      # row <- row[!sapply(row, is.null)]
+      as.data.frame(
+        row,
+        stringsAsFactors = FALSE,
+        check.names = FALSE
+      )
+    })
+  )
+  
+  rownames(out) <- NULL
+  if(add_attr) attr(out, "attr_object") <- attr_object
+  
+  return(out)
+}
+
+
+
+
+
+#' Validate model form and parmeters - see utils-helper-7 for functions
+#' @description Used in [get_model_criterion()]
+#' @noRd
+validate_model_form_parms <- function(select_model,
+                                 parm_letters_fixed,
+                                 allowed_parm_letters,
+                                 verbose = FALSE) {
+  
+  if(select_model == 'pb1') {
+    model_form <- "a-2.0*(a-b)./(exp(c.*(Xm-e))+exp(d.*(Xm-e)))"
+    parms_defi <- "a = asymtote; b = size at theta1; c = s0; 
+                   d = s1; e = theta2. 
+                   Note that 'theta1' is the timing of pre-pubertal growth spurt
+                   and 'theta2' is the timing of post-pubertal growth spurt"
+  } else if(select_model == 'pb2') {
+    model_form <- "a-((a-b)./(((0.5*exp((f.*c).*(Xm-e)))+
+                   (0.5*exp((f.*d).*(Xm-e))))^(1.0./f)))"
+    parms_defi <- "a = asymtote; b = size at theta1; c = s0; 
+                   d = s1; e = theta2; f = gamma  
+                   Note that 'theta1' is the timing of pre-pubertal growth spurt
+                   and 'theta2' is the timing of post-pubertal growth spurt"
+  } else if(select_model == 'pb3') {
+    model_form <- "a-((4.0*(a-b))./((exp(f.*(Xm-e))+
+                  exp(c.*(Xm-e))).*(1.0+exp(d.*(Xm-e)))))"
+    parms_defi <- "a = asymtote; b = size at theta1; c = s0; 
+                   d = s1; e = theta2; f = gamma  
+                   Note that 'theta1' is the timing of pre-pubertal growth spurt
+                   and 'theta2' is the timing of post-pubertal growth spurt"
+  } else if(select_model == 'logistic1') {
+    model_form <- "a./(1+exp(-b.*(Xm-c)))"
+    parms_defi <- "a - asymptote b; rate constant; c time at midpoint"
+  } else if(select_model == 'logistic2') {
+    model_form <- "((a-b)./(1+exp(-e.*(Xm-f)))) + 
+                   (b./(1+exp(-c.*(Xm-d))))"
+    parms_defi <- "a = asymtote; b = size at theta; c = s0;
+                   d = theta1; e = s1; f = theta2"
+  } else if(select_model == 'logistic3') {
+    model_form <- "(a ./ (1 + exp(-b .* (Xm - c)))) +
+                  (d ./ (1 + exp(-e .* (Xm - f)))) +
+                  (g ./ (1 + exp(-h .* (Xm - i))))"
+    parms_defi <- "a = size at infancy; b = rate at infancy; c = time at infancy;
+                   d = size at preadolescence; e = rate at preadolescence;
+                   f = time at preadolescence; g = size at adolescence;
+                   h = rate at adolescence; i = time at adolescence"
+  } 
+  
+  model_form <- gsub("Xm", "X", model_form, fixed = TRUE)
+  
+  model_form <- paste0(" The model form is: " ,
+                       model_form, ",", 
+                       " where X is the predictor", 
+                       ".")
+  
+  parms_defi <- paste0(" The parameters are defined as follows: ",
+                       parms_defi, ".")
+  
+  err_msg <- paste0("For model '", select_model, "'", ", 
+               the number of parameters must be ",
+                length(allowed_parm_letters), "",
+                " \n ", 
+                " (", 
+                paste(paste0("'", allowed_parm_letters, "'"), collapse = " "),
+                ")")
+  
+  err_msg <- paste0(err_msg, ".")
+  
+  info_msg <- paste0("For model '", select_model, "'", ", 
+               the number of parameters are ",
+                    length(allowed_parm_letters), "",
+                    " \n ", 
+                    " (", 
+                    paste(paste0("'", allowed_parm_letters, "'"),collapse = " "),
+                    ")")
+  info_msg <- paste0(info_msg, ".")
+  
+  if(length(parm_letters_fixed) != length(allowed_parm_letters)) {
+    err_msg_form_defi <- paste(err_msg, model_form, parms_defi)
+    stop2c(err_msg_form_defi) 
+  } else {
+    info_msg_form_defi <- paste(info_msg, model_form, parms_defi)
+    if(verbose) message2c(info_msg_form_defi)
+  }
+    
+  return(invisible(NULL))
+}
+
+
 

@@ -123,21 +123,18 @@ plot_conditional_effects.bgmfit <-
     if(!is.null(transform) & !is.null(transform_draws)) {
       stop("Please specify either transform or transform_draws, not both")
     }
-    
-    
+
     if(!is.null(dpar)) {
       if(dpar == "sigma") {
         stop2c("'plot_conditional_effects()' currently does 
                not support dpar = 'sigma'")
       }
     }
-    
-    
+
     assign_function_to_environment(transform_draws, 'transform_draws', 
                                    envir = NULL)
     model$model_info[['transform_draws']] <- transform_draws
-    
-    
+
     if(is.null(dpar)) {
       dpar <- "mu"
     }
@@ -147,9 +144,7 @@ plot_conditional_effects.bgmfit <-
                            resp = resp, 
                            deriv = NULL, 
                            verbose = verbose)
-    
-    
-    
+
     probtitles <- probs[order(probs)] * 100
     probtitles <- paste("Q", probtitles, sep = "")
     set_names_  <- c('Estimate', 'Est.Error', probtitles)
@@ -176,12 +171,11 @@ plot_conditional_effects.bgmfit <-
                                   usesavedfuns = usesavedfuns)
       }
     }
-    
-    
+
     rlang_trace_back <- rlang::trace_back()
     check_trace_back.bgmfit <- grepl(".bgmfit", rlang_trace_back[[1]])
     if(all(!check_trace_back.bgmfit)) {
-      # nothing
+      # 
     } else {
       rlang_trace_back.bgmfit_i <- min(which(check_trace_back.bgmfit == TRUE))
       rlang_trace_back.bgmfit <- 
@@ -189,11 +183,8 @@ plot_conditional_effects.bgmfit <-
       rlang_call_name <- rlang::call_name(rlang_trace_back.bgmfit)
       xcall <- rlang_call_name
     }
-    
-    
-    
+
     check_if_package_installed(model, xcall = NULL)
-    
     if(is.null(ndraws)) {
       ndraws <- brms::ndraws(model)
     }
@@ -205,9 +196,7 @@ plot_conditional_effects.bgmfit <-
     if (is.null(idata_method)) {
       idata_method <- 'm2'
     }
-    
 
-    ########################################################
     if (is.null(resp)) {
       resp_rev_ <- resp
     } else if (!is.null(resp)) {
@@ -232,7 +221,6 @@ plot_conditional_effects.bgmfit <-
     xvar  <- xvar
     idvar <- idvar
     if(length(idvar) > 1) idvar <- idvar[1]
-   
     check_set_fun <- check_set_fun_transform(model = model, 
                                              which = 'ixfuntransform2',
                                              dpar = dpar, 
@@ -245,11 +233,7 @@ plot_conditional_effects.bgmfit <-
     if(check_set_fun[['was_null']]) {
       model$model_info[[check_set_fun[['setfunname']]]] <- ifunx_
     }
-    
-    ########################################################
-    
-    ########################################################
-    # Define lables fun for x- axis
+
     labels_ggfunx <- function(...) {
       out <- ifunx_(list(...)[[1]]) 
       out <- scales::number(
@@ -267,15 +251,10 @@ plot_conditional_effects.bgmfit <-
       )
       return(out)
     }
-    
-   
-    
+
     labels_ggfunx_str <- 
       "ggplot2::scale_x_continuous(labels = labels_ggfunx)"
-    
-    ########################################################
-    
-    
+
     full.args <- evaluate_call_args(cargs = as.list(match.call())[-1], 
                                     fargs = formals(), 
                                     dargs = list(...), 
@@ -283,10 +262,7 @@ plot_conditional_effects.bgmfit <-
     
     full.args$model <- model
     full.args$model_deriv <- model_deriv
-    
-    
-    
-    
+
     full.args <- 
       sanitize_CustomDoCall_args(what = "CustomDoCall", 
                                  arguments = full.args, 
@@ -301,7 +277,6 @@ plot_conditional_effects.bgmfit <-
       if(verbose) message("'transform' set based on 'transform_draws'")
     }
     
-    # Interpolation points
     if(!exists('check_fun')) check_fun <- FALSE
     if(!exists('available_d1')) available_d1 <- FALSE
     full.args$ipts <- ipts <- check_ipts(ipts = full.args$ipts, 
@@ -310,7 +285,6 @@ plot_conditional_effects.bgmfit <-
                                          available_d1 = available_d1, 
                                          xcall = NULL, verbose = verbose)
 
-    
     if(!is.null(model$xcall)) {
       arguments <- get_args_(as.list(match.call())[-1], model$xcall)
       newdata <- newdata
@@ -323,11 +297,8 @@ plot_conditional_effects.bgmfit <-
       newdata <- CustomDoCall(get.newdata, get.newdata_args)
     }
     full.args$newdata <- newdata
-   
     expose_method_set <- model$model_info[['expose_method']]
-    
-    model$model_info[['expose_method']] <- 'NA' # Over ride method 'R'
-    
+    model$model_info[['expose_method']] <- 'NA' 
     
     setxcall_   <- match.call()
     post_processing_checks_args <- list()
@@ -341,14 +312,11 @@ plot_conditional_effects.bgmfit <-
     post_processing_checks_args[['check_d0']] <- FALSE
     post_processing_checks_args[['check_d1']] <- TRUE
     post_processing_checks_args[['check_d2']] <- FALSE
-    
     o    <- CustomDoCall(post_processing_checks, post_processing_checks_args)
-    
     post_processing_checks_args[['all']]      <- TRUE
     oall <- CustomDoCall(post_processing_checks, post_processing_checks_args)
     post_processing_checks_args[['all']]      <- FALSE
     
-  
     if(!is.null(funlist)) {
       if(!is.list(funlist)) {
         stop("funlist must be a list")
@@ -356,10 +324,7 @@ plot_conditional_effects.bgmfit <-
         o <- funlist
       }
     }
-    
-    
-    # 6.03.2025
-    # see slopes will be mandatory
+
     check_fun <- FALSE
     if(deriv > 0) {
       available_d1 <- o[['available_d1']]
@@ -373,8 +338,7 @@ plot_conditional_effects.bgmfit <-
       check_fun <- TRUE
     }
     full.args$model_deriv <- model_deriv
-    
-    # 20.03.2025
+  
     if(!is.null(model$model_info[['sigma_fun_mode']])) {
       sigma_fun_mode <- model$model_info[['sigma_fun_mode']]
       if(dpar == "sigma") {
@@ -388,8 +352,7 @@ plot_conditional_effects.bgmfit <-
         }
       }
     }
-    
-    
+
     test <- setupfuns(model = model, resp = resp,
                       o = o, oall = oall, 
                       usesavedfuns = usesavedfuns, 
@@ -399,7 +362,6 @@ plot_conditional_effects.bgmfit <-
                       ...)
     
     if(is.null(test)) return(invisible(NULL))
-
     check_fun <- FALSE
     if(deriv > 0) {
       available_d1 <- o[['available_d1']]
@@ -412,7 +374,6 @@ plot_conditional_effects.bgmfit <-
       }
       check_fun <- TRUE
     }
-
     if(!isTRUE(
       check_pkg_version_exists('brms', 
                                minimum_version = get_package_minversion('brms'), 
@@ -424,13 +385,10 @@ plot_conditional_effects.bgmfit <-
         return(invisible(NULL))
       }
     }
-    
-    
+
     misc <- c("verbose", "usesavedfuns", "clearenvfuns", 
               "envir", "fullframe")
-    
     xcallz <- match.call()
-    
     calling.args <- post_processing_args_sanitize(model = model,
                                                   xcall = match.call(),
                                                   resp = resp,
@@ -439,8 +397,6 @@ plot_conditional_effects.bgmfit <-
                                                   dots = list(...),
                                                   misc = misc,
                                                   verbose = verbose)
-    
-    
     calling.args$object <- full.args$model
     if(is.null(calling.args$newdata)) {
       if(!is.null(newdata)) calling.args$newdata <- newdata
@@ -461,7 +417,6 @@ plot_conditional_effects.bgmfit <-
       if(verbose) message("'transform' set based on 'transform_draws'")
     }
     
-    
     if(!exists('check_fun')) check_fun <- FALSE
     if(!exists('available_d1')) available_d1 <- FALSE
     calling.args$ipts <- ipts <- check_ipts(ipts = calling.args$ipts, 
@@ -469,8 +424,6 @@ plot_conditional_effects.bgmfit <-
                                          check_fun  = check_fun, 
                                          available_d1 = available_d1, 
                                          xcall = NULL, verbose = verbose)
-     
-    
     if(check_fun) {
       if(!available_d1) {
         if(is.null(calling.args$re_formula)) {
@@ -480,7 +433,6 @@ plot_conditional_effects.bgmfit <-
       }
     }
     
-  
     if (is.null(legendpos)) {
       if(is.null(calling.args$re_formula)) {
         legendpos <- "none"
@@ -490,7 +442,6 @@ plot_conditional_effects.bgmfit <-
     } else if (!is.null(legendpos)) {
       legendpos <- legendpos
     }
-    
     
     if (is.null(label.x)) {
       label.x     <- paste0(xvar, "")
@@ -507,12 +458,7 @@ plot_conditional_effects.bgmfit <-
     if (is.null(label.subtitle)) {
       label.subtitle  <- ""
     }
-    
-    
-    # Add [['effects']] here 
-    # because it is needed for if(eval(full.args$model_deriv)) {
-    
-    
+
     if(!is.null(re_formula)) {
       calling.args$re_formula <- re_formula
     }
@@ -525,7 +471,6 @@ plot_conditional_effects.bgmfit <-
     
     fitted_allow_new_levels <- calling.args$allow_new_levels
     calling.args$allow_new_levels <- NULL
-    
 
     calling.args_ce <- calling.args_cefd <- calling.args
     calling.args_ce$newdata <- NULL
@@ -541,34 +486,25 @@ plot_conditional_effects.bgmfit <-
         dplyr::select(dplyr::all_of(names(model$data)))
       if(is.null(calling.args_ce$re_formula)) {
         if(!spaghetti) {
-          # stop2c("Plese set 'spaghetti = TRUE' when 'model_deriv' is 
-          #                   FALSE and 're_formula = NULL'")
+          # 
         }
-        
         out_   <- CustomDoCall(brms::conditional_effects, calling.args_ce)
         datace <- out_[[1]] %>% dplyr::select(dplyr::all_of(names(model$data)))
         datace[[idvar]] <- unique(levels(model$data[[idvar]]))[1]
         datace <- attrstrip(datace, keep = c('row.names', 'names', 'class'))
         datace <- attrstrip(datace_effects, keep = c('row.names', 
                                                      'names', 'class'))
-
         calling.args_cefd$newdata   <- datace
         calling.args_cefd$model     <- model
         calling.args_cefd$object    <- NULL
         calling.args_cefd$xcall_str <- paste(gsub_space(deparse(xcallz)), 
                                              collapse = "")
-        
         calling.args_cefd$allow_new_levels <- fitted_allow_new_levels
         if (estimation_method == 'fitted') {
           outx <- CustomDoCall(fitted_draws, calling.args_cefd)
         } else if (estimation_method == 'predict') {
           outx <- CustomDoCall(predict_draws, calling.args_cefd)
         }
-        # Why was this step needed ??
-        # if(!summary) {
-        #   outx <- brms::posterior_summary(outx , probs = probs, robust = robust)
-        #   outx <- outx %>% data.frame()
-        # }
         if(spaghetti) {
           out_ <- out_effects
           out_[[1]][['estimate__']] <- outx[, 1] 
@@ -585,17 +521,6 @@ plot_conditional_effects.bgmfit <-
             jtools::theme_apa(legend.pos = legendpos)
           
         } else if(!spaghetti) {
-          # Why was this step needed ??
-          # outx <-
-          # datace %>% # dplyr::select(dplyr::all_of(c(idvar, xvar))) %>% 
-          #   dplyr::select(dplyr::all_of(c(xvar))) %>% 
-          #   dplyr::bind_cols(., outx) %>%
-          #   dplyr::group_by_at(c(xvar)) %>%
-          #   dplyr::summarise(dplyr::across(dplyr::where(is.numeric),
-          #                                  ~ mean(.x, na.rm = TRUE))) %>%
-          #   dplyr::ungroup() %>% dplyr::select(-dplyr::all_of(xvar)) %>%
-          #   as.matrix()
-         
           out_[[1]][['estimate__']] <- outx[, 1] 
           out_[[1]][['se__']]       <- outx[, 2]
           out_[[1]][['lower__']]    <- outx[, 3]
@@ -604,8 +529,7 @@ plot_conditional_effects.bgmfit <-
             ggplot2::labs(x = label.x, y = label.y, 
                           title = label.title, subtitle = label.subtitle) +
             jtools::theme_apa(legend.pos = legendpos)
-        } # if(spaghetti) {
-        
+        } 
       } else if(is.na(calling.args_ce$re_formula)) {
         out_    <- CustomDoCall(brms::conditional_effects, calling.args_ce)
         datace <- out_[[1]] %>% dplyr::select(dplyr::all_of(names(model$data)))
@@ -619,13 +543,6 @@ plot_conditional_effects.bgmfit <-
         } else if (estimation_method == 'predict') {
           outx <- CustomDoCall(predict_draws, calling.args_cefd)
         }
-        # Why was this step needed ??
-        # if(!summary) {
-        #   outx <- brms::posterior_summary(outx, probs=probs, robust = robust)
-        #   outx <- outx %>% data.frame()
-        #   outx <- outx %>% dplyr::select(dplyr::all_of(set_names_))
-        # }
-        
         if(spaghetti) {
           out_ <- out_effects
           out_[[1]][['estimate__']] <- outx[, 1] 
@@ -649,13 +566,11 @@ plot_conditional_effects.bgmfit <-
             ggplot2::labs(x = label.x, y = label.y, 
                           title = label.title, subtitle = label.subtitle) +
             jtools::theme_apa(legend.pos = legendpos)
-        } # if(spaghetti) {
-      } # else if(is.na(calling.args_ce$re_formula)) {
-    } # if(!eval(full.args$model_deriv)) {
+        } 
+      } 
+    } 
     
-
     if(eval(full.args$model_deriv)) {
-      
       calling.args_ce <- calling.args
       calling.args_ce$newdata <- NULL
       calling.args_ce$x <- calling.args_ce$object
@@ -667,10 +582,7 @@ plot_conditional_effects.bgmfit <-
         jtools::theme_apa(legend.pos = legendpos)
     }
     
-    
-    # Restore function(s)
     assign(o[[1]], model$model_info[['exefuns']][[o[[1]]]], envir = envir)
-    
     if(!is.null(eval(full.args$clearenvfuns))) {
       if(!is.logical(eval(full.args$clearenvfuns))) {
         stop('clearenvfuns must be NULL or a logical')
@@ -690,7 +602,6 @@ plot_conditional_effects.bgmfit <-
       }
     }
     
-    # Cleanup environment if requested
     if(setcleanup) {
       suppressWarnings({
         tempgenv <- envir
@@ -706,7 +617,7 @@ plot_conditional_effects.bgmfit <-
           }
         }
       })
-    } # if(setcleanup) {
+    } 
     . <- . + ept(labels_ggfunx_str)
     return(.)
   }

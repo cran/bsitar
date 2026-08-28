@@ -55,9 +55,9 @@ into memory issues, \code{pointwise = TRUE} is the way to go.}
 \code{\link[loo:loo_moment_match]{loo::loo_moment_match()}} should be applied to problematic observations.
 Defaults to \code{FALSE}. For most models, moment matching will only work
 if \code{save_pars = save_pars(all = TRUE)} was set when fitting the model
-with \code{\link[brms:brm]{brms::brm()}}. See \code{\link[brms:loo_moment_match.brmsfit]{brms::loo_moment_match()}} for more details.}
+with \code{\link[brms:brm]{brms::brm()}}. See \code{\link[brms:loo_moment_match]{brms::loo_moment_match()}} for more details.}
 
-\item{reloo}{A logical flag indicating whether \code{\link[brms:reloo.brmsfit]{brms::reloo()}} should be
+\item{reloo}{A logical flag indicating whether \code{\link[brms:reloo]{brms::reloo()}} should be
 applied to problematic observations. Defaults to \code{FALSE}.}
 
 \item{k_threshold}{The Pareto \eqn{k} threshold for which observations
@@ -73,7 +73,7 @@ in the returned object? For more details see \code{\link[loo:loo]{loo}}.}
 passed to \code{\link[loo:loo_moment_match]{loo::loo_moment_match()}}.}
 
 \item{reloo_args}{An optional \code{list} of additional arguments passed to
-\code{\link[brms:reloo.brmsfit]{brms::reloo()}}.}
+\code{\link[brms:reloo]{brms::reloo()}}.}
 
 \item{model_names}{If \code{NULL} (the default) will use model names
 derived from deparsing the call. Otherwise will use the passed
@@ -152,7 +152,7 @@ most post-processing functions rely on \pkg{brms}, it is recommended to set
 \code{envir = globalenv()} or \code{envir = .GlobalEnv}, especially for
 derivatives like velocity curves.}
 
-\item{...}{Additional arguments passed to the \code{\link[brms:loo.brmsfit]{brms::loo()}} function.
+\item{...}{Additional arguments passed to the \code{\link[brms:loo]{brms::loo()}} function.
 Please see \code{brms::loo} for details on various options available.}
 }
 \value{
@@ -162,8 +162,8 @@ is returned. If multiple objects are provided, an object of class
 }
 \description{
 The \strong{loo_validation()} function is a wrapper around the
-\code{\link[brms:loo.brmsfit]{brms::loo()}} function to perform approximate leave-one-out cross-validation
-based on the posterior likelihood. See \code{\link[brms:loo.brmsfit]{brms::loo()}} for more details.
+\code{\link[brms:loo]{brms::loo()}} function to perform approximate leave-one-out cross-validation
+based on the posterior likelihood. See \code{\link[brms:loo]{brms::loo()}} for more details.
 }
 \details{
 The function supports model comparisons using \code{\link[loo:loo_compare]{loo::loo_compare()}}
@@ -191,7 +191,7 @@ loo_validation(model, cores = 1)
 
 }
 \seealso{
-\code{\link[brms:loo.brmsfit]{brms::loo()}}
+\code{\link[brms:loo]{brms::loo()}}
 }
 \author{
 Satpal Sandhu  \email{satpal.sandhu@bristol.ac.uk}

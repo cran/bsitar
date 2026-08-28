@@ -2,7 +2,7 @@
 % Please edit documentation in R/utils-helper-1.R
 \name{is.bgmfit}
 \alias{is.bgmfit}
-\title{Checks if argument is a \code{bgmfit} object}
+\title{Checks if object is of class \code{bgmfit}}
 \usage{
 is.bgmfit(x)
 }
@@ -10,5 +10,8 @@ is.bgmfit(x)
 \item{x}{An \R object}
 }
 \description{
-Checks if argument is a \code{bgmfit} object
+Checks if object is of class \code{bgmfit}
+}
+\author{
+Satpal Sandhu  \email{satpal.sandhu@bristol.ac.uk}
 }

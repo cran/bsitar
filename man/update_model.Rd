@@ -12,6 +12,7 @@
   expose_function = FALSE,
   verbose = FALSE,
   check_newargs = FALSE,
+  new_threads = FALSE,
   envir = NULL,
   ...
 )
@@ -23,7 +24,8 @@ update_model(model, ...)
 
 \item{newdata}{An optional \code{data.frame} to be used when updating the
 model. If \code{NULL} (default), the data used in the original model fit is
-reused. Note that data-dependent default priors are not automatically updated.}
+reused. Note that data-dependent default priors are not automatically
+updated.}
 
 \item{recompile}{A logical value indicating whether the Stan model should be
 recompiled. When \code{NULL} (default), \strong{update_model()} tries to
@@ -47,12 +49,22 @@ default to \code{FALSE}.}
 \item{verbose}{A logical argument (default \code{FALSE}) to specify whether
 to print information collected during the setup of the object(s).}
 
-\item{check_newargs}{A logical value (default \code{FALSE}) indicating whether
-to check if the arguments in the original \code{model} fit and the
+\item{check_newargs}{A logical value (default \code{FALSE}) indicating
+whether to check if the arguments in the original \code{model} fit and the
 \code{update_model} are identical. When \code{check_newargs = TRUE} and the
-arguments are identical, it indicates that an update is unnecessary. In this
-case, the original \code{model} object is returned, along with a message if
-\code{verbose = TRUE}.}
+arguments are identical, it indicates that an update is unnecessary. In
+this case, the original \code{model} object is returned, along with a
+message if \code{verbose = TRUE}.}
+
+\item{new_threads}{A logical (default \code{FALSE}) indicating whether to
+drop the \code{threads} i.e., setting \code{threads = NULL} (by using
+\code{new_threads = NULL} or \code{new_threads = NA}). The \code{threads}
+argument sets the number of threads used for within-chain parallelization.
+See \code{\link[=bsitar]{bsitar()}} for details. The \code{new_threads} is rarely used as
+\code{threads} is automatically inferred from the \code{model}. The only
+indication of setting \code{new_threads = NULL} is when \code{\link[brms:brm]{brms::brm()}} does
+support within-chain parallelization. such as in case of modelling
+autocorrelation of residuals (See argument \code{autocor_formula}).}
 
 \item{envir}{The environment used for function evaluation. The default is
 \code{NULL}, which sets the environment to \code{parent.frame()}. Since
@@ -63,16 +75,16 @@ derivatives like velocity curves.}
 \item{...}{Other arguments passed to \code{[brms::brm()]}.}
 }
 \value{
-An updated object of class \code{brmsfit}.
+An updated object of class \code{bgmfit}.
 }
 \description{
 The \strong{update_model()} function is a wrapper around the
-\code{update()} function from the \pkg{brms} package, which refits the model
-based on the user-specified updated arguments.
+\code{update()} function from the \pkg{brms} package, which refits the
+model based on the user-specified updated arguments.
 }
 \details{
-This function is an adapted version of the \strong{update()} function
-from the \pkg{brms} package.
+This function is an adapted version of the \strong{update()}
+function from the \pkg{brms} package.
 }
 \examples{
 \donttest{

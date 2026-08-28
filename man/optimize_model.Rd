@@ -47,10 +47,10 @@ values, for example, \code{df} 4 and \code{df} 5, the corresponding code
 would be \code{optimize_df = list(4, 5)}. For \code{univariate_by} and
 \code{multivariate} models, \code{optimize_df} can be a single integer
 (e.g., \code{optimize_df = 4}), a list (e.g., \code{optimize_df = list(4,
-  5)}), or a list of lists. For instance, to optimize over \code{df} 4 and
+5)}), or a list of lists. For instance, to optimize over \code{df} 4 and
 \code{df} 5 for the first submodel, and \code{df} 5 and \code{df} 6 for the
 second submodel, the corresponding code would be \code{optimize_df =
-  list(list(4, 5), list(5, 6))}.}
+list(list(4, 5), list(5, 6))}.}
 
 \item{optimize_x}{A list specifying the transformations for the predictor
 variable (i.e., \code{x}). The available options are \code{NULL},
@@ -64,7 +64,7 @@ it is possible to pass any primitive function instead of fixed functions
 like \code{log} and \code{sqrt}. This greatly enhances the flexibility of
 model optimization by allowing the search for a wide range of \code{x}
 transformations, such as \code{optimize_x = list(function(x) log(x +
-  3/4))}.}
+3/4))}.}
 
 \item{optimize_y}{A list specifying the transformations of the response
 variable (i.e., \code{y}). The approach and available options for
@@ -121,16 +121,17 @@ is fit with \code{xvar = log} and \code{yvar = NULL}, then
 \code{optimize_x} is translated into \code{optimize_x = list(NULL, sqrt)},
 and \code{optimize_y} is reset as \code{optimize_y = list(log, sqrt)}.}
 
-\item{add_fit_criteria}{a}
+\item{add_fit_criteria}{A character vector specifying the fit criteria to
+be added. See \code{\link[=add_model_criterion]{add_model_criterion()}} for details.}
 
 \item{byresp}{A logical (default \code{FALSE}) indicating whether
 response-wise fit criteria should be calculated. This argument is evaluated
 only for the \code{multivariate} model, where the user can select whether
 to get a joint calculation of point-wise log likelihood (\code{byresp =
-  FALSE}) or response-specific calculations (\code{byresp = TRUE}). For the
+FALSE}) or response-specific calculations (\code{byresp = TRUE}). For the
 \code{univariate_by} model, the only available option is to calculate
 separate point-wise log likelihood for each submodel, i.e., \code{byresp =
-  TRUE}.}
+TRUE}.}
 
 \item{model_name}{Optional name of the model. If \code{NULL}
 (the default) the name is taken from the call to \code{x}.}
@@ -164,10 +165,10 @@ following information when saving each model: \cr
 \code{'compress'} a character string, either \code{'xz'}, \code{'gzip'}, or
 \code{'bzip2'} (default \code{'xz'}). These options are set as follows: \cr
 \code{save_each = list(prefix = '', suffix = '', extension = 'rds',
-  compress = 'xz')}.}
+compress = 'xz')}.}
 
 \item{digits}{An integer (default \code{2}) to set the decimal places for
-rounding the results using the \code{\link[base:Round]{base::round()}} function.}
+rounding the results using the \code{\link[base:round]{base::round()}} function.}
 
 \item{cores}{The number of cores to use in parallel processing (default
 \code{1}). The argument \code{cores} is passed to

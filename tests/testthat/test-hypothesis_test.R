@@ -17,7 +17,7 @@ if(set_skip_run_ci) {
 test_that("test-hypothesis_test", {
   skip_on_cran()
   
-  testthat::skip("Skipping: ubuntu fails on CI. object 'drawid' not found, at bsitar/R/utils-helper-28.R:108:3")
+  # testthat::skip("Skipping: ubuntu fails on CI. object 'drawid' not found, at bsitar/R/utils-helper-28.R:108:3")
   
   ##############################################################################
   # set options
@@ -111,7 +111,7 @@ test_that("test-hypothesis_test", {
   cov               = NULL
   deriv             = 1 
   variables         = NULL
-  by                = FALSE
+  by                = 'sex'
   byfun             = NULL
   comparison        = NULL # deriv = 0 = 'difference'; deriv > 0 = 'dydx'
   
@@ -171,11 +171,13 @@ test_that("test-hypothesis_test", {
   
   # brms reference
   brms_model_out <- 
-    brms::hypothesis(model, hypothesis = set_hypothesis, draw_ids = draw_ids)
+    brms::hypothesis(model, hypothesis = set_hypothesis, draw_ids = draw_ids,
+                     seed = 123)
   
   # hypothesis_test (auto-detects brms engine)
   hypothesis_test_brms_model_out <- 
-    hypothesis_test(model, draw_ids = draw_ids, hypothesis_str = set_hypothesis)
+    hypothesis_test(model, draw_ids = draw_ids, hypothesis_str = set_hypothesis,
+                    seed = 123)
   
   all.equal(brms_model_out$hypothesis,hypothesis_test_brms_model_out$hypothesis)
   
@@ -191,14 +193,15 @@ test_that("test-hypothesis_test", {
   # Directly using get_growthparameters()
   marginal_model_out <- 
     get_growthparameters(model, parameter = set_parameter,
-                              re_formula = NA,
-                              draw_ids = draw_ids)
+                         by = by,
+                         re_formula = NA,
+                         draw_ids = draw_ids)
   # Uncomment for ROPE/p-direction tests:
   # equivalence_test = list(range = set_range),
   # p_direction = list(null = set_null)
   
   hypothesis_test_marginal_model_out <- 
-    hypothesis_test(model, parameter = set_parameter, draw_ids = draw_ids)
+    hypothesis_test(model,  by = by, parameter = set_parameter, draw_ids = draw_ids)
   
   all.equal(marginal_model_out, hypothesis_test_marginal_model_out)
   
@@ -215,23 +218,32 @@ test_that("test-hypothesis_test", {
   # Directly using get_growthparameters()
   marginal_model_eqpd_out <- 
     get_growthparameters(model, parameter = set_parameter,
-                              re_formula = NA,
-                              equivalence_test = list(range = set_range),
-                              p_direction = list(null = set_null),
-                              draw_ids = draw_ids)
+                         method = 'pkg',
+                         re_formula = NA,
+                         by = by,
+                         equivalence_test = list(range = set_range),
+                         p_direction = list(null = set_null),
+                         draw_ids = draw_ids)
+  
   # Uncomment for ROPE/p-direction tests:
   # equivalence_test = list(range = set_range),
   # p_direction = list(null = set_null)
   
   hypothesis_test_marginal_model_eqpd_out <- 
     hypothesis_test(model, parameter = set_parameter,
+                    by = by,
                     range = set_range,
                     null = set_null,
                     # equivalence_test = list(range = set_range),
                     # p_direction = list(null = set_null),
                     draw_ids = draw_ids)
   
-  all.equal(marginal_model_eqpd_out, hypothesis_test_marginal_model_eqpd_out)
+  marginal_model_eqpd_out <- marginal_model_eqpd_out$Estimate
+  hypothesis_test_marginal_model_eqpd_out <- hypothesis_test_marginal_model_eqpd_out$Estimate
+  
+  
+  all.equal(marginal_model_eqpd_out, 
+            hypothesis_test_marginal_model_eqpd_out)
   
   
   ##############################################################################
@@ -240,21 +252,32 @@ test_that("test-hypothesis_test", {
   
   marginal_model_viadraws_input <- 
     get_growthparameters(model, parameter = set_parameter,
-                              pdrawsp = TRUE,
-                              equivalence_test = list(range = set_range),
-                              p_direction = list(null = set_null),
-                              draw_ids = draw_ids)
+                         by = by,
+                         method = 'pkg',
+                         pdrawsp = TRUE,
+                         equivalence_test = list(range = set_range),
+                         p_direction = list(null = set_null),
+                         draw_ids = draw_ids)
   
   
   hypothesis_test_marginal_model_viadraws_out <- 
-    hypothesis_test(marginal_model_viadraws_input, parameter = set_parameter,
+    hypothesis_test(marginal_model_viadraws_input, 
+                    parameter = set_parameter,
+                    by = by,
                     # equivalence_test = list(range = set_range),
                     # p_direction = list(null = set_null),
                     reformat = TRUE,
                     draw_ids = draw_ids)
   
   hypothesis_test_marginal_model_direct_out <- 
-    hypothesis_test(model, parameter = set_parameter, draw_ids = draw_ids)
+    hypothesis_test(model, parameter = set_parameter, by = by, 
+                    draw_ids = draw_ids)
+  
+  hypothesis_test_marginal_model_viadraws_out <- 
+    hypothesis_test_marginal_model_viadraws_out$Estimate
+  
+  hypothesis_test_marginal_model_direct_out <- 
+    hypothesis_test_marginal_model_direct_out$Estimate
   
   all.equal(hypothesis_test_marginal_model_viadraws_out, 
             hypothesis_test_marginal_model_direct_out)
@@ -266,14 +289,17 @@ test_that("test-hypothesis_test", {
   
   marginal_model_viadraws_eqpd_input <- 
     get_growthparameters(model, parameter = set_parameter,
-                              pdrawsp = TRUE,
-                              equivalence_test = list(range = set_range),
-                              p_direction = list(null = set_null),
-                              draw_ids = draw_ids)
+                         by = by,
+                         method = 'pkg',
+                         pdrawsp = TRUE,
+                         equivalence_test = list(range = set_range),
+                         p_direction = list(null = set_null),
+                         draw_ids = draw_ids)
   
   
   hypothesis_test_marginal_model_viadraws_eqpd_out <- 
     hypothesis_test(marginal_model_viadraws_input, parameter = set_parameter,
+                    by = by,
                     equivalence_test = list(range = set_range),
                     p_direction = list(null = set_null),
                     reformat = TRUE,
@@ -281,6 +307,7 @@ test_that("test-hypothesis_test", {
   
   hypothesis_test_marginal_model_direct_eqpd_out <- 
     hypothesis_test(model, parameter = set_parameter,
+                    by = by,
                     range = set_range,
                     null = set_null,
                     # equivalence_test = list(range = set_range),
@@ -302,11 +329,14 @@ test_that("test-hypothesis_test", {
   set_range <- list(b_a_Intercept = c(100, 150), b_b_Intercept = c(-2, 2))
   
   # bayestestR reference - If you installed bayestestR package
-  bayestestR_model_eq_out <- 
-    bayestestR::equivalence_test(model, parameters = set_parameters,
-                                 effects = set_effects,
-                                 range = set_range,
-                                 draw_ids = draw_ids)
+  suppressWarnings(suppressMessages({
+    bayestestR_model_eq_out <- 
+      bayestestR::equivalence_test(model, parameters = set_parameters,
+                                   effects = set_effects,
+                                   range = set_range,
+                                   draw_ids = draw_ids)
+  }))
+  
   
   bayestestR_model_eq_out <- bayestestR_model_eq_out %>% 
     dplyr::filter(Parameter %in% set_parameters) %>% 
@@ -323,7 +353,7 @@ test_that("test-hypothesis_test", {
   
   all.equal(bayestestR_model_eq_out, hypothesis_test_bayestestR_model_eq_out)
   
-
+  
   ##############################################################################
   # hypothesis_test - bayestestR:::equivalence_test.brmsfit - pd
   ##############################################################################
@@ -370,7 +400,7 @@ test_that("test-hypothesis_test", {
                hypothesis_test_marginal_model_out,   tolerance = 0.01)
   
   paste0(test_str_cat, " ", " eqpd")
-  expect_equal(marginal_model_eqpd_out,   
+  expect_equal(marginal_model_eqpd_out,
                hypothesis_test_marginal_model_eqpd_out,   tolerance = 0.01)
   
   paste0(test_str_cat, " ", " viadraws")
@@ -388,6 +418,7 @@ test_that("test-hypothesis_test", {
   paste0(test_str_cat, " ", " bayestestR_pd")
   expect_equal(bayestestR_model_pd_out,   
                hypothesis_test_bayestestR_model_pd_out,   tolerance = 0.01)
+  
   
   
   

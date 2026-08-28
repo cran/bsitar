@@ -330,7 +330,7 @@ if(ncol(parms_apv_sitar$apv) > 1) {
 parms_apv_sitar <- round(parms_apv_sitar, ndecimal)
 row.names(parms_apv_sitar) <- NULL
 parms_apv_bsitar <- plot_curves(model_bayes, apv = TRUE, newdata = data_sitar_df, ipts = NULL, summary = TRUE) 
-parms_apv_bsitar <- parms_apv_bsitar$growthparameters
+parms_apv_bsitar <- parms_apv_bsitar$growthparameters 
 colnames(parms_apv_bsitar) <- c('Parameter', 'bsitar')
 parms_apv_column <- parms_apv_bsitar %>% dplyr::select(Parameter)
 parms_apv_bsitar <- parms_apv_bsitar %>% dplyr::select(-Parameter)

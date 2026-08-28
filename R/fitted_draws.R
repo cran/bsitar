@@ -114,31 +114,23 @@ fitted_draws.bgmfit <-
            newdata_fixed = NULL,
            envir = NULL,
            ...) {
-    
-    
     if(is.null(envir)) {
       envir <- model$model_info$envir
     } else {
       envir <- envir
     }
-    
     assign_function_to_environment(transform_draws, 'transform_draws', 
                                    envir = NULL)
-    
     model$model_info[['transform_draws']] <- transform_draws
-    
-
     if(is.null(dpar)) {
       dpar <- "mu"
     }
-    
     model <- getmodel_info(model = model, 
                            dpar = dpar, 
                            resp = resp, 
                            deriv = NULL, 
                            verbose = verbose)
     
-   
     if(is.null(usesavedfuns)) {
       if(!is.null(model$model_info$exefuns[[1]])) {
         usesavedfuns <- TRUE
@@ -176,7 +168,6 @@ fitted_draws.bgmfit <-
       idata_method <- 'm2'
     }
    
-    
     rlang_trace_back <- rlang::trace_back()
     
     check_trace_back.bgmfit <- grepl("plot_conditional_effects", 
@@ -202,11 +193,7 @@ fitted_draws.bgmfit <-
     if(any(grepl("plot_curves", rlang_trace_back[[1]]))) {
       growthparameters_calling <- FALSE 
     }
-    
-    
-    ########################################################
-    
-    # For sigma
+
     if (deriv > 0) {
       need_velocity_curve <- TRUE
     } else {
@@ -223,13 +210,10 @@ fitted_draws.bgmfit <-
       need_xvar_must <- FALSE
     }
     
-    ########################################################
-    
     indirectcall <- FALSE
     if(!plot_conditional_effects_calling) {
       if(!is.null(model$xcall)) {
         arguments <- get_args_(as.list(match.call())[-1], model$xcall)
-        # This when call coming from 'plot_curves()' or 'growthparameters()'
         if(dpar == "sigma") {
           if(!is.null(model$model_info[["which_sigma_model"]])) {
             if(model$model_info[['which_sigma_model']] == "basic") {
@@ -237,12 +221,10 @@ fitted_draws.bgmfit <-
             } else if(model$model_info[['which_sigma_model']] != "basic") {
               set_sanitize <- FALSE
             }
-          } # if(!is.null(model$model_info[["which_sigma_model"]])) {
+          } 
         } else if(dpar != "sigma") {
           set_sanitize <- FALSE
-        } # if(dpar == "sigma") { else...
-        
-         
+        } 
         full.args <- evaluate_call_args(cargs = arguments, 
                                         fargs = NULL, 
                                         dargs = NULL, 
@@ -266,7 +248,6 @@ fitted_draws.bgmfit <-
                                         envir = parent.frame(),
                                         verbose = verbose)
         full.args$model <- model
-        
       }
     }
     
@@ -285,12 +266,9 @@ fitted_draws.bgmfit <-
       full.args$xcall_str <- NULL
     }
     
-    
     expose_method_set <- model$model_info[['expose_method']]
-    
-    model$model_info[['expose_method']] <- 'NA' # Over ride method 'R'
-    
-    # 6.03.2025
+    model$model_info[['expose_method']] <- 'NA'
+
     if(is.null(xcall_str)) {
       setxcall_   <- match.call()
     } else {
@@ -308,9 +286,7 @@ fitted_draws.bgmfit <-
     post_processing_checks_args[['check_d0']] <- FALSE
     post_processing_checks_args[['check_d1']] <- TRUE
     post_processing_checks_args[['check_d2']] <- FALSE
-    
     o    <- CustomDoCall(post_processing_checks, post_processing_checks_args)
-
     post_processing_checks_args[['all']]      <- TRUE
     oall <- CustomDoCall(post_processing_checks, post_processing_checks_args)
     post_processing_checks_args[['all']]      <- FALSE
@@ -322,12 +298,13 @@ fitted_draws.bgmfit <-
         o <- funlist
       }
     }
-    
-    # 6.03.2025
-    # see slopes will be mandatory
+
     check_fun <- FALSE
     if(deriv > 0) {
       available_d1 <- o[['available_d1']]
+      if(available_d1) {
+        if(!model_deriv) available_d1 <- FALSE
+      }
       if(!available_d1) {
         model_deriv <- FALSE
         call_slopes <- TRUE
@@ -336,11 +313,7 @@ fitted_draws.bgmfit <-
       }
       check_fun <- TRUE
     }
-    
-    
-    ############################################
-    # if sigma_model == "basic" and all function can be set with deriv 0 -> 1
-    # out[['sigma_model_is_ba_set_d0_as_d1_val']] is zero
+
     if(!is.null(o[['sigma_model_is_ba_set_d0_as_d1']])) {
       if(o[['sigma_model_is_ba_set_d0_as_d1']]) {
         deriv <- o[['sigma_model_is_ba_set_d0_as_d1_val']]
@@ -353,15 +326,14 @@ fitted_draws.bgmfit <-
             sigma_model_is_ba_set_d0_as_d1_funs[[i]]
         }
         check_fun <- FALSE
-      } # o[['sigma_model_is_ba_set_d0_as_d1']]
-    } # if(!is.null(o[['sigma_model_is_ba_set_d0_as_d1']])) {
-    
+      } 
+    } 
 
     if(dpar == "sigma") {
       if(deriv > 0) {
         if(!is.null(o[['sigma_model']])) {
           if(o[['sigma_model']] == "ls") {
-            # nothing
+            #
           } else if(o[['sigma_model']] != "ls") {
             if(!is.null(o[['sigma_model_is_ba_set_d0_as_d1']])) {
               if(!o[['sigma_model_is_ba_set_d0_as_d1']]) {
@@ -375,11 +347,11 @@ fitted_draws.bgmfit <-
               available_d1 <- FALSE
               model_deriv  <- FALSE
               call_slopes  <- TRUE
-            } # if(!is.null(o[['sigma_model_is_ba_set_d0_as_d1']])) else if(is.null
-          } # if(o[['sigma_model']] == "ls") { else if(o[['sigma_model']] ...
-        } # if(!is.null(o[['sigma_model']])) {
-      } # if(deriv > 0) {
-    } # if(dpar == "sigma") {
+            } 
+          } 
+        } 
+      } 
+    }
     
     test <- setupfuns(model = model, resp = resp,
                       o = o, oall = oall,
@@ -392,7 +364,6 @@ fitted_draws.bgmfit <-
     if(is.null(test)) {
       return(invisible(NULL))
     }
-    
     
     if(!isTRUE(
       check_pkg_version_exists('brms', 
@@ -420,12 +391,20 @@ fitted_draws.bgmfit <-
     } else if(indirectcall) {
       calling.args <- full.args
     }
-    
+
     calling.args$object <- full.args$model
     if(is.null(calling.args$newdata)) {
       if(!is.null(newdata)) calling.args$newdata <- newdata
     }
 
+    # if(growthparameters_calling)
+    calling.args <- 
+      sanitize_CustomDoCall_args(what = "CustomDoCall", 
+                                 arguments = calling.args, 
+                                 check_formalArgs = NULL,
+                                 check_formalArgs_exceptions = c('object'),
+                                 check_trace_back = NULL,
+                                 envir = parent.frame())
     
     if(growthparameters_calling) {
       if(!is.null(calling.args$re_formula_opt)) {
@@ -434,12 +413,9 @@ fitted_draws.bgmfit <-
         } else if(calling.args$re_formula_opt == "v") {
           calling.args$re_formula <- NA
         }
-      } # if(!is.null(calling.args$re_formula_opt)) {
-    } # if(growthparameters_calling) {
+      } 
+    } 
     
-    
-    
-    # 6.03.2025
     if(is.null(newdata) & !indirectcall ) {
       calling.args_newdata         <- calling.args
       calling.args_newdata$model   <- calling.args_newdata$object
@@ -457,9 +433,7 @@ fitted_draws.bgmfit <-
       rm('get.newdata_args')
       calling.args$newdata <- newdata
     }
-    
-    
-    # 6.03.2025
+
     if(!indirectcall & !growthparameters_calling) {
       if(is.null(newdata)) {
         calling.args_newdata         <- calling.args
@@ -474,20 +448,17 @@ fitted_draws.bgmfit <-
         calling.args$newdata <- newdata
       }
     }
-    
-    # 6.03.2025
+
     if(is.null(full.args$newdata)) {
       full.args$newdata <- calling.args$newdata
     }
-    
-    # set up mesage
+
     if(check_fun) {
       if(!available_d1) {
         message_for_model_deriv_FALSE <- ""
         message_for_model_deriv_FALSE <- 
           paste0(message_for_model_deriv_FALSE, "\n",
                  "calculating deriv by differentiation of distance curve")
-        
         if(is.null(ipts)) {
           message_for_model_deriv_FALSE <- 
             paste0(message_for_model_deriv_FALSE, "\n",
@@ -500,18 +471,9 @@ fitted_draws.bgmfit <-
             paste0(message_for_model_deriv_FALSE, "\n",
                    "A better approach would be use 'get_predictions()' ",
                    "instead")
-        } # if(grepl("fitted_draws", rlang_trace_back[[1]]) |
-      } # if(!available_d1) {
-    } # if(check_fun) {
-    
-    
-    calling.args <- 
-      sanitize_CustomDoCall_args(what = "CustomDoCall", 
-                                 arguments = calling.args, 
-                                 check_formalArgs = NULL,
-                                 check_formalArgs_exceptions = c('object'),
-                                 check_trace_back = NULL,
-                                 envir = parent.frame())
+        } 
+      } 
+    } 
     
     if(!exists('check_fun')) check_fun <- FALSE
     if(!exists('available_d1')) available_d1 <- FALSE
@@ -524,7 +486,6 @@ fitted_draws.bgmfit <-
     if(!check_fun) {
       . <- CustomDoCall(fitted, calling.args)
     }
-    
     
     if(!check_fun) {
       if(deriv == 0) {
@@ -539,8 +500,8 @@ fitted_draws.bgmfit <-
         } else {
           if(verbose) message("transform_draws function is NULL, check it")
         }
-      } # if(deriv = 0) {
-    } # if(!check_fun) {
+      } 
+    } 
     
     if(!indirectcall) {
       if(dpar == "sigma") {
@@ -566,11 +527,8 @@ fitted_draws.bgmfit <-
                                             transform_draws = transform_draws,
                                             itransform = itransform,
                                             verbose = verbose)
-          
-          # Imp to assign calling.args[['transform_draws']] 
           calling.args[['transform_draws']] <- transform_draws
         }
-        
         
         if(sigma_model == "basic") {
           if(!is.null(ipts)) {
@@ -580,7 +538,6 @@ fitted_draws.bgmfit <-
                  "Currently, you have set this argument as ipts = ", ipts)
           }
         }
-        
         msg_sigma_model_no_xvar <- 
           paste0("Although 'xvar' is strictly not required for estimating 
            distance curve when sigma_model = ",  collapse_comma(sigma_model), 
@@ -592,15 +549,15 @@ fitted_draws.bgmfit <-
         clean_msg_sigma_model_no_xvar <- trimws(gsub("\\s+", " ",
                                                      msg_sigma_model_no_xvar))
         
-        
         if(sigma_model != "ls" && !need_xvar_must && !need_velocity_curve) {
-          # if(sigma_model == "basic" && !need_velocity_curve) {
           if(is.null(xvar)) {
             if(verbose) {
               message(clean_msg_sigma_model_no_xvar)
             }
           }
         }
+        
+        if(is.null(difx)) difx <- xvar
         
         if(sigma_model != "ls" && need_velocity_curve) {
           xvar <- check_set_xvar_sigma(model = model, 
@@ -637,13 +594,11 @@ fitted_draws.bgmfit <-
           calling.args[['xvar']] <- xvar
           calling.args[['difx']] <- difx
           calling.args$newdata <- newdata
-        } # if(sigma_model == "basic") {
-      } # if(dpar == "sigma") {
-    } # if(!indirectcall) {
-    
+        } 
+      }
+    } 
     
     if(indirectcall) {
-      # plot_curves() and growthparameters()
       if(dpar == "sigma") {
         if(!is.null(model$model_info[["which_sigma_model"]])) {
           if(model$model_info[['which_sigma_model']] == "basic") {
@@ -652,14 +607,12 @@ fitted_draws.bgmfit <-
           } else if(model$model_info[['which_sigma_model']] != "basic") {
             calling.args[['xvar']] <- xvar
           }
-        } # if(!is.null(model$model_info[["which_sigma_model"]])) {
-      } # if(dpar == "sigma") {
-      
+        } 
+      } 
       if(dpar != "sigma") {
         calling.args[['xvar']] <- xvar
-      } # if(dpar != "sigma") {
-      
-    } # if(indirectcall) {
+      } 
+    } 
   
     if(!is.null(attr(calling.args$newdata, 'difx'))) {
       calling.args[['difx']] <- difx <- attr(calling.args$newdata, 'difx')
@@ -703,17 +656,17 @@ fitted_draws.bgmfit <-
             mapderivqr_args[['summary']] <- calling.args[['summary']]
             mapderivqr_args[['robust']] <- calling.args[['robust']]
             mapderivqr_args[['dpar']] <- calling.args[['dpar']]
+            mapderivqr_args[['cov']] <- calling.args[['cov']]
             mapderivqr_args[['verbose']] <- calling.args[['verbose']]
             . <- CustomDoCall(mapderivqr, mapderivqr_args)
           }
-        } # if(deriv > 0) {
-      } # if(check_fun) {
-    } # if(!plot_conditional_effects_calling) {
+        } 
+      } 
+    } 
     
     full.args <-
       sanitize_CustomDoCall_args(what = "CustomDoCall",
                                  arguments = full.args,
-                                 # check_formalArgs = plot_conditional_effects.bgmfit,
                                  check_formalArgs_exceptions = c('object'),
                                  check_trace_back = NULL,
                                  envir = parent.frame())
@@ -766,14 +719,14 @@ fitted_draws.bgmfit <-
             mapderivqr_args[['summary']] <- calling.args[['summary']]
             mapderivqr_args[['robust']] <- calling.args[['robust']]
             mapderivqr_args[['dpar']] <- calling.args[['dpar']]
+            mapderivqr_args[['cov']] <- calling.args[['cov']]
             mapderivqr_args[['verbose']] <- calling.args[['verbose']]
             . <- CustomDoCall(mapderivqr, mapderivqr_args)
           }
-        } # if(deriv > 0) {
-      } # if(check_fun) {
-    } # if(plot_conditional_effects_calling) {
-
-   
+        } 
+      }
+    } 
+    
     assign(o[[1]], model$model_info[['exefuns']][[o[[1]]]], envir = envir)
    
     if(!is.null(eval(full.args$clearenvfuns))) {
@@ -810,7 +763,7 @@ fitted_draws.bgmfit <-
           }
         }
       })
-    } # if(setcleanup) {
+    }
     
     
     full.args$idata_method <- idata_method
@@ -843,10 +796,9 @@ fitted_draws.bgmfit <-
         idvar <- idvar
         if(length(idvar) > 1) idvar <- idvar[1]
         yvar  <- 'yvar'
-      } # if(eval(full.args$fullframe)) {
-    } # if(!is.null(eval(full.args$fullframe))) {
+      }
+    }
 
-    
     if(!is.null(eval(full.args$fullframe))) {
       if(eval(full.args$fullframe)) {
         if(!eval(full.args$summary)) {
@@ -891,9 +843,9 @@ fitted_draws.bgmfit <-
         if(any(itransform_set != "")) {
           . <- prepare_transformations(data = ., model = model, 
                                        itransform = itransform_set) 
-        } # if(any(itransform_set != "")) {
-      } # if(setfullframe) {
-    } # if (!is.na(model$model_info$univariate_by$by)) {
+        }
+      } 
+    }
     
     if (is.na(model$model_info$univariate_by$by)) {
       if(!is.null(eval(full.args$fullframe))) {
@@ -908,9 +860,9 @@ fitted_draws.bgmfit <-
       if(any(itransform_set != "")) {
        . <- prepare_transformations(data = ., model = model, 
                                     itransform = itransform_set) 
-      } # if(any(itransform_set != "")) {
-    } # if (is.na(model$model_info$univariate_by$by)) {
-    . 
+      } 
+    } 
+    return(.) 
   } # end fitted_draws
 
 
@@ -920,4 +872,5 @@ fitted_draws.bgmfit <-
 fitted_draws <- function(model, ...) {
   UseMethod("fitted_draws")
 }
+
 

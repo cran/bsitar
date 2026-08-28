@@ -112,7 +112,7 @@ Defaults to \code{TRUE}.}
 of continuous covariate(s). The default \code{NULL} option sets the
 continuous covariate(s) to their mean. Alternatively, a named list can be
 supplied to manually set these values. For example, \code{numeric_cov_at =
-  list(xx = 2)} will set the continuous covariate variable 'xx' to 2. The
+list(xx = 2)} will set the continuous covariate variable 'xx' to 2. The
 argument \code{numeric_cov_at} is ignored when no continuous covariates are
 included in the model.}
 
@@ -139,13 +139,13 @@ parameters are integrated over the random effects). For example,
 be passed to the \code{ipts} argument (see below). This is useful when
 fitting location-scale models and measurement error models. If
 post-processing functions throw an error such as \code{variable 'x' not
-  found in either 'data' or 'data2'}, consider using \code{aux_variables}.}
+found in either 'data' or 'data2'}, consider using \code{aux_variables}.}
 
 \item{grid_add}{An optional argument to specify the variable(s) that can be
 passed to the \code{\link[marginaleffects:datagrid]{marginaleffects::datagrid()}}. This is useful when fitting
 location-scale models and measurement error models. If
 post-processing functions throw an error such as \code{variable 'x' not
-  found in either 'data' or 'data2'}, consider using \code{grid_add}.
+found in either 'data' or 'data2'}, consider using \code{grid_add}.
 Note that unlike \code{aux_variables} which are passed to the internal data
 functions such as \code{'get.newdata'}, the \code{grid_add} are passed to
 the \code{\link[marginaleffects:datagrid]{marginaleffects::datagrid()}}.}
@@ -201,16 +201,16 @@ posterior distribution before computing summaries (default \code{NULL}).
 The argument \code{transform_draws} is derived from the
 \code{\link[marginaleffects:predictions]{marginaleffects::predictions()}} function and should not be confused with
 the \code{transform} argument from the deprecated
-\code{\link[brms:posterior_predict.brmsfit]{brms::posterior_predict()}} function. It's important to note that for both
-\code{\link[marginaleffects:predictions]{marginaleffects::predictions()}} and \code{\link[marginaleffects:predictions]{marginaleffects::avg_predictions()}},
+\code{\link[brms:posterior_predict]{brms::posterior_predict()}} function. It's important to note that for both
+\code{\link[marginaleffects:predictions]{marginaleffects::predictions()}} and \code{\link[marginaleffects:avg_predictions]{marginaleffects::avg_predictions()}},
 the \code{transform_draws} argument takes precedence over the
 \code{transform} argument. Note that when \code{transform_draws = NULL}, an
 attempt is made to automatically set \code{transform_draws = 'exp'} for
 \code{dpar = 'sigma'}. User can set  \code{transform_draws = FALSE} to turn
 off this automatic assignment of \code{'exp'} to the
 \code{transform_draws}. It is also important to set \code{transform_draws =
-  FALSE} when computing the first derivative (velocity) for \code{dpar =
-  'sigma'}.}
+FALSE} when computing the first derivative (velocity) for \code{dpar =
+'sigma'}.}
 
 \item{scale}{Either \code{"response"} or \code{"linear"}.
 If \code{"response"}, results are returned on the scale
@@ -228,14 +228,14 @@ the individual-specific predictor range. Setting \code{xrange = 1} applies
 the same range for individuals within the same higher grouping variable
 (e.g., study). Setting \code{xrange = 2} applies an identical range across
 the entire sample. Alternatively, a numeric vector (e.g., \code{xrange =
-  c(6, 20)}) can be provided to set the range within the specified values.}
+c(6, 20)}) can be provided to set the range within the specified values.}
 
 \item{xrange_search}{A vector of length two or a character string
 \code{'range'} to set the range of the predictor variable (\code{x}) within
 which growth parameters are searched. This is useful when there is more
 than one peak and the user wants to summarize the peak within a specified
 range of the \code{x} variable. The default value is \code{xrange_search =
-  NULL}.}
+NULL}.}
 
 \item{parms_eval}{A logical value to specify whether or not to compute growth
 parameters on the fly. This is for internal use only and is mainly needed
@@ -243,7 +243,7 @@ for compatibility across internal functions.}
 
 \item{parms_method}{A character string specifying the method used when
 evaluating \code{parms_eval}. The default method is \code{getPeak}, which
-uses the \code{\link[sitar:getPeakTrough]{sitar::getPeak()}} function from the \code{sitar} package.
+uses the \code{\link[sitar:getPeak]{sitar::getPeak()}} function from the \code{sitar} package.
 Alternatively, \code{findpeaks} uses the \code{findpeaks} function from the
 \code{pracma} package. This parameter is for internal use and ensures
 compatibility across internal functions.}
@@ -275,7 +275,7 @@ to print information collected during the setup of the object(s).}
 \item{fullframe}{A logical value indicating whether to return a
 \code{fullframe} object in which \code{newdata} is bound to the summary
 estimates. Note that \code{fullframe} cannot be used with \code{summary =
-  FALSE}, and it is only applicable when \code{idata_method = 'm2'}. A
+FALSE}, and it is only applicable when \code{idata_method = 'm2'}. A
 typical use case is when fitting a \code{univariate_by} model. This option
 is mainly for internal use.}
 
@@ -327,7 +327,7 @@ automatically. A use case for \code{funlist} is when \code{sigma_formula},
 function (e.g., \code{poly(age)}). The \code{funlist} should include
 function names defined in the \code{globalenv()}. For functions needing
 both distance and velocity curves (e.g., \code{plot_curves(..., opt =
-  'dv')}), \code{funlist} must include two functions: one for the distance
+'dv')}), \code{funlist} must include two functions: one for the distance
 curve and one for the velocity curve.}
 
 \item{xvar}{A character string (default \code{NULL}) specifying the
@@ -340,7 +340,7 @@ internally. A use case is when conflicting variables exist (e.g.,
 \code{'x'} variable that should be used for manual differentiation of the
 distance curve. Internally, the \code{xvar} is set as \code{difx} if
 specified. The argument \code{difx} is evaluated only when \code{dpar =
-  'sigma'}, ignored otherwise. Note that argument \code{xvar} itself is rarely
+'sigma'}, ignored otherwise. Note that argument \code{xvar} itself is rarely
 used because \code{xvar} is inferred internally. A use case is when
 conflicting variables exist (e.g., \code{sigma_formula}) and user wants to
 set a specific variable as \code{'x'}.}
@@ -351,7 +351,7 @@ internally.}
 
 \item{itransform}{A character string (default \code{NULL}) indicating the
 variables names that are reverse transformed. Options are  \code{c("x",
-  "y", "sigma")}. The \code{itransform} is primarily used to get the
+"y", "sigma")}. The \code{itransform} is primarily used to get the
 \code{xvar} variable at original scale i.e., \code{itransform = 'x'}. To
 turn of all transformations, use \code{itransform = ""}. when
 \code{itransform = NULL}, the appropriate transformation for \code{xvar} is
@@ -359,22 +359,29 @@ selected automatically. Note that when no match for \code{xvar} is found in
 the \code{data,frame}, the \code{itransform} will be ignored within the
 calling function, \code{'prepare_transformations()'}.}
 
-\item{newdata_fixed}{An indicator to specify whether to check data
-format and structure for the user provided \code{newdata}, and apply needed
-\code{prepare_data2} and \code{prepare_transformations}
-(\code{newdata_fixed = NULL}, default), return user provided \code{newdata}
-(\code{newdata = TRUE}) as it is without checking for the data format or
-applying \code{prepare_data2} and \code{prepare_transformations}
-(\code{newdata_fixed = 0}), check for the data format and if needed,
-prepare data format using \code{prepare_data2} (\code{newdata_fixed = 1}),
-or apply \code{prepare_transformations} only assuming that data format is
-correct (\code{newdata_fixed = 2}). It is strongly recommended that user
-either leave the \code{newdata = NULL} and \code{newdata_fixed = NULL} in
-which case data used in the model fitting is automatically retrieved and
-checked for the required data format and transformations, and if needed,
-\code{prepare_data2} and \code{prepare_transformations} are applied
-internally. The other flags provided for  \code{newdata_fixed = 0, 1, 2}
-are mainly for the internal use during post-processing.}
+\item{newdata_fixed}{An indicator specifying how to handle the format and
+structure of the user-provided \code{newdata} before use. The available
+options are:
+\itemize{
+\item \code{NULL} (default): Checks the data format and structure of
+\code{newdata}, and applies \code{prepare_data2} and
+\code{prepare_transformations} as needed.
+\item \code{TRUE}: Returns \code{newdata} as-is, without any format
+checking or transformation.
+\item \code{0}: Same as \code{TRUE} — returns \code{newdata} without
+checking the data format or applying \code{prepare_data2} and
+\code{prepare_transformations}.
+\item \code{1}: Checks the data format and, if needed, prepares it using
+\code{prepare_data2}, but does not apply \code{prepare_transformations}.
+\item \code{2}: Applies \code{prepare_transformations} only, assuming the
+data format is already correct.
+}
+It is strongly recommended to leave both \code{newdata = NULL} and
+\code{newdata_fixed = NULL} (the defaults). In this case, the data used
+during model fitting is automatically retrieved, checked for the required
+format, and transformed as needed via \code{prepare_data2} and
+\code{prepare_transformations}. The flags \code{newdata_fixed = 0},
+\code{1}, and \code{2} are intended primarily for internal use.}
 
 \item{envir}{The environment used for function evaluation. The default is
 \code{NULL}, which sets the environment to \code{parent.frame()}. Since

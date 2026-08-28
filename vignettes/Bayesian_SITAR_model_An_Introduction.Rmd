@@ -73,7 +73,7 @@ Human physical growth is not a smooth progression through time; it is inherently
 As the concept of change is central to studying growth, an accurate understanding of growth dynamics and the relationship between different growth phases can only be obtained from longitudinal growth data [@RN6071; @RN5278a]. Analyzing longitudinal growth data using an appropriate statistical method allows for the description of growth trajectories (distance and velocity) and the estimation of the timing and intensity of the adolescent growth spurt. Unlike in earlier years, when linear growth curve models (GCMs) based on conventional polynomials were extensively used to study human growth [@RN6217], nonlinear mixed-effects models are now gaining popularity in modeling longitudinal skeletal growth data, such as height [@RN6217; @RN6071a].
 
 
-\newline
+\newpage
 ## SITAR growth curve model - an overview
 The superimposition by translation and rotation (SITAR) model is a shape-invariant nonlinear mixed-effects growth curve model that fits a population average (i.e., mean) curve to the data and aligns each individual's growth trajectory to the population average curve using a set of three random effects [@Cole2010]: size relative to the mean growth curve (vertical shift), timing of the adolescent growth spurt relative to the average age at peak growth velocity (horizontal shift), and the intensity of the growth spurt compared to the mean growth intensity (horizontal stretch). The concept of the shape-invariant model (SIM) was first described by @Lindstrom1995 and later used by @Beath2007 for modeling infant growth data (birth to 2 years). The current version of the SITAR model that we describe below was developed by @Cole2010. The SITAR model is particularly useful for modeling human physical growth during adolescence. Recent studies have used SITAR to analyze height and weight data [@nembidzaneUsingSITARMethod2020; @mansukoskiLifeCourseAssociations2019; @coleFiftyYearsChild2018; @riddellClassifyingGestationalWeight2017], as well as to study jaw growth during adolescence [@Sandhu2020]. All of these studies estimated the SITAR model within the frequentist framework, as implemented in the R package, 'sitar' [@R-sitar].
 
@@ -98,7 +98,7 @@ Where **Spl(.)** is the natural cubic spline function that generates the spline 
 <br/>
 
 
-\newline
+\newpage
 ## Bayesian SITAR model - Univariate formulation
 Here we describe the Bayesian model specification for a two-level SITAR model along with the default priors specified for each parameter. To better understand the data-generative mechanism and to simplify the presentation of prior specifications for each individual parameter, we re-express the model in Equation \ref{eq:1} as follows: 
 
@@ -140,8 +140,8 @@ in Stan, the variance covariance matrix $\mathbf {\Sigma_{ID}}$ is decomposed in
 diagonal of the matrix. The assumption of homoscedasticity (constant variance) of the residuals can be relaxed. A detailed description of the prior distributions for each parameter is provided in below Section [priors].
 
 
-\newline
-##### Priors
+\newpage
+## Priors
 We follow the recommendations made in the popular packages
 [rstanrm](https://rdrr.io/cran/rstanarm/man/priors.html) and
 [brms](https://rdrr.io/cran/brms/man/set_prior.html)
@@ -183,7 +183,27 @@ See [brms](https://rdrr.io/cran/brms/man/set_prior.html) for more details.
 * For the spline coefficients, we assign a normal prior with the location set to $\beta_{\text{lm}}$, the vector of spline coefficients obtained from a linear model fit to the data. The scale is defined as the standard deviation of the spline design matrix $X_{\text{Spl}}$ multiplied by the default scaling factor $1.0$ i.e., `normal(lm, lm, autoscale = FALSE)`.
 
 
-\newline
+\newpage
+## Initials
+We use the default initial values recommended by the author of the 'bsitar'
+package. Under these default settings, user-specified initial values are
+assigned to the fixed-effect growth parameters (a, b, c, d) and the spline
+coefficients, while random initial values are assigned to the
+variance–covariance parameters, drawn uniformly from [−2,2] on the unconstrained
+scale. For the fixed-effect parameter a and the spline coefficients, initial
+values are obtained by fitting a simple linear model to the data; for the
+remaining fixed-effect parameters (b, c and d), the initial values are set to
+zero. Note that the sitar package uses a similar approach for setting initial
+values for the fixed-effect parameters. A similar approach is used for the
+covariate-specific growth parameters (a, b, c, and d): initial values for
+parameter a are obtained from a simple linear model fit to the data, while the
+remaining fixed-effect parameters (b, c and d) are assigned an initial value of
+zero. Note that the 'bsitar' package allows full control in specifying custom
+initial values for each of the fixed effects as well as the random effects
+(variance covariance parameters as well as the residual variance) via dedicated
+argument.
+
+\newpage
 ## Bayesian SITAR model - Multivariate formulation
 The [univariate][Bayesian SITAR model - Univariate formulation] described earlier can be easily extended to analyze two or more outcomes simultaneously. Consider two outcomes $Y1$ and $Y2$ (e.g., height and weight) measured repeatedly on $j$ individuals (`j = 1,..,j`) where individual $j$ provides $n_j$ measurements ($i = 1,.., n_j$) of $y_{ij}^\text{Y1}$ (outcome $Y1$) and $y_{ij}^\text{Y2}$ (outcome $Y2$) recorded at age, $x_{ij}$. A multivariate model is then written as follows:
 
@@ -240,7 +260,7 @@ The [univariate][Bayesian SITAR model - Univariate formulation] described earlie
 \zeta_0^\text{Y2} & \sim \operatorname{normal}(\ 0, 2.0) \\
 \gamma_0^\text{Y1} & \sim \operatorname{normal}(\ 0, 1.0) \\
 \gamma_0^\text{Y2} & \sim \operatorname{normal}(\ 0, 1.0) \\
-\beta_1^\text{Y1} \text{,..,} \beta_r^\text{Y1} & \sim \operatorname{normal}(\ \mathbf {\beta^\text{Y2}_{lm}}, \ \mathbf {X^\text{Y1}_{Spl}}) \\
+\beta_1^\text{Y1} \text{,..,} \beta_r^\text{Y1} & \sim \operatorname{normal}(\ \mathbf {\beta^\text{Y1}_{lm}}, \ \mathbf {X^\text{Y1}_{Spl}}) \\
 \beta_1^\text{Y2} \text{,..,} \beta_r^\text{Y2} & \sim \operatorname{normal}(\ \mathbf {\beta^\text{Y2}_{lm}}, \ \mathbf {X^\text{Y2}_{Spl}}) \\
 \alpha_j^\text{Y1}   & \sim \operatorname{normal_{Half}}(\ {0},\  {y^\text{Y1}_{sd}}) \\
 \alpha_j^\text{Y2}   & \sim \operatorname{normal_{Half}}(\ {0},\  {y^\text{Y2}_{sd}}) \\
@@ -262,7 +282,7 @@ Where $^\text{Y1}$ and $^\text{Y2}$ superscripts indicate which variable is conn
 
 
 
-\newline
+\newpage
 ## Model estimation - frequentist vs. Bayesian
 There are two competing philosophies of model estimation [@bland1998; @Schoot2014]: the Bayesian (based on Bayes' theorem) and the frequentist (e.g., maximum likelihood estimation). While the frequentist approach was predominant in earlier years, the advent of powerful computers has given new impetus to Bayesian analysis [@bland1998; @Schoot2014; @hamra2013]. As a result, Bayesian statistical methods are becoming increasingly popular in applied and fundamental research. The key difference between Bayesian statistical inference and frequentist statistical methods concerns the nature of the unknown parameters. In the frequentist framework, a parameter of interest is assumed to be unknown, but fixed. That is, it is assumed that in the population, there is only one true population parameter— for example, one true mean or one true regression coefficient. In the Bayesian view of subjective probability, all unknown parameters are treated as uncertain and, therefore, should be described by a probability distribution [@Schoot2014]. A particularly attractive feature of Bayesian modeling is its ability to handle otherwise complex model specifications, such as hierarchical models (i.e., multilevel/mixed-effects models) that involve nested data structures (e.g., repeated height measurements in individuals) [@hamra2013]. Bayesian statistical methods are becoming increasingly popular in applied and clinical research [@Schoot2014].
 

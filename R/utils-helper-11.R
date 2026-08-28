@@ -2,31 +2,9 @@
 
 #' An internal function to prepare initial values
 #' 
-#' For \code{univariate_by} and \code{multivariate} models (see
-#' [bsitar::bsitar()]) each argument is automatically matched with the sub
-#' model.
-#'
-#' @param init_argument A list containing the prior arguments specified in  
-#' the [bsitar::bsitar()] function and then passed from the 
-#' [bsitar::set_priors_initials()] function to the \code{prepare_priors}. 
-#' 
-#' @param init_internal_args An internal argument (as named list) specified in  
-#' the [bsitar::bsitar()] function and then passed from the 
-#' [bsitar::set_priors_initials()] function to the \code{prepare_priors}. 
-#'
-#' @return A list of initial values. 
-#' 
-#' @author Satpal Sandhu  \email{satpal.sandhu@bristol.ac.uk}
-#' 
-#' @keywords internal
 #' @noRd
 #' 
-prepare_initials <- function(init_argument,
-                             init_internal_args) {
-  
-  ##############################################
-  # Initiate non formalArgs()
-  ##############################################
+prepare_initials <- function(init_argument, init_internal_args) {
   seed <- NULL;
   initsi <- NULL;
   parm <- NULL;
@@ -53,64 +31,51 @@ prepare_initials <- function(init_argument,
   nrep_of_parms_q <- NULL;
   cortimeNlags <- NULL;
   gr_init_cor <- NULL;
-  
-  
+
   if (!is.null(init_internal_args)) {
     eout <- list2env(init_internal_args)
     for (eoutii in names(eout)) {
       assign(eoutii, eout[[eoutii]])
     }
   }
-  
   if (!is.null(init_internal_args$init_argument)) {
     eout <- list2env(init_internal_args$init_argument)
     for (eoutii in names(eout)) {
       assign(eoutii, eout[[eoutii]])
     }
   }
-  
   if (!is.null(init_internal_args$prior_data)) {
     eout <- list2env(init_internal_args$prior_data)
     for (eoutii in names(eout)) {
       assign(eoutii, eout[[eoutii]])
     }
   }
-  
   if (!is.null(init_internal_args$prior_data_internal)) {
     eout <- list2env(init_internal_args$prior_data_internal)
     for (eoutii in names(eout)) {
       assign(eoutii, eout[[eoutii]])
     }
   }
-  
   if (!is.null(init_internal_args$prior_internal_args)) {
     eout <- list2env(init_internal_args$prior_internal_args)
     for (eoutii in names(eout)) {
       assign(eoutii, eout[[eoutii]])
     }
   }
-  
-  
   if (!is.null(init_internal_args$init_data)) {
     eout <- list2env(init_internal_args$init_data)
     for (eoutii in names(eout)) {
       assign(eoutii, eout[[eoutii]])
     }
   }
-  
   if (!is.null(init_internal_args$init_data_internal)) {
     eout <- list2env(init_internal_args$init_data_internal)
     for (eoutii in names(eout)) {
       assign(eoutii, eout[[eoutii]])
     }
   }
-  
   set.seed(seed)
-  
-  # For standardized group level effects as implemented in the centerized 
-  # parametrisation approach used in the brms package. 
   init_argument_z <- "r_init_z"
-  
   if (initsi == "0") {
     assign(init_argument, "0")
   }
@@ -123,26 +88,20 @@ prepare_initials <- function(init_argument,
     assign(init_argument, "prior")
     assign(init_argument_z, "prior")
   }
-  
   check_form_0       <- paste0(parm, "_", 'form_0')
   nparcov            <- paste0(parm, "ncov")
   check_form_0_gr    <- paste0(parm, "_", 'form_0_gr')
   nparcov_gr         <- paste0(parm, "ncov_gr")
   check_sigma_form_0 <- paste0('sigma', "_", 'form_0')
-  
   if(nparcov == 'nsigmacov') nparcov <- 'nsigmacov'
-  
   abcrandomelements <-
     strsplit(gsub("\\+", " ", randomsi), " ")[[1]]
-  
   if (!is.null(init_data[[1]])) {
     eout <- list2env(init_data)
     for (eoutii in names(eout)) {
       assign(eoutii, eout[[eoutii]])
     }
   }
-  
-
   abcrandomelements_c <- c()
   count_ <- 0
   for (abcrandomelements_i in abcrandomelements) {
@@ -157,19 +116,11 @@ prepare_initials <- function(init_argument,
       abcrandomelements_c <- c(abcrandomelements_c, abcrandomelements_i)
     }
   }
-  
   abcrandomelements <- abcrandomelements_c
   abcrandomelements <- unique(abcrandomelements)
-  
   c_t_nabcri <- length(abcrandomelements)
-  # nabcri <- length(c_t_nabcri)
-  
-  
   suffix <-
     strsplit(init_argument, "_")[[1]][length(strsplit(init_argument, "_")[[1]])]
-  
-  
-  # define function to check validity of the initials options specified
   check_evalation_of_numeric_init_obj <-
     function(eit,
              check,
@@ -294,7 +245,6 @@ prepare_initials <- function(init_argument,
               const_msg
             )
           }
-          
         }
         if (check == 'dist') {
           stop2c(
@@ -328,12 +278,8 @@ prepare_initials <- function(init_argument,
             const_msg
           )
         }
-        # rm(err.)
       }
     }
-  
-  
-  # define function to create correlation matrix
   create_cor_mat <- function(n, cor = NULL) {
     n_elements <- n
     m <- diag(n_elements)
@@ -350,15 +296,10 @@ prepare_initials <- function(init_argument,
              length(x))
     }
     m_lower[lower.tri(m_lower, diag = FALSE)] <- x
-    # m_lower <- unlist(m_lower)
-    
     m_upper <- t(m_lower)
     M <- m_lower + m + m_upper
     M
   }
-  
-  
-  # define function evaluation initials based on priors
   eval_prior_based_init <-
     function(dist,
              class,
@@ -473,17 +414,12 @@ prepare_initials <- function(init_argument,
           paste0("runif", "\\(", length_args, ", ")
         init_str_arg_out_init <-
           gsub(z_replace_itn, z_replace_byn, pstrarg)
-      } else if (dist == "xxxxxxxxx") {
-        # placeholder for fututre expansion
       }
-      
       if (class == 'cor' | class == 'rescor') {
         setlkjcorr <- function (K, eta = 1) {
-          # set number of realizations
           n <- 100
           stopifnot(is.numeric(K), K >= 2, K == as.integer(K))
           stopifnot(eta > 0)
-          #if (K == 1) return(matrix(1, 1, 1))
           f <- function() {
             alpha <- eta + (K - 2) / 2
             r12 <- 2 * rbeta(1, alpha, alpha) - 1
@@ -510,7 +446,6 @@ prepare_initials <- function(init_argument,
           }
           return(R)
         }
-        
         z_replace_itn    <- paste0(dist, "\\(")
         z_replace_byn    <-
           paste0("setlkjcorr", "\\(", length_args, ", ")
@@ -523,7 +458,6 @@ prepare_initials <- function(init_argument,
         Rcoravg <- Reduce("+", c_r_list) / length(c_r_list)
         outcor <- Rcoravg
       }
-      
       if (class != 'cor' & class != 'rescor') {
         out  <- ept(init_str_arg_out_init)
         if (dist == "exponential")
@@ -531,32 +465,21 @@ prepare_initials <- function(init_argument,
       } else if (class == 'cor' | class == 'rescor') {
         out  <- outcor
       }
-      
       out
     }
-  
-  
-  
-  ################################################
   # class b - beta
   if ((class == 'b' & suffix == 'beta') |
       class == 'b' & suffix == 'beta' & ept("sigma_dpar") == "sigma") {
-    
     if(ept("sigma_dpar") == "sigma") {
       name_parm <- paste0(class, "_", parm, resp_)
     } else {
       name_parm <- paste0(class, resp_, "_", parm)
     }
-    
     suffix <- 'beta'
-    
     allowed_init_options <- allowed_init_options_beta
-    
     if(!exists('allowed_init_options')) allowed_init_options <- NULL
-    
     lowerbound <- lowerbound
     upperbound <- upperbound
-    
     out_list <- list_collect <- list()
     start_cnt <- 0
     for (name_initialsi in init_argument) {
@@ -564,7 +487,6 @@ prepare_initials <- function(init_argument,
         eit_cov <- TRUE
       else
         eit_cov <- FALSE
-      
       start_cnt <- start_cnt + 1
       if (ept(name_initialsi) != 'NULL') {
         if (ept(name_initialsi) != 'random') {
@@ -581,7 +503,6 @@ prepare_initials <- function(init_argument,
                 lm_gsubby <-
                   paste0("lm", "_", nlpar, "_", "cov", resp_)
             }
-            
             evaluated_init <- ept(lm_gsubby) %>% unname()
           } else if (ept(name_initialsi) == 'ymean') {
             eit <- gsub("ymean",
@@ -623,7 +544,6 @@ prepare_initials <- function(init_argument,
                         paste0("estart", resp_),
                         ept(name_initialsi))
             evaluated_init <- ept(eit) %>% as.numeric()
-            
           } else if (ept(name_initialsi) == 'ymeanxmin') {
             eit <- gsub("ymeanxmin",
                         paste0("ymeanxmin", resp_),
@@ -685,7 +605,6 @@ prepare_initials <- function(init_argument,
       }
       list_collect[[name_initialsi]] <- evaluated_init
     }
-    
     if (!is.null(list_collect[[name_initialsi]])) {
       tempv <- list_collect %>% unlist() %>% unname()
       tempv <- as.numeric(tempv)
@@ -694,9 +613,6 @@ prepare_initials <- function(init_argument,
       out_list[[name_parm]] <- NULL
     }
   }
-  
-  
-  
   if (class == 'b' & suffix == 'beta' & ept("sigma_dpar") != "sigma") {
     if(ept(check_form_0)) {
       if(length(out_list[[name_parm]]) == 1) {
@@ -704,12 +620,8 @@ prepare_initials <- function(init_argument,
       }
     }
   }
-  
-  
-  # Like a b c d e beta when ~ 0 +..., init for sigma are rep of sigma_init_beta 
   if (class == 'b' & suffix == 'beta' & ept("sigma_dpar") == "sigma") {
     if(ept(ept("init_argument")) != 'random' ) {
-      # edited on 07 03 2024
       if(ept(check_form_0)) {
         if(length(out_list[[name_parm]]) == ept(nparcov)) {
           out_list[[name_parm]] <- out_list[[name_parm]]
@@ -733,16 +645,11 @@ prepare_initials <- function(init_argument,
       } 
     } 
   } 
-  
-  
-  ################################################
   # class sd - sd
   if (class == 'sd' & suffix == 'sd' & ept("sigma_dpar") != "sigma" |
-      class == 'sd' & suffix == 'sd' & ept("sigma_dpar") == "sigma"
-  ) {
+      class == 'sd' & suffix == 'sd' & ept("sigma_dpar") == "sigma") {
     name_parm <- paste0('sd', "_", ii)
     suffix <- 'sd'
-    
     if (dist == 'normal' |
         dist == 'cauchy' |
         dist == 'student_t' | dist == 'student_nu') {
@@ -754,12 +661,9 @@ prepare_initials <- function(init_argument,
     } else {
       allowed_init_options <- NULL
     }
-    
     if(!exists('allowed_init_options')) allowed_init_options <- NULL
-    
     lowerbound <- 0
     upperbound <- upperbound
-    
     out_list <- list_collect <- list()
     start_cnt <- 0
     for (name_initialsi in init_argument) {
@@ -771,7 +675,6 @@ prepare_initials <- function(init_argument,
         addcovname <- 'cov'
       else
         addcovname <- NULL
-      
       start_cnt <- start_cnt + 1
       if (ept(name_initialsi) != 'NULL') {
         if (ept(name_initialsi) != 'random') {
@@ -791,8 +694,6 @@ prepare_initials <- function(init_argument,
                    paste0("lme_sd_a", resp_),
                    ept(name_initialsi))
             evaluated_init <- ept(eit) %>% as.numeric()
-            
-            
           } else if (ept(name_initialsi) == 'ysdxmin') {
             eit <-
               gsub("ysdxmin",
@@ -863,7 +764,6 @@ prepare_initials <- function(init_argument,
       }
       list_collect[[name_initialsi]] <- evaluated_init
     }
-    
     if (!is.null(list_collect[[name_initialsi]])) {
       tempv <- list_collect %>% unlist() %>% unname()
       tempv <- as.numeric(tempv)
@@ -883,34 +783,20 @@ prepare_initials <- function(init_argument,
       out_list[[name_parm]] <- NULL
     }
   }
-  
-  
-  
-  
-  
-  ################################################
   # class cor - cor
   if (class == 'cor' & suffix == 'cor') {
-    
     name_parm <- paste0('L', "_", ii)
     suffix <- 'cor'
-    
     allowed_init_options <- NULL
-    
     if(!exists('allowed_init_options')) allowed_init_options <- NULL
-    
     if (!is.null(c_t_nabcri)) {
       NC_dims <- c_t_nabcri
     } else {
       NC_dims <- nabcrei
     }
-    
     NC_cor_elements <- (NC_dims * (NC_dims - 1)) / 2
-    
     lowerbound <- lowerbound
     upperbound <- upperbound
-   
-    
     out_list <- list_collect <- list()
     start_cnt <- 0
     for (name_initialsi in init_argument) {
@@ -949,7 +835,6 @@ prepare_initials <- function(init_argument,
                 length_args = NC_dims
               )
           } else {
-            # 12.05.2025
             if(grepl("list\\(", ept(name_initialsi))) {
               name_initialsi <- ept(name_initialsi) 
               name_initialsi <- ept(name_initialsi) %>% unlist() %>% deparse()
@@ -963,7 +848,6 @@ prepare_initials <- function(init_argument,
             } else {
               set_ept_name_initialsi <- ept(name_initialsi)
             }
-            
             check_evalation_of_numeric_init_obj(
               set_ept_name_initialsi,
               check = 'args',
@@ -975,7 +859,6 @@ prepare_initials <- function(init_argument,
               allowed_init_options = allowed_init_options,
               splitmvar_w2 = splitmvar_w2
             )
-            
             if (is.numeric(ept(name_initialsi)) |
                 !is.null(ept(name_initialsi))) {
               if (length(ept(name_initialsi)) == 1) {
@@ -1004,7 +887,6 @@ prepare_initials <- function(init_argument,
       }
       list_collect[[name_initialsi]] <- evaluated_init
     }
-    
     if (!is.null(list_collect[[name_initialsi]])) {
       tempv <- list_collect %>% unname()
       tempv <- tempv[[1]]
@@ -1014,16 +896,13 @@ prepare_initials <- function(init_argument,
     } else {
       out_list[[name_parm]] <- NULL
     }
-    
-    ####### add "r_init_z"
+    # "r_init_z"
     set_r_init_z <- TRUE
-    
     if (!is.null(c_t_nabcri)) {
       nabcrei_z <- c_t_nabcri
     } else {
       nabcrei_z <- nabcrei
     }
-    
     if (set_r_init_z) {
       name_parm <- paste0('z', "_", addcovname, ii)
       name_initialsi <- init_argument_z
@@ -1102,26 +981,16 @@ prepare_initials <- function(init_argument,
       }
     }
   }
-  
-  
-  
-  
-  ################################################
   # class Lrescor - mvr rescor
   if (class == 'rescor' & suffix == 'rescor') {
     name_parm <- paste0('Lrescor', "_", ii)
     suffix <- 'rescor'
-    
     allowed_init_options <- NULL
-    
     if(!exists('allowed_init_options')) allowed_init_options <- NULL
-    
     NC_dims         <- ept(nys) %>% as.numeric()
     NC_cor_elements <- (NC_dims * (NC_dims - 1)) / 2
-    
     lowerbound <- lowerbound
     upperbound <- upperbound
-    
     out_list <- list_collect <- list()
     start_cnt <- 0
     for (name_initialsi in init_argument) {
@@ -1197,7 +1066,6 @@ prepare_initials <- function(init_argument,
       }
       list_collect[[name_initialsi]] <- evaluated_init
     }
-    
     if (!is.null(list_collect[[name_initialsi]])) {
       tempv <- list_collect %>% unname()
       tempv <- tempv[[1]]
@@ -1206,13 +1074,10 @@ prepare_initials <- function(init_argument,
       out_list[[name_parm]] <- NULL
     }
   }
-  
-  ################################################
   # class sigma
   if (class == 'sigma' & suffix == 'sigma') {
     name_parm <- paste0('sigma', resp_)
     suffix <- 'sigma'
-    
     if (dist == 'normal' |
         dist == 'cauchy' |
         dist == 'student_t' | dist == 'student_nu') {
@@ -1224,12 +1089,9 @@ prepare_initials <- function(init_argument,
     } else {
       allowed_init_options <- NULL
     }
-    
     if(!exists('allowed_init_options')) allowed_init_options <- NULL
-    
     lowerbound <- 0
     upperbound <- upperbound
-    
     out_list <- list_collect <- list()
     start_cnt <- 0
     for (name_initialsi in init_argument) {
@@ -1331,7 +1193,6 @@ prepare_initials <- function(init_argument,
       }
       list_collect[[name_initialsi]] <- evaluated_init
     }
-    
     if (!is.null(list_collect[[name_initialsi]])) {
       tempv <- list_collect %>% unlist() %>% unname()
       tempv <- as.numeric(tempv)
@@ -1347,10 +1208,7 @@ prepare_initials <- function(init_argument,
     }
     
   }
-  
-  
   # sigma modeling via dpar arguments that allows for inclusion of covariates
-  
   if (class == '' &
       dpar != "" & suffix == 'sigma' & !ept(check_sigma_form_0)) {
     if (grepl("dpar_init_sigma", init_argument)) {
@@ -1358,18 +1216,13 @@ prepare_initials <- function(init_argument,
       lowerbound <- 0
       upperbound <- upperbound
     }
-    
     if (grepl("dpar_cov_init_sigma", init_argument)) {
       name_parm <- paste0('b_sigma', resp_)
       lowerbound <- lowerbound
       upperbound <- upperbound
     }
-    
     name_parm <- paste0(name_parm, resp_)
-    
     suffix <- 'sigma'
-    
-    
     if (grepl('Intercept_sigma', name_parm)) {
       if (dist == 'normal' |
           dist == 'cauchy' |
@@ -1385,10 +1238,7 @@ prepare_initials <- function(init_argument,
     } else if (!grepl('Intercept_sigma', name_parm)) {
       allowed_init_options <- NULL
     }
-    
     if(!exists('allowed_init_options')) allowed_init_options <- NULL
-    
-    
     out_list <- list_collect <- list()
     start_cnt <- 0
     for (name_initialsi in init_argument) {
@@ -1466,7 +1316,6 @@ prepare_initials <- function(init_argument,
       }
       list_collect[[name_initialsi]] <- evaluated_init
     }
-    
     if (!is.null(list_collect[[name_initialsi]])) {
       tempv <- list_collect %>% unlist() %>% unname()
       tempv <- as.numeric(tempv)
@@ -1479,26 +1328,17 @@ prepare_initials <- function(init_argument,
     } else {
       out_list[[name_parm]] <- NULL
     }
-    
   }
-  
-  
   
   if (class == '' &
       dpar != "" & suffix == 'sigma' & ept(check_sigma_form_0)) {
     name_parm <- paste0('b_sigma', resp_)
-    
     suffix <- 'sigma'
-    
     covplus1 <- ndparcov + 1
-    
     allowed_init_options <- NULL
-    
     if(!exists('allowed_init_options')) allowed_init_options <- NULL
-    
     lowerbound <- lowerbound
     upperbound <- upperbound
-    
     out_list <- list_collect <- list()
     start_cnt <- 0
     for (name_initialsi in init_argument) {
@@ -1574,7 +1414,6 @@ prepare_initials <- function(init_argument,
       }
       list_collect[[name_initialsi]] <- evaluated_init
     }
-    
     if (!is.null(list_collect[[name_initialsi]])) {
       tempv <- list_collect %>% unlist() %>% unname()
       tempv <- as.numeric(tempv)
@@ -1584,8 +1423,6 @@ prepare_initials <- function(init_argument,
     }
     
   }
-  
-  
   # autocorrelation parameters (ar, ma, and arms)
   if (class == 'ar' | class == 'ma' & suffix == 'acor') {
     if (acorclass == 'arma') {
@@ -1594,24 +1431,16 @@ prepare_initials <- function(init_argument,
     } else {
       name_parm_s <- class
     }
-    
     name_parm_s <- paste0(name_parm_s, resp_)
-    
     allowed_init_options <- NULL
-    
     if(!exists('allowed_init_options')) allowed_init_options <- NULL
-    
     lowerbound <- lowerbound
     upperbound <- upperbound
-    
     suffix <- 'acor'
-    
     out_list <- list()
     for (name_parm in name_parm_s) {
-      
       if(grepl("ar", name_parm)) nrep_of_parms <- nrep_of_parms_p
       if(grepl("ma", name_parm)) nrep_of_parms <- nrep_of_parms_q
-      
       list_collect <- list()
       start_cnt <- 0
       for (name_initialsi in init_argument) {
@@ -1689,31 +1518,18 @@ prepare_initials <- function(init_argument,
       }
     }
   }
-  
-  
   # autocorrelation parameters (unst) -> similar to cor / lrescor
-  
   if (class == 'Lcortime' & suffix == 'acor') {
-    
-    # name_parm <- paste0('Cortime', "_", ii)
-    
     name_parm_s <- class
     name_parm_s <- paste0(name_parm_s, resp_)
-    
-    name_parm <- name_parm_s # paste0('Lcortime', "_", ii)
-    
+    name_parm <- name_parm_s 
     suffix <- 'acor'
-    
     allowed_init_options <- NULL
-    
     if(!exists('allowed_init_options')) allowed_init_options <- NULL
-    
     NC_dims         <- ept(cortimeNlags) %>% as.numeric()
     NC_cor_elements <- (NC_dims * (NC_dims - 1)) / 2
-    
     lowerbound <- lowerbound
     upperbound <- upperbound
-    
     out_list <- list_collect <- list()
     start_cnt <- 0
     for (name_initialsi in init_argument) {
@@ -1789,7 +1605,6 @@ prepare_initials <- function(init_argument,
       }
       list_collect[[name_initialsi]] <- evaluated_init
     }
-    
     if (!is.null(list_collect[[name_initialsi]])) {
       tempv <- list_collect %>% unname()
       tempv <- tempv[[1]]
@@ -1798,19 +1613,13 @@ prepare_initials <- function(init_argument,
       out_list[[name_parm]] <- NULL
     }
   }
-  
-  
-  
   # standardized group level effects (part of centred parametrisation)
-  
   if (any(grepl("_init_sd", init_argument)) &
       gr_init_cor == "NULL") {
     nabcrei_z <- 1
-    ####### add "r_init_z"
     set_r_init_z <- TRUE
     if (set_r_init_z) {
       if (!is.null(ept(nparcov_gr))) {
-        # ept(check_form_0_gr) &
         nabcrei_z <- nabcrei_z * ept(nparcov_gr)
       }
       for (name_initialsi in init_argument_z) {
@@ -1899,10 +1708,8 @@ prepare_initials <- function(init_argument,
       }
     }
   }
-  
   if (!exists('out_list'))
     out_list <- NULL
-  
   return(out_list)
 }
 

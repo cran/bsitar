@@ -89,7 +89,8 @@
 #'   \code{optimize_x} is translated into \code{optimize_x = list(NULL, sqrt)},
 #'   and \code{optimize_y} is reset as \code{optimize_y = list(log, sqrt)}.
 #'
-#' @param add_fit_criteria a
+#' @param add_fit_criteria A character vector specifying the fit criteria to 
+#' be added. See [add_model_criterion()] for details.
 #'
 #' @param byresp A logical (default \code{FALSE}) indicating whether
 #'   response-wise fit criteria should be calculated. This argument is evaluated
@@ -195,10 +196,8 @@ optimize_model.bgmfit <- function(model,
     envir <- envir
   }
   
-
   check_if_package_installed(model, xcall = NULL)
   
-  # Initiate non formalArgs()
   outcome <- NULL;
   xfun <- NULL; 
   yfun <- NULL;
@@ -206,16 +205,13 @@ optimize_model.bgmfit <- function(model,
   Estimate <- NULL;
   . <- NULL;
   Criterion <- NULL;
-  
-  
+
   if (is.null(newdata)) {
     newdata <- model$model_info$bgmfit.data
-    # if(verbose) message("data used in the original model fit set as 'newdata'")
   } else {
     newdata <- newdata
   }
-  
-  
+
   if(!is.null(optimize_x)) {
     if(is.list(optimize_x)) {
       optimize_x <- optimize_x
@@ -240,18 +236,56 @@ optimize_model.bgmfit <- function(model,
     }
   }
   
-  
-  
-  if(!all(sapply(optimize_x, typeof) == "character")) {
-    stop("All elements of argument 'optimize_x' must be character")
+  check_optimize_xy <- function(optimize_x) {
+    if(is.null(optimize_x)) {
+      return(optimize_x)
+    }
+    if(!is.list(optimize_x) & length(optimize_x) == 1) {
+      if(optimize_x == "NULL") return(optimize_x)
+    }
+    
+    ok <- is.list(optimize_x) && all(vapply(
+      optimize_x,
+      function(x) is.null(x) || is.function(x) || is.character(x),
+      logical(1)
+    ))
+    
+    if (!ok) {
+      bad <- which(!vapply(
+        optimize_x,
+        function(x) is.null(x) || is.function(x) || is.character(x),
+        logical(1)
+      ))
+      
+      stop(
+        sprintf(
+          paste0(
+            "Argument 'optimize_x' and 'optimize_y' must be a list whose ",
+            " elements are each NULL, a function, or a character vector. ",
+            " Invalid element(s): %s",
+          ),
+          paste(
+            sprintf(
+              "[[%d]]: type='%s', class='%s'",
+              bad,
+              vapply(optimize_x[bad], typeof, character(1)),
+              vapply(optimize_x[bad], function(x) paste(class(x), 
+                                                        collapse = ", "), 
+                     character(1))
+            ),
+            collapse = "; "
+          )
+        ),
+        call. = FALSE
+      )
+    }
+    
+    invisible(TRUE)
   }
-  
-  if(!all(sapply(optimize_y, typeof) == "character")) {
-    stop("All elements of argument 'optimize_y' must be character")
-  }
-  
-  
-  
+
+  check_optimize_xy(optimize_x)
+  check_optimize_xy(optimize_y)
+ 
   setxcall_   <- match.call()
   post_processing_checks_args <- list()
   post_processing_checks_args[['model']]    <- model
@@ -264,14 +298,10 @@ optimize_model.bgmfit <- function(model,
   post_processing_checks_args[['check_d0']] <- FALSE
   post_processing_checks_args[['check_d1']] <- TRUE
   post_processing_checks_args[['check_d2']] <- FALSE
-  
   o    <- CustomDoCall(post_processing_checks, post_processing_checks_args)
-  
   call_o <- match.call()
   call_o_args <- as.list(call_o)[-1]
-  
   args_o <- as.list(model$model_info$call.full.bgmfit)[-1]
-    
   args_o_dots_ <- list(...)
   if (length(args_o_dots_) > 0) {
     for (i in names(args_o_dots_)) {
@@ -279,7 +309,6 @@ optimize_model.bgmfit <- function(model,
     }
   }
   
-  # Do some checks on save_each at the beginning and not to wait for model fit
   if(is.list(save_each)) {
     if(!is.null(save_each[['prefix']])) {
       if(!is.character(save_each[['prefix']])) 
@@ -297,18 +326,13 @@ optimize_model.bgmfit <- function(model,
       if(!is.character(save_each[['compress']])) 
         stop(paste0(save_each[['compress']], " must be a character"))
     }
-    # if empty list then at least specify 'rds' extension
     if(length(save_each) == 0) {
       save_each[['extension']] <- 'rds'
       if(verbose) 
         message("extension 'rds' added to empty list specified via save_each")
     }
-  } # else if(is.list(save_each)) {
+  } 
   
-  
-  
-
-  # This to evaluate T/F to TRUE/FALSE
   for (i in names(args_o)) {
     if (is.symbol(args_o[[i]])) {
       if (args_o[[i]] == "T")
@@ -323,14 +347,12 @@ optimize_model.bgmfit <- function(model,
       stop("only loo, waic and bayes_R2 criteria are supported")
     }
   }
-  
-  
+
   if("bayes_R2" %in% add_fit_criteria) {
     add_bayes_R <- "bayes_R2"
   } else {
     add_bayes_R <- NULL
   }
-  
   
   need_exposed_function <- FALSE
   if(!is.null(add_fit_criteria)) {
@@ -352,20 +374,16 @@ optimize_model.bgmfit <- function(model,
             "\n ",
             " when adding 'fit criteria' or 'bayes_R'"
           )
-        } # if(is.null(model$model_info$exefuns )) {
-      } # if (!args_o$expose_function) {
-    } # if(is.null(expose_function)) {
-  } # if (need_exposed_function) {
-  
-  
-  
+        } 
+      } 
+    } 
+  } 
+
   if(!is.null(call_o_args$expose_function)) {
     args_o$expose_function <- call_o_args$expose_function
     args_o$expose_function <- eval(args_o$expose_function)
   }
-  
-  
-  
+
   get_args_opt <- function(xo) {
     get_within_fist_last_paranthesese <- function(x__) {
       x__ <- sub('\\(', '[', x__)
@@ -387,18 +405,14 @@ optimize_model.bgmfit <- function(model,
         }
         x__
       }
-    
     xxo <- gsub("[[:space:]]", "", xo)
     xxo_g <- gsub('\"', "", xxo)
     xxo_g2 <- 
       grepl(
         "[-]?[0-9]+[.]?[0-9]*|[-]?[0-9]+[L]?|[-]?[0-9]+[.]?[0-9]*[eE][0-9]+", 
         xxo_g)
-    
     if(any(xxo_g2)) xxo_g3 <- TRUE else xxo_g3 <- FALSE
-    
     numeric_dx <- xxo_g3
-    
     if (xxo != "NULL" & xxo != "\"NULL\"" & !numeric_dx) {
       xxo <- get_within_fist_last_paranthesese(xxo)
       xxo <- gsub_comma_within_paranthesese(xxo, "_comma_")
@@ -421,19 +435,15 @@ optimize_model.bgmfit <- function(model,
   } else if(is.null(optimize_df)) {
     optimize_df <- model$model_info$dfs
   }
-  
-  
+
   optimize_df <- as.factor(optimize_df)
   optimize_x  <- get_args_opt(deparse(substitute(optimize_x)))
   optimize_y  <- get_args_opt(deparse(substitute(optimize_y)))
-  
-  
-  # Need to adjust 'exclude_default' for multivariate ?
+
   temp_f_m_df <- model$model_info$dfs
   temp_f_m_df <- ept(temp_f_m_df) %>% as.factor()
   optimize_df_<- optimize_df
   if (exclude_default) {
-    # Need for temp_f_m.. because model$model_info$xfuns 'NULL' is 'x'
     optimize_df <- setdiff(optimize_df, temp_f_m_df) %>% droplevels()
     temp_f_m_x  <- model$model_info$xfuns
     temp_f_m_x  <- gsub("x", "NULL", temp_f_m_x)
@@ -441,17 +451,12 @@ optimize_model.bgmfit <- function(model,
     temp_f_m_y  <- model$model_info$yfuns
     temp_f_m_y  <- gsub("x", "NULL", temp_f_m_y)
     optimize_y  <- optimize_y[!optimize_y %in% temp_f_m_y]
-    # optimize_x <- optimize_x[!optimize_x %in% model$model_info$xfuns]
-    # optimize_y <- optimize_y[!optimize_y %in% model$model_info$yfuns]
     if (identical(optimize_x, character(0))) optimize_x <- "NULL"
     if (identical(optimize_y, character(0))) optimize_y <- "NULL"
   } else if (!exclude_default) {
     optimize_df_ <- c(temp_f_m_df, optimize_df)
   }
-  
- 
-  
-  
+
   optimize_df_TF <- optimize_x_TF  <- optimize_x_TF  <- TRUE
   if(is.factor(optimize_df)) {
     if(nlevels(optimize_df) == 0) {
@@ -482,19 +487,16 @@ optimize_model.bgmfit <- function(model,
     optimize_y_TF <- FALSE
   }
 
-  
   if(!optimize_df_TF & !optimize_x_TF & !optimize_y_TF) {
     noting_to_opt_msg <- "Nothing to optimize. All three conditions i.e.,
     optimize_df, optimize_x, and optimize_y 
-    are identical to the base model"
+    are identical to the original model"
     message2c(noting_to_opt_msg)
     return(invisible(NULL))
   } else {
     optimize_df <- optimize_df_
   }
-  
- 
-  
+
   optimize_x_temp_c <- c()
   for (i in optimize_x) {
     if(grepl("function(", i, fixed = T)) {
@@ -505,9 +507,7 @@ optimize_model.bgmfit <- function(model,
     optimize_x_temp_c <- c(optimize_x_temp_c, optimize_x_temp)
   }
   optimize_x <- optimize_x_temp_c
- 
-  
-  
+
   optimize_y_temp_c <- c()
   for (i in optimize_y) {
     if(grepl("function(", i, fixed = T)) {
@@ -518,16 +518,7 @@ optimize_model.bgmfit <- function(model,
     optimize_y_temp_c <- c(optimize_y_temp_c, optimize_y_temp)
   }
   optimize_y <- optimize_y_temp_c
-  
-  
-  # if(grepl("function(", optimize_x, fixed = T)) {
-  #   optimize_x <- remove_between_first_last_parnth(optimize_x, splitat = ",")
-  # }
-  # if(grepl("function(", optimize_y, fixed = T)) {
-  #   optimize_y <- remove_between_first_last_parnth(optimize_y, splitat = ",")
-  # }
-  
- 
+
   optimize_df_x_y <-
     expand.grid(optimize_df, optimize_x, optimize_y)
   
@@ -622,8 +613,7 @@ optimize_model.bgmfit <- function(model,
           }
         }
       }
-      
-      
+
       if (!is.na(fit$model_info$univariate_by$by)) {
         for (aci in fit$model_info$yvars) {
           suppressWarnings(fit <- brms::add_criterion(
@@ -645,12 +635,10 @@ optimize_model.bgmfit <- function(model,
         }
         names(fit$criteria) <- aci_names
       }
-    } # if (!is.null(add_fit_criteria))
-    
+    } 
     
     if (!is.null(add_bayes_R)) {
       what_ <- paste(add_bayes_R, collapse = ", ")
-    #  if(verbose) message(" Adding", " ", what_, " ", "...")
       if(verbose) cat("\n")
       if (is.na(fit$model_info$univariate_by$by)) {
         if (!fit$model_info$multivariate$mvar) {
@@ -691,10 +679,7 @@ optimize_model.bgmfit <- function(model,
           }
         }
       }
-      
-      
-      
-      
+ 
       if (!is.na(fit$model_info$univariate_by$by)) {
         for (aci in fit$model_info$yvars) {
           aci_names <- paste0(add_bayes_R, aci)
@@ -709,9 +694,7 @@ optimize_model.bgmfit <- function(model,
           rownames(fit$criteria[[aci_names]]) <- NULL
         }
       }
-    } # if (!is.null(add_bayes_R)) {
-    
-    
+    } 
     
     add_summary_waic <- function(x, digits = 1) {
       summary_waic <- x
@@ -743,9 +726,7 @@ optimize_model.bgmfit <- function(model,
         dplyr::relocate(Parameter, Estimate, SE)
       summary_bayes_R
     }
-    
-    
-    
+
     add_summary_loo <- function(x, digits = 1) {
       summary_loo <- x
       summary_loo$pointwise <- NULL
@@ -781,7 +762,6 @@ optimize_model.bgmfit <- function(model,
         dplyr::relocate(Range, Inference, Count, Percent, Min.n_eff)
       summary_loo_diagnostic
     }
-    
     
     if ('waic' %in% add_fit_criteria) {
       enverr. <- environment()
@@ -839,11 +819,7 @@ optimize_model.bgmfit <- function(model,
       }
       fit$summary_waic <- summary_waic
     }
-    
-    
-    
-    
-    
+
     if ('bayes_R2' %in% add_bayes_R) {
       enverr. <- environment()
       assign('err.', FALSE, envir = enverr.)
@@ -903,9 +879,7 @@ optimize_model.bgmfit <- function(model,
       fit$summary_bayes_R2 <-
         summary_bayes_R2 %>% dplyr::select(-dplyr::all_of('Parameter'))
     }
-    
-    
-    
+
     if ('loo' %in% add_fit_criteria) {
       if ('loo' %in% add_fit_criteria) {
         enverr. <- environment()
@@ -1026,12 +1000,9 @@ optimize_model.bgmfit <- function(model,
         }
         fit$diagnostic_loo <- diagnostic_loo
       }
-    } # if('loo' %in% add_fit_criteria) {
-    
+    } 
     return(fit)
-  } # add_citeria_fun
-  
-  
+  } 
   
   optimize_fun <- function(.x, model, exe_model_fit) {
     message("\nOptimizing model: ",
@@ -1052,7 +1023,6 @@ optimize_model.bgmfit <- function(model,
       yfun <- NULL
     else
       yfun <- yfun
-    
     if (is.null(xfun))
       xfun_print <- deparse(xfun)
     else
@@ -1061,10 +1031,7 @@ optimize_model.bgmfit <- function(model,
       yfun_print <- deparse(yfun)
     else
       yfun_print <- yfun
-    
-    
     df_print <- deparse(df)
-    
     if(grepl("\\(", df_print)) {
       df_print <- 
         regmatches(df_print, gregexpr("(?<=\\().*?(?=\\))", 
@@ -1072,62 +1039,40 @@ optimize_model.bgmfit <- function(model,
     }
     
     df_print <- eval(parse(text = df_print))
-    
-    
     if(verbose) {
       cat("\n")
       cat(paste0("df = ", df_print, "; xfun = ", 
                  xfun_print, "; yfun = ", yfun_print),
           "\n")
     }
-    
-    
+
     optimization_info <-
       paste0("df = ", df_print, "; xfun = ", 
              xfun_print, "; yfun = ", yfun_print)
-    
-    
-    # args_o$model <- model
-    # args_o$df    <- eval(parse(text = df))
-    # args_o$xfun  <- xfun
-    # args_o$yfun  <- yfun
-    # args_o$data  <- newdata %>% data.frame()
-    
-    
-    
-    
-    
+
     if(!is.null(df)) {
       args_o$df    <- eval(parse(text = df))
     } else {
       args_o$df <- 'NULL'
     }
-    
     if(!is.null(xfun)) {
       args_o$xfun  <- xfun 
     } else {
       args_o$xfun <- 'NULL'
     }
-    
     if(!is.null(yfun)) {
       args_o$yfun  <- yfun 
     } else {
       args_o$yfun <- 'NULL'
     }
-    
-    
-    
+
     args_o$model <- model
     args_o$data  <- newdata %>% data.frame()
-    # why args_o$model here?
-    args_o$model  <- NULL
-    
-    args_o_new <- args_o
-    calling    <- model$model_info$call.full.bgmfit
-    
-    args_o_org <- calling
+    args_o$model <- NULL
+    args_o_new   <- args_o
+    calling      <- model$model_info$call.full.bgmfit
+    args_o_org      <- calling
     args_o_org[[1]] <- NULL
-    
     args_o_new$data <- NULL
     args_o_org$data <- NULL
     
@@ -1137,19 +1082,15 @@ optimize_model.bgmfit <- function(model,
       if(length(args_o_new$xfun) == 1) args_o_new$xfun <- args_o_new$xfun[[1]]
       if(length(args_o_new$yfun) == 1) args_o_new$yfun <- args_o_new$yfun[[1]]
     }
-    
-    
+
     all_same_args_c <- all_same_args <- c()
-    # args_o_org_updated <- list()
     for (args_oi in names(args_o_new)) {
       all_same_args_c <- c(all_same_args_c, identical(args_o_org[[args_oi]],
                                                       args_o_new[[args_oi]]) 
       )
     }
     
-    
     all_same_args_c_diffs <- args_o_new[!all_same_args_c]
-    
     if(length(all_same_args_c_diffs) > 0) {
       all_same_args <- FALSE 
     } else {
@@ -1157,8 +1098,6 @@ optimize_model.bgmfit <- function(model,
     }
     
     mandatory_opts <- c('df', 'xfun', 'yfun')
-    
-    
     if(all_same_args) {
       if(verbose) {
         cat("\n")
@@ -1176,18 +1115,12 @@ optimize_model.bgmfit <- function(model,
       for (newargsi in names(newargs)) {
         if(!is.null(user_call[[newargsi]])) user_call[[newargsi]] <- NULL
       }
-      
-      
-      
+
       newargs[['data']] <- base::str2lang("newdata")
       user_call <- rlang::call_modify(user_call, !!!newargs)
-      
       user_call$expose_function <- FALSE
-      
-     
       transform_allowed_dist <- 
         c('normal', 'student_t', 'student_nu', 'cauchy', 'lognormal')
-      
       if(is.null(transform_beta_coef)) {
         transform_beta_a <- transform_beta_b <- 
           transform_beta_c <- transform_beta_d <- transform_beta_s <- FALSE
@@ -1218,7 +1151,6 @@ optimize_model.bgmfit <- function(model,
           transform_beta_s <- FALSE
         }
       }
-      
       
       if(is.null(transform_sd_coef)) {
         transform_sd_a <- transform_sd_b <- 
@@ -1282,9 +1214,7 @@ optimize_model.bgmfit <- function(model,
           transform_class_dpar <- FALSE
         }
       }
-      
-     
-      
+
       if(!is.null(args_o$yfun)) {
         if(args_o$yfun == "log") {
           set_fxls <- 'log'
@@ -1332,7 +1262,6 @@ optimize_model.bgmfit <- function(model,
                   if(!transform_beta_s & !transform_class_beta) 
                     transform_beta_coef_tf <- FALSE
                 } 
-                
                 if(!is.null(user_call[[user_calli]])) {
                   if(transform_beta_coef_tf) {
                     tem_dist <- deparse(user_call[[user_calli]][[1]])
@@ -1553,15 +1482,11 @@ optimize_model.bgmfit <- function(model,
                   }
                 }
               }
-              
-            } # if(grepl("_prior", user_calli)) {
-          } # for (user_calli in names(user_call)) {
-        } # if(args_o$yfun == "log") {
-      } # if(!is.null(args_o$yfun == "log")) {
-      
-      
-      
-      
+            } 
+          } 
+        } 
+      } 
+
       if(check_if_arg_set(user_call$xfun)) {
         if(grepl("^list", user_call$xfun)) {
           user_call$xfun <- ept(user_call$xfun)
@@ -1581,7 +1506,6 @@ optimize_model.bgmfit <- function(model,
       }
     
       fit <- eval(user_call)
-  
       if(!exe_model_fit) {
         return(fit)
       }
@@ -1591,9 +1515,7 @@ optimize_model.bgmfit <- function(model,
       } else {
         class_fit <- FALSE
       }
-      
-      
-      
+
       if(args_o$expose_function) {
         if(is.null(envir)) {
           if(!is.null(fit$model_info$exefuns[[1]])) {
@@ -1615,7 +1537,7 @@ optimize_model.bgmfit <- function(model,
               usesavedfuns <- FALSE
             }
           }
-        } else { # if(!is.null(usesavedfuns)) {
+        } else {
           if(!usesavedfuns) {
             if(expose_function) {
               fit <- 
@@ -1626,19 +1548,15 @@ optimize_model.bgmfit <- function(model,
             check_if_functions_exists(fit, checks = TRUE, 
                                       usesavedfuns = usesavedfuns)
           }
-        } # if(is.null(envir)) {...
-      } # if(args_o$expose_function) {
-    } # else if(!all_same_args) {
-    
-    
-    
+        } 
+      } 
+    } 
     
     if(!is.null(fit)) {
       fit$model_info$optimization_info <- optimization_info
       fit$model_info$optimize_df <- df_print
       fit$model_info$optimize_x <- xfun_print
       fit$model_info$optimize_y <- yfun_print
-      
       if (fit$model_info$multivariate$mvar) {
         if (byresp) {
           setresp <- 'TRUE'
@@ -1648,7 +1566,6 @@ optimize_model.bgmfit <- function(model,
       } else if (!fit$model_info$multivariate$mvar) {
         setresp <- NULL
       }
-      
       if (!is.null(add_fit_criteria)) {
         enverr. <- environment()
         assign('err.', FALSE, envir = enverr.)
@@ -1682,15 +1599,13 @@ optimize_model.bgmfit <- function(model,
             message(conditionMessage(e))
           }
         )
-        
         err. <- get('err.', envir = enverr.)
         if (err.) {
           fit <- fit
         } else {
           fit <- fit_ac
-        } # tryCatch
-      } # if (!is.null(add_fit_criteria)) {
-      
+        } 
+      } 
       if (!is.null(add_bayes_R)) {
         enverr. <- environment()
         assign('err.', FALSE, envir = enverr.)
@@ -1724,17 +1639,14 @@ optimize_model.bgmfit <- function(model,
             message(conditionMessage(e))
           }
         )
-        
         err. <- get('err.', envir = enverr.)
         if (err.) {
           fit <- fit
         } else {
           fit <- fit_rs
-        } # tryCatch
-      } # if (!is.null(add_bayes_R)) {
-    } # if(!is.null(fit)) {
-    
-    
+        }
+      } 
+    } 
     
     sanitize_string_for_valid <- function(x, parnthesis_to_underscrore = F) {
       tempx <- x
@@ -1745,9 +1657,7 @@ optimize_model.bgmfit <- function(model,
       tempx <- gsub("([._])|[[:punct:]]", "\\1", tempx)
       tempx
     }
-    
-    
-    
+
     if(!is.null(save_each)) {
       if(!is.list(save_each)) {
         if(!isFALSE(save_each)) {
@@ -1808,13 +1718,10 @@ optimize_model.bgmfit <- function(model,
         if(extension_is == 'RDATA') {
           save(fit, file = string_saving, compress = compress_is)
         }
-
-      } # else if(is.list(save_each)) {
-    } # if(!is.null(save_each)) {
-    
+      } 
+    } 
     return(fit)
   }
-  
   
   exe_model_fit <- TRUE
   if(args_o$get_stancode |
@@ -1827,18 +1734,12 @@ optimize_model.bgmfit <- function(model,
      args_o$get_init_eval) {
     exe_model_fit <- FALSE
   }
-  
-  
-  
   optimize_list <- lapply(1:nrow(optimize_df_x_y), function(.x)
     optimize_fun(.x, model, exe_model_fit))
-  
-  
   if(!exe_model_fit) {
     return(optimize_list)
   }
-  
-  
+
   if(!is.null(optimize_list[[1]])) {
     loo_fit             <- combine_summaries(optimize_list, 'summary_loo')
     loo_diagnostic_fit  <-
@@ -1853,26 +1754,18 @@ optimize_model.bgmfit <- function(model,
         dplyr::mutate(Parameter = 'bayes_R2') %>% 
         dplyr::relocate(df, xfun, yfun, Parameter)
     }
-    
-    
-   ###########################################
-    
-    
+
     attributes(optimize_list) <- NULL
-    
     optimize_summary <- data.frame()
-    
     if(exists('loo_fit')) {
       if(!is.null(loo_fit)) {
         loo_fit <- loo_fit %>% 
           dplyr::mutate(Criterion = 'loo') %>% 
           dplyr::relocate(Criterion, .before = dplyr::all_of('Parameter'))
       }
-      
       optimize_summary <- optimize_summary %>% 
         dplyr::bind_rows(., loo_fit)
     }
-    
     if(exists('loo_diagnostic_fit')) {
       if(!is.null(loo_diagnostic_fit)) {
         loo_diagnostic_fit <- loo_diagnostic_fit %>% 
@@ -1886,8 +1779,6 @@ optimize_model.bgmfit <- function(model,
           dplyr::relocate(Parameter, .before = dplyr::all_of('Range')) %>% 
           dplyr::relocate(Estimate, .before = dplyr::all_of('Range'))
       }
-      
-        
       optimize_summary <- optimize_summary %>% 
         dplyr::bind_rows(., loo_diagnostic_fit)
     }
@@ -1898,7 +1789,6 @@ optimize_model.bgmfit <- function(model,
           dplyr::mutate(Criterion = 'waic') %>% 
           dplyr::relocate(Criterion, .before = dplyr::all_of('Parameter'))
       }
-     
       optimize_summary <- optimize_summary %>% 
         dplyr::bind_rows(., waic_fit)
     }
@@ -1909,14 +1799,10 @@ optimize_model.bgmfit <- function(model,
         dplyr::mutate(Criterion = 'Bayes_R2') %>% 
         dplyr::relocate(Criterion, .before = dplyr::all_of('Parameter'))
       }
-   
       optimize_summary <- optimize_summary %>% 
         dplyr::bind_rows(., bayes_R2_fit)
     }
-    
-   ########################################
-    
-    
+
     if(nrow(optimize_summary) > 0) {
       comment_optimize_summary <- 
         paste("Notes:",
@@ -1933,11 +1819,9 @@ optimize_model.bgmfit <- function(model,
     } else {
       optimize_summary <- NULL
     }
-    
     out <- list(models = optimize_list, optimize_summary = optimize_summary)
-    
     return(out)
-  } # if(!is.null(optimize_list[[1]])) {
+  }
   
 }
 
